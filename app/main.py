@@ -1,0 +1,47 @@
+from contextlib import asynccontextmanager
+from typing import Any
+
+from fastapi import Depends, FastAPI
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.auth.api.routes import router as auth_router
+from app.organizations.api.routes import router as organizations_router
+from app.projects.api.routes import router as projects_router
+from app.tasks.api.routes import router as tasks_router
+from app.workspaces.api.routes import router as workspaces_router
+from app.shared.config.settings import get_settings
+from app.shared.database.session import engine, get_db_session
+from app.shared.errors.handlers import register_exception_handlers
+from app.shared.logging.setup import configure_logging
+
+settings = get_settings()
+configure_logging(settings.log_level)
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    yield
+    await engine.dispose()
+
+
+app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
+register_exception_handlers(app)
+app.include_router(auth_router)
+app.include_router(organizations_router)
+app.include_router(workspaces_router)
+app.include_router(projects_router)
+app.include_router(tasks_router)
+
+
+@app.get("/health", tags=["system"])
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/ready", tags=["system"])
+async def ready(
+    session: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    await session.execute(text("SELECT 1"))
+    return {"status": "ready", "database": "ok"}

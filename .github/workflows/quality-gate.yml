@@ -1,0 +1,116 @@
+name: Quality Gate
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: reis_os_test
+          POSTGRES_USER: reis_os
+          POSTGRES_PASSWORD: reis_os
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U reis_os -d reis_os_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_ENV: test
+      DATABASE_URL: postgresql+psycopg://reis_os:reis_os@localhost:5432/reis_os_test
+      TEST_DATABASE_URL: postgresql+psycopg://reis_os:reis_os@localhost:5432/reis_os_test
+      SECRET_KEY: ci-test-secret-not-for-production
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Preparar evidências
+        run: mkdir -p artifacts
+
+      - name: Aplicar migrations
+        run: alembic upgrade head
+
+      - name: Ruff
+        run: ruff check app tests migrations
+
+      - name: Mypy
+        run: mypy app
+
+      - name: Testes unitários
+        run: |
+          pytest -m "not integration" \
+            --junitxml=artifacts/pytest-unit.xml \
+            --cov=app \
+            --cov-report=xml:artifacts/coverage-unit.xml
+
+      - name: Testes de integração
+        run: |
+          pytest -m integration \
+            --junitxml=artifacts/pytest-integration.xml \
+            --cov=app \
+            --cov-append \
+            --cov-report=xml:artifacts/coverage.xml
+
+      - name: Subir API
+        run: |
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 \
+            > artifacts/api.log 2>&1 &
+          echo $! > artifacts/api.pid
+
+      - name: Aguardar API
+        run: |
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8000/health; then
+              exit 0
+            fi
+            sleep 1
+          done
+
+          cat artifacts/api.log
+          exit 1
+
+      - name: Validar readiness
+        run: curl --fail http://127.0.0.1:8000/ready
+
+      - name: Registrar metadados da execução
+        if: always()
+        run: |
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "python=$(python --version 2>&1)"
+            echo "timestamp=$(date --utc --iso-8601=seconds)"
+          } > artifacts/execution.txt
+
+      - name: Enviar evidências
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gate-evidence
+          path: artifacts/
+          if-no-files-found: warn

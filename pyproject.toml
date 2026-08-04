@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reis-os-backend"
+version = "0.3.0"
+description = "REIS OS Platform backend"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.116,<1.0",
+  "uvicorn[standard]>=0.35,<1.0",
+  "sqlalchemy>=2.0,<3.0",
+  "alembic>=1.16,<2.0",
+  "psycopg[binary]>=3.2,<4.0",
+  "pydantic-settings>=2.10,<3.0",
+  "python-jose[cryptography]>=3.5,<4.0",
+  "passlib>=1.7,<2.0",
+  "email-validator>=2.2,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.4,<9.0",
+  "pytest-asyncio>=1.1,<2.0",
+  "httpx>=0.28,<1.0",
+  "ruff>=0.12,<1.0",
+  "mypy>=1.17,<2.0",
+  "aiosqlite>=0.21,<1.0",
+  "pytest-cov>=6.2,<7.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+  "integration: tests that exercise the API and persistence adapters",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["migrations/versions"]
+
+[[tool.mypy.overrides]]
+module = ["jose.*", "passlib.*"]
+ignore_missing_imports = true
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["tests*", "migrations*", "artifacts*"]
