@@ -11,6 +11,7 @@ from tests.conftest import TestSessionLocal
 
 pytestmark = pytest.mark.integration
 
+
 async def register(
     client: AsyncClient, *, email: str, display_name: str
 ) -> dict[str, Any]:
@@ -32,9 +33,7 @@ def authorization(token: str) -> dict[str, str]:
 
 @pytest.mark.asyncio
 async def test_register_login_and_me(client: AsyncClient) -> None:
-    registered = await register(
-        client, email="owner@example.com", display_name="Owner"
-    )
+    registered = await register(client, email="owner@example.com", display_name="Owner")
     token = registered["access_token"]
 
     me_response = await client.get("/auth/me", headers=authorization(token))
@@ -51,9 +50,7 @@ async def test_register_login_and_me(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_create_organization_is_atomic_and_audited(client: AsyncClient) -> None:
-    registered = await register(
-        client, email="owner@example.com", display_name="Owner"
-    )
+    registered = await register(client, email="owner@example.com", display_name="Owner")
     response = await client.post(
         "/organizations",
         headers=authorization(registered["access_token"]),

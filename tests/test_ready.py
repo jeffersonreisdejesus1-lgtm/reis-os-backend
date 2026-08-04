@@ -3,6 +3,7 @@ from httpx import AsyncClient
 
 pytestmark = pytest.mark.integration
 
+
 @pytest.mark.asyncio
 async def test_ready(client: AsyncClient) -> None:
     response = await client.get("/ready")

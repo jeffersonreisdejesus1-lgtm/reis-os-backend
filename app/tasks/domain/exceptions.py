@@ -9,6 +9,4 @@ class InvalidTaskTransitionError(TaskDomainError):
     def __init__(self, current: TaskStatus, target: TaskStatus) -> None:
         self.current = current
         self.target = target
-        super().__init__(
-            f"Invalid task transition: {current.value} -> {target.value}."
-        )
+        super().__init__(f"Invalid task transition: {current.value} -> {target.value}.")

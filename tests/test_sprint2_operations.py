@@ -12,6 +12,7 @@ from tests.conftest import TestSessionLocal
 
 pytestmark = pytest.mark.integration
 
+
 async def register(client: AsyncClient, email: str) -> dict[str, Any]:
     response = await client.post(
         "/auth/register",
@@ -21,7 +22,9 @@ async def register(client: AsyncClient, email: str) -> dict[str, Any]:
     return response.json()
 
 
-async def create_org(client: AsyncClient, token: str, name: str, slug: str) -> dict[str, Any]:
+async def create_org(
+    client: AsyncClient, token: str, name: str, slug: str
+) -> dict[str, Any]:
     response = await client.post(
         "/organizations",
         headers={"Authorization": f"Bearer {token}"},
@@ -44,7 +47,12 @@ async def test_complete_workspace_project_task_flow(client: AsyncClient) -> None
     workspace_response = await client.post(
         "/workspaces",
         headers=scoped,
-        json={"name": "Engineering", "slug": "engineering", "type": "atelier", "description": "Product engineering"},
+        json={
+            "name": "Engineering",
+            "slug": "engineering",
+            "type": "atelier",
+            "description": "Product engineering",
+        },
     )
     assert workspace_response.status_code == 201, workspace_response.text
     workspace = workspace_response.json()
@@ -53,7 +61,11 @@ async def test_complete_workspace_project_task_flow(client: AsyncClient) -> None
     project_response = await client.post(
         "/projects",
         headers=scoped,
-        json={"workspace_id": workspace["id"], "title": "Sprint 2", "description": "Operational core"},
+        json={
+            "workspace_id": workspace["id"],
+            "title": "Sprint 2",
+            "description": "Operational core",
+        },
     )
     assert project_response.status_code == 201, project_response.text
     project = project_response.json()
@@ -78,7 +90,10 @@ async def test_complete_workspace_project_task_flow(client: AsyncClient) -> None
     task_response = await client.post(
         f"/projects/{project['id']}/tasks",
         headers=scoped,
-        json={"title": "Implement domain transitions", "assignee_id": user["user"]["id"]},
+        json={
+            "title": "Implement domain transitions",
+            "assignee_id": user["user"]["id"],
+        },
     )
     assert task_response.status_code == 201, task_response.text
     task = task_response.json()
@@ -104,29 +119,56 @@ async def test_complete_workspace_project_task_flow(client: AsyncClient) -> None
     assert listed.json()[0]["status"] == "done"
 
     async with TestSessionLocal() as session:
-        actions = list((await session.scalars(select(AuditEventModel.action).where(AuditEventModel.organization_id == UUID(organization["id"])))).all())
+        actions = list(
+            (
+                await session.scalars(
+                    select(AuditEventModel.action).where(
+                        AuditEventModel.organization_id == UUID(organization["id"])
+                    )
+                )
+            ).all()
+        )
         assert "WorkspaceCreated" in actions
         assert "ProjectCreated" in actions
         assert "ProjectTransitioned" in actions
         assert "TaskCreated" in actions
         assert "TaskTransitioned" in actions
-        assert await session.scalar(select(func.count()).select_from(AuditEventModel)) >= 10
+        assert (
+            await session.scalar(select(func.count()).select_from(AuditEventModel))
+            >= 10
+        )
 
 
 @pytest.mark.asyncio
-async def test_organization_isolation_for_operational_resources(client: AsyncClient) -> None:
+async def test_organization_isolation_for_operational_resources(
+    client: AsyncClient,
+) -> None:
     user_a = await register(client, "a@example.com")
     org_a = await create_org(client, user_a["access_token"], "Organization A", "org-a")
     a_headers = headers(user_a["access_token"], org_a["id"])
-    workspace = (await client.post("/workspaces", headers=a_headers, json={"name": "A", "slug": "a", "type": "department"})).json()
-    project = (await client.post("/projects", headers=a_headers, json={"workspace_id": workspace["id"], "title": "Secret"})).json()
+    workspace = (
+        await client.post(
+            "/workspaces",
+            headers=a_headers,
+            json={"name": "A", "slug": "a", "type": "department"},
+        )
+    ).json()
+    project = (
+        await client.post(
+            "/projects",
+            headers=a_headers,
+            json={"workspace_id": workspace["id"], "title": "Secret"},
+        )
+    ).json()
 
     user_b = await register(client, "b@example.com")
     org_b = await create_org(client, user_b["access_token"], "Organization B", "org-b")
     b_headers = headers(user_b["access_token"], org_b["id"])
 
     cross_org_header = headers(user_b["access_token"], org_a["id"])
-    denied_context = await client.get(f"/projects/{project['id']}", headers=cross_org_header)
+    denied_context = await client.get(
+        f"/projects/{project['id']}", headers=cross_org_header
+    )
     assert denied_context.status_code == 404
     assert denied_context.json()["error"]["code"] == "organization_not_found"
 
@@ -136,10 +178,18 @@ async def test_organization_isolation_for_operational_resources(client: AsyncCli
 
 
 @pytest.mark.asyncio
-async def test_project_requires_workspace_from_same_organization(client: AsyncClient) -> None:
+async def test_project_requires_workspace_from_same_organization(
+    client: AsyncClient,
+) -> None:
     user_a = await register(client, "one@example.com")
     org_a = await create_org(client, user_a["access_token"], "One", "one")
-    workspace_a = (await client.post("/workspaces", headers=headers(user_a["access_token"], org_a["id"]), json={"name": "One", "slug": "one", "type": "project_space"})).json()
+    workspace_a = (
+        await client.post(
+            "/workspaces",
+            headers=headers(user_a["access_token"], org_a["id"]),
+            json={"name": "One", "slug": "one", "type": "project_space"},
+        )
+    ).json()
 
     user_b = await register(client, "two@example.com")
     org_b = await create_org(client, user_b["access_token"], "Two", "two")

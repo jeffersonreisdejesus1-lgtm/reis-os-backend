@@ -23,7 +23,9 @@ router = APIRouter(prefix="/organizations", tags=["organizations"])
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]
 
 
-@router.post("", response_model=OrganizationCreatedResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=OrganizationCreatedResponse, status_code=status.HTTP_201_CREATED
+)
 async def create(
     payload: OrganizationCreateRequest,
     current_user: CurrentUser,

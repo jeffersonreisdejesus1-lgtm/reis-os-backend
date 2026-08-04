@@ -22,9 +22,19 @@ class WorkspaceModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     type: Mapped[WorkspaceType] = mapped_column(
-        Enum(WorkspaceType, native_enum=False, length=30, values_callable=lambda e: [i.value for i in e])
+        Enum(
+            WorkspaceType,
+            native_enum=False,
+            length=30,
+            values_callable=lambda e: [i.value for i in e],
+        )
     )
     status: Mapped[WorkspaceStatus] = mapped_column(
-        Enum(WorkspaceStatus, native_enum=False, length=20, values_callable=lambda e: [i.value for i in e]),
+        Enum(
+            WorkspaceStatus,
+            native_enum=False,
+            length=20,
+            values_callable=lambda e: [i.value for i in e],
+        ),
         default=WorkspaceStatus.ACTIVE,
     )

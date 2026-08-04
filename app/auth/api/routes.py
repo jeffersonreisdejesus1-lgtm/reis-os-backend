@@ -22,7 +22,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]
 
 
-@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
+)
 async def register(payload: RegisterRequest, session: DbSession) -> AuthResponse:
     user = UserModel(
         email=str(payload.email).lower(),

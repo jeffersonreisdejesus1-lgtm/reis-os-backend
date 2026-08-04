@@ -6,6 +6,7 @@ from app.main import app
 
 pytestmark = pytest.mark.integration
 
+
 @pytest.mark.asyncio
 async def test_health(client: AsyncClient) -> None:
     response = await client.get("/health")

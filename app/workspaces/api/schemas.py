@@ -15,7 +15,9 @@ class WorkspaceCreateRequest(BaseModel):
 
 class WorkspaceUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
-    slug: str | None = Field(default=None, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=100)
+    slug: str | None = Field(
+        default=None, pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=100
+    )
     description: str | None = Field(default=None, max_length=4000)
     archive: bool = False
 

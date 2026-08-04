@@ -22,7 +22,16 @@ def snapshot(workspace: WorkspaceModel) -> dict[str, str | None]:
     }
 
 
-async def create_workspace(session: AsyncSession, *, organization_id: UUID, current_user: UserModel, name: str, slug: str, description: str | None, type: WorkspaceType) -> WorkspaceModel:
+async def create_workspace(
+    session: AsyncSession,
+    *,
+    organization_id: UUID,
+    current_user: UserModel,
+    name: str,
+    slug: str,
+    description: str | None,
+    type: WorkspaceType,
+) -> WorkspaceModel:
     workspace = WorkspaceModel(
         organization_id=organization_id,
         name=name.strip(),
@@ -34,28 +43,73 @@ async def create_workspace(session: AsyncSession, *, organization_id: UUID, curr
     session.add(workspace)
     try:
         await session.flush()
-        add_audit_event(session, organization_id=organization_id, actor_user_id=current_user.id, action="WorkspaceCreated", entity_type="workspace", entity_id=workspace.id, before_data=None, after_data=snapshot(workspace))
+        add_audit_event(
+            session,
+            organization_id=organization_id,
+            actor_user_id=current_user.id,
+            action="WorkspaceCreated",
+            entity_type="workspace",
+            entity_id=workspace.id,
+            before_data=None,
+            after_data=snapshot(workspace),
+        )
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
-        raise AppError("Workspace slug is already in use.", code="workspace_slug_conflict", status_code=409) from exc
+        raise AppError(
+            "Workspace slug is already in use.",
+            code="workspace_slug_conflict",
+            status_code=409,
+        ) from exc
     await session.refresh(workspace)
     return workspace
 
 
-async def get_workspace(session: AsyncSession, *, organization_id: UUID, workspace_id: UUID) -> WorkspaceModel:
-    workspace = await session.scalar(select(WorkspaceModel).where(WorkspaceModel.id == workspace_id, WorkspaceModel.organization_id == organization_id))
+async def get_workspace(
+    session: AsyncSession, *, organization_id: UUID, workspace_id: UUID
+) -> WorkspaceModel:
+    workspace = await session.scalar(
+        select(WorkspaceModel).where(
+            WorkspaceModel.id == workspace_id,
+            WorkspaceModel.organization_id == organization_id,
+        )
+    )
     if workspace is None:
-        raise AppError("Workspace not found.", code="workspace_not_found", status_code=404)
+        raise AppError(
+            "Workspace not found.", code="workspace_not_found", status_code=404
+        )
     return workspace
 
 
-async def list_workspaces(session: AsyncSession, *, organization_id: UUID) -> list[WorkspaceModel]:
-    return list((await session.scalars(select(WorkspaceModel).where(WorkspaceModel.organization_id == organization_id).order_by(WorkspaceModel.name))).all())
+async def list_workspaces(
+    session: AsyncSession, *, organization_id: UUID
+) -> list[WorkspaceModel]:
+    return list(
+        (
+            await session.scalars(
+                select(WorkspaceModel)
+                .where(WorkspaceModel.organization_id == organization_id)
+                .order_by(WorkspaceModel.name)
+            )
+        ).all()
+    )
 
 
-async def update_workspace(session: AsyncSession, *, organization_id: UUID, workspace_id: UUID, current_user: UserModel, name: str | None, slug: str | None, description: str | None, fields_set: set[str], archive: bool) -> WorkspaceModel:
-    workspace = await get_workspace(session, organization_id=organization_id, workspace_id=workspace_id)
+async def update_workspace(
+    session: AsyncSession,
+    *,
+    organization_id: UUID,
+    workspace_id: UUID,
+    current_user: UserModel,
+    name: str | None,
+    slug: str | None,
+    description: str | None,
+    fields_set: set[str],
+    archive: bool,
+) -> WorkspaceModel:
+    workspace = await get_workspace(
+        session, organization_id=organization_id, workspace_id=workspace_id
+    )
     before = snapshot(workspace)
     action = "WorkspaceUpdated"
     if name is not None:
@@ -69,10 +123,23 @@ async def update_workspace(session: AsyncSession, *, organization_id: UUID, work
         action = "WorkspaceArchived"
     try:
         await session.flush()
-        add_audit_event(session, organization_id=organization_id, actor_user_id=current_user.id, action=action, entity_type="workspace", entity_id=workspace.id, before_data=before, after_data=snapshot(workspace))
+        add_audit_event(
+            session,
+            organization_id=organization_id,
+            actor_user_id=current_user.id,
+            action=action,
+            entity_type="workspace",
+            entity_id=workspace.id,
+            before_data=before,
+            after_data=snapshot(workspace),
+        )
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
-        raise AppError("Workspace slug is already in use.", code="workspace_slug_conflict", status_code=409) from exc
+        raise AppError(
+            "Workspace slug is already in use.",
+            code="workspace_slug_conflict",
+            status_code=409,
+        ) from exc
     await session.refresh(workspace)
     return workspace
