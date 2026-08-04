@@ -44,7 +44,7 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC"]
-
+ignore = ["B008"]
 [tool.mypy]
 python_version = "3.12"
 strict = true
@@ -58,3 +58,4 @@ ignore_missing_imports = true
 [tool.setuptools.packages.find]
 include = ["app*"]
 exclude = ["tests*", "migrations*", "artifacts*"]
+
