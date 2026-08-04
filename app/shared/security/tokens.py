@@ -1,5 +1,5 @@
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from jose import JWTError, jwt
@@ -16,7 +16,7 @@ def create_access_token(user_id: UUID) -> str:
         minutes=settings.access_token_expire_minutes
     )
     payload: dict[str, Any] = {"sub": str(user_id), "exp": expires_at}
-    return jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM)
+    return cast(str, jwt.encode(payload, settings.secret_key, algorithm=ALGORITHM))
 
 
 def decode_access_token(token: str) -> UUID:
