@@ -5,8 +5,19 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.api.dependencies import CurrentUser
-from app.projects.api.schemas import ProjectCreateRequest, ProjectResponse, ProjectTransitionRequest, ProjectUpdateRequest
-from app.projects.application.service import create_project, get_project, list_projects, transition_project, update_project
+from app.projects.api.schemas import (
+    ProjectCreateRequest,
+    ProjectResponse,
+    ProjectTransitionRequest,
+    ProjectUpdateRequest,
+)
+from app.projects.application.service import (
+    create_project,
+    get_project,
+    list_projects,
+    transition_project,
+    update_project,
+)
 from app.shared.database.session import get_db_session
 from app.shared.security.organization import CurrentOrganizationId
 

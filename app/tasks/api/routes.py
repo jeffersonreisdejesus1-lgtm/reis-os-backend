@@ -7,8 +7,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.api.dependencies import CurrentUser
 from app.shared.database.session import get_db_session
 from app.shared.security.organization import CurrentOrganizationId
-from app.tasks.api.schemas import TaskCreateRequest, TaskResponse, TaskTransitionRequest, TaskUpdateRequest
-from app.tasks.application.service import create_task, list_tasks, transition_task, update_task
+from app.tasks.api.schemas import (
+    TaskCreateRequest,
+    TaskResponse,
+    TaskTransitionRequest,
+    TaskUpdateRequest,
+)
+from app.tasks.application.service import (
+    create_task,
+    list_tasks,
+    transition_task,
+    update_task,
+)
 
 router = APIRouter(tags=["tasks"])
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]

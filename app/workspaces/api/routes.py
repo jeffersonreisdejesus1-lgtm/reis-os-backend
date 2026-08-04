@@ -7,8 +7,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.api.dependencies import CurrentUser
 from app.shared.database.session import get_db_session
 from app.shared.security.organization import CurrentOrganizationId
-from app.workspaces.api.schemas import WorkspaceCreateRequest, WorkspaceResponse, WorkspaceUpdateRequest
-from app.workspaces.application.service import create_workspace, get_workspace, list_workspaces, update_workspace
+from app.workspaces.api.schemas import (
+    WorkspaceCreateRequest,
+    WorkspaceResponse,
+    WorkspaceUpdateRequest,
+)
+from app.workspaces.application.service import (
+    create_workspace,
+    get_workspace,
+    list_workspaces,
+    update_workspace,
+)
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 DbSession = Annotated[AsyncSession, Depends(get_db_session)]

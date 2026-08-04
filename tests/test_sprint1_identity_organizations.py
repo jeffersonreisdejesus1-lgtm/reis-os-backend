@@ -9,8 +9,6 @@ from app.memberships.domain.enums import MembershipRole, MembershipStatus
 from app.memberships.infrastructure.models import MembershipModel
 from tests.conftest import TestSessionLocal
 
-
-
 pytestmark = pytest.mark.integration
 
 async def register(

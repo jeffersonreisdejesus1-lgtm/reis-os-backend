@@ -10,8 +10,6 @@ from app.projects.domain.enums import ProjectStatus
 from app.tasks.domain.enums import TaskStatus
 from tests.conftest import TestSessionLocal
 
-
-
 pytestmark = pytest.mark.integration
 
 async def register(client: AsyncClient, email: str) -> dict[str, Any]:

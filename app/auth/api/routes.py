@@ -6,7 +6,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.api.dependencies import CurrentUser
-from app.auth.api.schemas import AuthResponse, LoginRequest, RegisterRequest, UserResponse
+from app.auth.api.schemas import (
+    AuthResponse,
+    LoginRequest,
+    RegisterRequest,
+    UserResponse,
+)
 from app.shared.database.session import get_db_session
 from app.shared.errors.exceptions import AppError
 from app.shared.security.passwords import hash_password, verify_password

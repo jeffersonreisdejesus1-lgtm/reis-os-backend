@@ -8,12 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.api.routes import router as auth_router
 from app.organizations.api.routes import router as organizations_router
 from app.projects.api.routes import router as projects_router
-from app.tasks.api.routes import router as tasks_router
-from app.workspaces.api.routes import router as workspaces_router
 from app.shared.config.settings import get_settings
 from app.shared.database.session import engine, get_db_session
 from app.shared.errors.handlers import register_exception_handlers
 from app.shared.logging.setup import configure_logging
+from app.tasks.api.routes import router as tasks_router
+from app.workspaces.api.routes import router as workspaces_router
 
 settings = get_settings()
 configure_logging(settings.log_level)
