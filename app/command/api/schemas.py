@@ -9,7 +9,11 @@ from app.command.domain.assurance import (
     HomologationState,
 )
 from app.command.domain.attention import AttentionClass, AttentionSeverity
-from app.command.domain.observation import FreshnessState, SourceType
+from app.command.domain.observation import (
+    FreshnessState,
+    ObservationStatus,
+    SourceType,
+)
 
 
 class CommandModeResponse(BaseModel):
@@ -37,6 +41,8 @@ class ProjectionSummaryResponse(BaseModel):
     projection_type: str
     built_at: datetime
     freshness_state: FreshnessState
+    reliability_status: ObservationStatus
+    trusted_current: bool
     projection_payload: dict[str, object]
 
 
@@ -61,7 +67,9 @@ class ProvenanceResponse(BaseModel):
     observed_at: datetime
     source_updated_at: datetime | None
     retrieved_at: datetime
+    observation_status: ObservationStatus
     freshness_state: FreshnessState
+    current_confirmed: bool
 
 
 class AssuranceResponse(BaseModel):
