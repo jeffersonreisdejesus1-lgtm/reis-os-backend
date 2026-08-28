@@ -78,6 +78,14 @@ jobs:
           pytest tests/test_command_pa6_remediation.py \
             --junitxml=artifacts/pa6-e2e.xml
 
+      - name: GitHub real-provider E2E evidence
+        env:
+          COMMAND_LIVE_GITHUB_EVIDENCE: "1"
+          COMMAND_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          pytest tests/test_command_provider_runtime_live.py \
+            --junitxml=artifacts/github-live-provider.xml
+
       - name: Testes unitários
         run: |
           pytest -m "not integration" \
