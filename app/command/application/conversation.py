@@ -3,6 +3,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.command.application.assurance import AssuranceView, list_assurance_views
 from app.command.application.queries import (
     AttentionView,
     ObjectDetailView,
@@ -23,6 +24,7 @@ class ConversationContext:
     attention: tuple[AttentionView, ...]
     blockers: tuple[AttentionView, ...]
     decisions: tuple[AttentionView, ...]
+    assurances: tuple[AssuranceView, ...]
     objects: tuple[ObjectDetailView, ...]
 
 
@@ -31,11 +33,13 @@ def _build_conclusion(
     projections: tuple[ProjectionView, ...],
     blockers: tuple[AttentionView, ...],
     decisions: tuple[AttentionView, ...],
+    assurances: tuple[AssuranceView, ...],
 ) -> str:
     return (
         f"Observed {len(projections)} projected object(s), "
-        f"{len(blockers)} blocker(s), and "
-        f"{len(decisions)} decision-context item(s)."
+        f"{len(blockers)} blocker(s), "
+        f"{len(decisions)} decision-context item(s), and "
+        f"{len(assurances)} assurance result(s)."
     )
 
 
@@ -57,6 +61,13 @@ async def query_conversation_context(
     )
     attention = tuple(
         await list_attention_views(
+            session,
+            organization_id=organization_id,
+            limit=limit,
+        )
+    )
+    assurances = tuple(
+        await list_assurance_views(
             session,
             organization_id=organization_id,
             limit=limit,
@@ -88,10 +99,12 @@ async def query_conversation_context(
             projections=projections,
             blockers=blockers,
             decisions=decisions,
+            assurances=assurances,
         ),
         situation=projections,
         attention=attention,
         blockers=blockers,
         decisions=decisions,
+        assurances=assurances,
         objects=tuple(details),
     )
