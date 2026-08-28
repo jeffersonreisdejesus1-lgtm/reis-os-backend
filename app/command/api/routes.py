@@ -7,10 +7,13 @@ from app.auth.api.dependencies import CurrentUser
 from app.command.api.schemas import (
     AttentionResponse,
     CommandModeResponse,
+    ConversationContextResponse,
+    ConversationQueryRequest,
     ObjectDetailResponse,
     ProjectionSummaryResponse,
     ProvenanceResponse,
 )
+from app.command.application.conversation import query_conversation_context
 from app.command.application.queries import (
     get_object_detail,
     list_attention_views,
@@ -124,4 +127,60 @@ async def object_detail(
         object_type=detail.object_type,
         projection=projection,
         provenance=provenance,
+    )
+
+
+@router.post("/conversation/query", response_model=ConversationContextResponse)
+async def conversation_query(
+    request: ConversationQueryRequest,
+    organization_id: CurrentOrganizationId,
+    session: DbSession,
+) -> ConversationContextResponse:
+    """Query Command context without granting any execution authority."""
+    context = await query_conversation_context(
+        session,
+        organization_id=organization_id,
+        query_text=request.query,
+        object_keys=request.object_keys,
+        limit=request.limit,
+    )
+
+    objects: list[ObjectDetailResponse] = []
+    evidence: list[ProvenanceResponse] = []
+    for detail in context.objects:
+        projection = None
+        if detail.projection is not None:
+            projection = ProjectionSummaryResponse.model_validate(detail.projection)
+        provenance = tuple(
+            ProvenanceResponse.model_validate(item) for item in detail.provenance
+        )
+        evidence.extend(provenance)
+        objects.append(
+            ObjectDetailResponse(
+                object_key=detail.object_key,
+                object_type=detail.object_type,
+                projection=projection,
+                provenance=provenance,
+            )
+        )
+
+    return ConversationContextResponse(
+        query_text=context.query_text,
+        mode=context.mode,
+        conclusion=context.conclusion,
+        situation=tuple(
+            ProjectionSummaryResponse.model_validate(item)
+            for item in context.situation
+        ),
+        attention=tuple(
+            AttentionResponse.model_validate(item) for item in context.attention
+        ),
+        blockers=tuple(
+            AttentionResponse.model_validate(item) for item in context.blockers
+        ),
+        decisions=tuple(
+            AttentionResponse.model_validate(item) for item in context.decisions
+        ),
+        objects=tuple(objects),
+        evidence=tuple(evidence),
     )
