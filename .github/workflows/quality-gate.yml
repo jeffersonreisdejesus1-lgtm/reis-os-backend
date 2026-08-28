@@ -86,6 +86,18 @@ jobs:
           pytest tests/test_command_provider_runtime_live.py \
             --junitxml=artifacts/github-live-provider.xml
 
+      - name: Notion real-provider E2E evidence
+        env:
+          COMMAND_NOTION_TOKEN: ${{ secrets.COMMAND_NOTION_TOKEN }}
+          COMMAND_NOTION_EVIDENCE_PAGE_ID: "3cad31bc-7b67-8177-9aef-c4eb3c4ddfd7"
+        run: |
+          if [ -z "${COMMAND_NOTION_TOKEN}" ]; then
+            echo "COMMAND_NOTION_TOKEN is not available to this runtime" >&2
+            exit 42
+          fi
+          pytest tests/test_command_provider_runtime_notion_live.py \
+            --junitxml=artifacts/notion-live-provider.xml
+
       - name: Testes unitários
         run: |
           pytest -m "not integration" \
