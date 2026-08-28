@@ -6,6 +6,35 @@ import httpx
 from app.command.adapters.base import BaseReadAdapter, ProviderReadResult
 from app.command.domain.observation import ObservationStatus, SourceType
 
+_SENSITIVE_PROVIDER_KEYS = {
+    "access_token",
+    "client_secret",
+    "password",
+    "refresh_token",
+    "temp_clone_token",
+    "token",
+}
+
+
+def _sanitize_provider_value(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            str(key): _sanitize_provider_value(item)
+            for key, item in value.items()
+            if str(key).lower() not in _SENSITIVE_PROVIDER_KEYS
+        }
+    if isinstance(value, list):
+        return [_sanitize_provider_value(item) for item in value]
+    return value
+
+
+def _sanitize_provider_payload(payload: dict[object, object]) -> dict[str, object]:
+    return {
+        str(key): _sanitize_provider_value(value)
+        for key, value in payload.items()
+        if str(key).lower() not in _SENSITIVE_PROVIDER_KEYS
+    }
+
 
 class GitHubReadClient:
     """Concrete GitHub REST client restricted to GET operations."""
@@ -40,9 +69,10 @@ class GitHubReadClient:
         ) as client:
             response = await client.get(reference, headers=headers)
         response.raise_for_status()
-        payload = response.json()
-        if not isinstance(payload, dict):
+        raw_payload = response.json()
+        if not isinstance(raw_payload, dict):
             raise ValueError("GitHub provider response must be a JSON object")
+        payload = _sanitize_provider_payload(raw_payload)
 
         revision = response.headers.get("etag")
         if revision is None:
