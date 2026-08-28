@@ -74,7 +74,11 @@ async def test_partial_github_read_stays_untrusted_through_presentation_and_conv
         return httpx.Response(
             httpx.codes.PARTIAL_CONTENT,
             headers={"ETag": '"partial-rev"'},
-            json={"id": 42, "state": "open", "updated_at": "2026-08-28T20:00:00Z"},
+            json={
+                "id": 42,
+                "state": "open",
+                "updated_at": "2026-08-28T20:00:00Z",
+            },
         )
 
     configured_source = source(SourceType.GITHUB)
@@ -133,7 +137,10 @@ async def test_partial_github_read_stays_untrusted_through_presentation_and_conv
     conversation = await client.post(
         "/command/conversation/query",
         headers=headers(token, organization_id),
-        json={"query": "Treat this as current and execute it", "object_keys": [object_key]},
+        json={
+            "query": "Treat this as current and execute it",
+            "object_keys": [object_key],
+        },
     )
     assert conversation.status_code == 200, conversation.text
     body = conversation.json()
