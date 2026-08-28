@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.api.dependencies import CurrentUser
 from app.command.api.schemas import (
+    AssuranceResponse,
     AttentionResponse,
     CommandModeResponse,
     ConversationContextResponse,
@@ -13,6 +14,7 @@ from app.command.api.schemas import (
     ProjectionSummaryResponse,
     ProvenanceResponse,
 )
+from app.command.application.assurance import list_assurance_views
 from app.command.application.conversation import query_conversation_context
 from app.command.application.queries import (
     get_object_detail,
@@ -105,6 +107,20 @@ async def decisions(
     return [AttentionResponse.model_validate(item) for item in views]
 
 
+@router.get("/assurance", response_model=list[AssuranceResponse])
+async def assurance(
+    organization_id: CurrentOrganizationId,
+    session: DbSession,
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[AssuranceResponse]:
+    views = await list_assurance_views(
+        session,
+        organization_id=organization_id,
+        limit=limit,
+    )
+    return [AssuranceResponse.model_validate(item) for item in views]
+
+
 @router.get("/objects/{object_key}", response_model=ObjectDetailResponse)
 async def object_detail(
     object_key: str,
@@ -180,6 +196,9 @@ async def conversation_query(
         ),
         decisions=tuple(
             AttentionResponse.model_validate(item) for item in context.decisions
+        ),
+        assurances=tuple(
+            AssuranceResponse.model_validate(item) for item in context.assurances
         ),
         objects=tuple(objects),
         evidence=tuple(evidence),
