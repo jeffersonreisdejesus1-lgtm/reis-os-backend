@@ -64,12 +64,13 @@ async def _get_operational_object(
     organization_id: UUID,
     object_id: UUID,
 ) -> OperationalObjectModel | None:
-    return await session.scalar(
+    item: OperationalObjectModel | None = await session.scalar(
         select(OperationalObjectModel).where(
             OperationalObjectModel.id == object_id,
             OperationalObjectModel.organization_id == organization_id,
         )
     )
+    return item
 
 
 async def list_projection_views(
