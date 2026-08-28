@@ -49,10 +49,14 @@ class AssuranceResult(BaseModel):
             if self.material and self.verdict is None:
                 raise ValueError("Material completed assurance requires a verdict")
             if self.material and not self.evidence_refs:
-                raise ValueError("Material completed assurance requires evidence references")
+                raise ValueError(
+                    "Material completed assurance requires evidence references"
+                )
         else:
             if self.verdict is not None:
-                raise ValueError("Pending/running assurance cannot carry a final verdict")
+                raise ValueError(
+                    "Pending/running assurance cannot carry a final verdict"
+                )
             if self.completed_at is not None:
                 raise ValueError("Pending/running assurance cannot be completed")
 
