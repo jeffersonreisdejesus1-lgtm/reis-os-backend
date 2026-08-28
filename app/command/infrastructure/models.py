@@ -15,6 +15,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.command.domain.attention import AttentionClass, AttentionSeverity
 from app.command.domain.observation import (
     FreshnessState,
     ObservationStatus,
@@ -154,4 +155,60 @@ class ProjectionObservationModel(Base):
     )
     observation_id: Mapped[UUID] = mapped_column(
         ForeignKey("observations.id", ondelete="RESTRICT"), primary_key=True
+    )
+
+
+class AttentionItemModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "attention_items"
+    __table_args__ = (
+        Index(
+            "ix_attention_object_severity",
+            "operational_object_id",
+            "severity",
+        ),
+    )
+
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    operational_object_id: Mapped[UUID] = mapped_column(
+        ForeignKey("operational_objects.id", ondelete="CASCADE"), index=True
+    )
+    rule_id: Mapped[str] = mapped_column(String(100))
+    attention_class: Mapped[AttentionClass] = mapped_column(
+        Enum(
+            AttentionClass,
+            native_enum=False,
+            length=40,
+            values_callable=lambda enum: [item.value for item in enum],
+        )
+    )
+    reason: Mapped[str] = mapped_column(Text)
+    severity: Mapped[AttentionSeverity] = mapped_column(
+        Enum(
+            AttentionSeverity,
+            native_enum=False,
+            length=10,
+            values_callable=lambda enum: [item.value for item in enum],
+        )
+    )
+    freshness_state: Mapped[FreshnessState] = mapped_column(
+        Enum(
+            FreshnessState,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum: [item.value for item in enum],
+        )
+    )
+    explanation: Mapped[str] = mapped_column(Text)
+
+
+class AttentionProjectionRefModel(Base):
+    __tablename__ = "attention_projection_refs"
+
+    attention_id: Mapped[UUID] = mapped_column(
+        ForeignKey("attention_items.id", ondelete="CASCADE"), primary_key=True
+    )
+    projection_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projections.id", ondelete="RESTRICT"), primary_key=True
     )
