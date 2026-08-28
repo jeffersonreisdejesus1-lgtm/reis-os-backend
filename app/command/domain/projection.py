@@ -30,8 +30,8 @@ class ProjectionContract(BaseModel):
     built_at: datetime
     projection_version: int = Field(ge=1)
     freshness_state: FreshnessState
-    reliability_status: ObservationStatus
-    trusted_current: bool
+    reliability_status: ObservationStatus = ObservationStatus.OBSERVED
+    trusted_current: bool = False
     projection_payload: dict[str, object]
 
 
