@@ -4,7 +4,11 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.command.domain.observation import FreshnessState, ObservationContract
+from app.command.domain.observation import (
+    FreshnessState,
+    ObservationContract,
+    ObservationStatus,
+)
 
 
 class OperationalObjectContract(BaseModel):
@@ -26,6 +30,8 @@ class ProjectionContract(BaseModel):
     built_at: datetime
     projection_version: int = Field(ge=1)
     freshness_state: FreshnessState
+    reliability_status: ObservationStatus
+    trusted_current: bool
     projection_payload: dict[str, object]
 
 
@@ -37,9 +43,20 @@ _FRESHNESS_PRECEDENCE = {
     FreshnessState.CONFLICT: 4,
 }
 
+_RELIABILITY_PRECEDENCE = {
+    ObservationStatus.OBSERVED: 0,
+    ObservationStatus.PARTIAL: 1,
+    ObservationStatus.ERROR: 2,
+    ObservationStatus.CONFLICT: 3,
+}
+
 
 def freshness_priority(state: FreshnessState) -> int:
     return _FRESHNESS_PRECEDENCE[state]
+
+
+def reliability_priority(status: ObservationStatus) -> int:
+    return _RELIABILITY_PRECEDENCE[status]
 
 
 class ProjectionBuilder:
@@ -58,6 +75,15 @@ class ProjectionBuilder:
             (item.freshness_state for item in observations),
             key=freshness_priority,
         )
+        reliability_status = max(
+            (item.observation_status for item in observations),
+            key=reliability_priority,
+        )
+        trusted_current = (
+            freshness_state is FreshnessState.FRESH
+            and reliability_status is ObservationStatus.OBSERVED
+            and all(item.current_confirmed for item in observations)
+        )
         return ProjectionContract(
             object_key=operational_object.object_key,
             object_type=operational_object.object_type,
@@ -66,5 +92,7 @@ class ProjectionBuilder:
             built_at=datetime.now(UTC),
             projection_version=projection_version,
             freshness_state=freshness_state,
+            reliability_status=reliability_status,
+            trusted_current=trusted_current,
             projection_payload=dict(projection_payload),
         )
