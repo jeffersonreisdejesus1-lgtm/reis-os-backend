@@ -19,7 +19,9 @@ class NotionReadClient:
         timeout_seconds: float = 10.0,
     ) -> None:
         if not token.strip():
-            raise ValueError("Notion read client requires an injected integration token")
+            raise ValueError(
+                "Notion read client requires an injected integration token"
+            )
         self._token = token
         self._notion_version = notion_version
         self._transport = transport
