@@ -95,6 +95,9 @@ async def test_real_github_provider_crosses_observation_pipeline(
     assert body["provenance"][0]["source_revision"]
     assert body["projection"]["reliability_status"] == "observed"
     assert body["projection"]["trusted_current"] is True
+    projection_payload = body["projection"]["projection_payload"]
+    assert "temp_clone_token" not in projection_payload
+    assert "access_token" not in json.dumps(projection_payload).lower()
 
     evidence = {
         "provider": "github",
@@ -110,6 +113,7 @@ async def test_real_github_provider_crosses_observation_pipeline(
         "trusted_current": receipt.trusted_current,
         "presentation_readback": body["projection"],
         "external_mutation": False,
+        "provider_payload_sanitized": True,
     }
     artifacts = Path("artifacts")
     await artifacts.mkdir(exist_ok=True)
