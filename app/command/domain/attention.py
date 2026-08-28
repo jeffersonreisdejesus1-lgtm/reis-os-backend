@@ -49,7 +49,10 @@ _SEVERITY_ORDER = {
 
 
 class AttentionEngine:
-    def evaluate(self, projection: ProjectionContract) -> tuple[AttentionItemContract, ...]:
+    def evaluate(
+        self,
+        projection: ProjectionContract,
+    ) -> tuple[AttentionItemContract, ...]:
         items: list[AttentionItemContract] = []
 
         if projection.freshness_state is FreshnessState.CONFLICT:
