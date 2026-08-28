@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.command.domain.attention import AttentionClass, AttentionSeverity
 from app.command.domain.observation import FreshnessState, SourceType
@@ -63,3 +63,23 @@ class ObjectDetailResponse(BaseModel):
     object_type: str
     projection: ProjectionSummaryResponse | None
     provenance: tuple[ProvenanceResponse, ...]
+
+
+class ConversationQueryRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=4000)
+    object_keys: tuple[str, ...] = Field(default=(), max_length=20)
+    limit: int = Field(default=20, ge=1, le=100)
+
+
+class ConversationContextResponse(BaseModel):
+    query_text: str
+    mode: str
+    conclusion: str
+    situation: tuple[ProjectionSummaryResponse, ...]
+    attention: tuple[AttentionResponse, ...]
+    blockers: tuple[AttentionResponse, ...]
+    decisions: tuple[AttentionResponse, ...]
+    objects: tuple[ObjectDetailResponse, ...]
+    evidence: tuple[ProvenanceResponse, ...]
+    execution_available: bool = False
+    authority_granted: bool = False
