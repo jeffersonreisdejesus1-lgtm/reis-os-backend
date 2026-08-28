@@ -22,10 +22,17 @@ from app.shared.database.models import (
 
 def make_observation(
     freshness_state: FreshnessState = FreshnessState.FRESH,
+    *,
+    status: ObservationStatus = ObservationStatus.OBSERVED,
+    current_confirmed: bool | None = None,
 ) -> ObservationContract:
-    status = ObservationStatus.OBSERVED
     if freshness_state is FreshnessState.CONFLICT:
         status = ObservationStatus.CONFLICT
+    if current_confirmed is None:
+        current_confirmed = (
+            freshness_state is FreshnessState.FRESH
+            and status is ObservationStatus.OBSERVED
+        )
 
     return ObservationContract(
         source_id=uuid4(),
@@ -37,7 +44,7 @@ def make_observation(
         payload_normalized={"state": "open"},
         observation_status=status,
         freshness_state=freshness_state,
-        current_confirmed=freshness_state is FreshnessState.FRESH,
+        current_confirmed=current_confirmed,
     )
 
 
@@ -73,6 +80,45 @@ def test_projection_preserves_observation_refs_and_worst_freshness() -> None:
         stale.observation_id,
     )
     assert projection.freshness_state is FreshnessState.STALE
+    assert projection.trusted_current is False
+
+
+def test_fresh_observed_projection_can_be_trusted_current() -> None:
+    projection = ProjectionBuilder().build(
+        make_object(),
+        "status",
+        [make_observation()],
+        {"state": "open"},
+    )
+
+    assert projection.freshness_state is FreshnessState.FRESH
+    assert projection.reliability_status is ObservationStatus.OBSERVED
+    assert projection.trusted_current is True
+
+
+@pytest.mark.parametrize(
+    "status",
+    [ObservationStatus.PARTIAL, ObservationStatus.ERROR],
+)
+def test_fresh_unreliable_observation_is_not_trusted_current(
+    status: ObservationStatus,
+) -> None:
+    projection = ProjectionBuilder().build(
+        make_object(),
+        "status",
+        [
+            make_observation(
+                FreshnessState.FRESH,
+                status=status,
+                current_confirmed=False,
+            )
+        ],
+        {"state": "open"},
+    )
+
+    assert projection.freshness_state is FreshnessState.FRESH
+    assert projection.reliability_status is status
+    assert projection.trusted_current is False
 
 
 def test_conflict_remains_explicit_in_projection() -> None:
@@ -85,6 +131,8 @@ def test_conflict_remains_explicit_in_projection() -> None:
     )
 
     assert projection.freshness_state is FreshnessState.CONFLICT
+    assert projection.reliability_status is ObservationStatus.CONFLICT
+    assert projection.trusted_current is False
 
 
 def test_projection_rebuild_preserves_semantic_identity() -> None:
@@ -110,6 +158,8 @@ def test_projection_rebuild_preserves_semantic_identity() -> None:
     assert first.observation_refs == rebuilt.observation_refs
     assert first.projection_payload == rebuilt.projection_payload
     assert first.freshness_state == rebuilt.freshness_state
+    assert first.reliability_status == rebuilt.reliability_status
+    assert first.trusted_current == rebuilt.trusted_current
 
 
 def test_projection_tables_are_registered() -> None:
