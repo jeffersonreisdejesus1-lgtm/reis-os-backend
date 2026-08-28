@@ -154,6 +154,11 @@ async def test_concrete_github_client_is_get_only_and_preserves_revision() -> No
                 "id": 1,
                 "state": "open",
                 "updated_at": "2026-08-28T20:00:00Z",
+                "temp_clone_token": "must-not-leave-provider-boundary",
+                "owner": {
+                    "login": "example",
+                    "access_token": "nested-sensitive-value",
+                },
             },
         )
 
@@ -164,6 +169,10 @@ async def test_concrete_github_client_is_get_only_and_preserves_revision() -> No
     assert result.observation_status is ObservationStatus.OBSERVED
     assert result.source_revision == '"github-revision"'
     assert result.source_updated_at == datetime(2026, 8, 28, 20, 0, tzinfo=UTC)
+    assert "temp_clone_token" not in result.payload
+    owner = result.payload["owner"]
+    assert isinstance(owner, dict)
+    assert "access_token" not in owner
 
 
 @pytest.mark.asyncio
