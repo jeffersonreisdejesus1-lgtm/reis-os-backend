@@ -1,7 +1,13 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.command.domain.assurance import (
+    AssuranceStatus,
+    AssuranceVerdict,
+    HomologationState,
+)
 from app.command.domain.attention import AttentionClass, AttentionSeverity
 from app.command.domain.observation import FreshnessState, SourceType
 
@@ -58,6 +64,23 @@ class ProvenanceResponse(BaseModel):
     freshness_state: FreshnessState
 
 
+class AssuranceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    assurance_id: UUID
+    object_key: str
+    scope: str
+    status: AssuranceStatus
+    material: bool
+    verdict: AssuranceVerdict | None
+    evidence_refs: tuple[str, ...]
+    performer_ref: str
+    completed_at: datetime | None
+    source_reference: str | None
+    source_revision: str | None
+    homologation_state: HomologationState
+
+
 class ObjectDetailResponse(BaseModel):
     object_key: str
     object_type: str
@@ -79,7 +102,10 @@ class ConversationContextResponse(BaseModel):
     attention: tuple[AttentionResponse, ...]
     blockers: tuple[AttentionResponse, ...]
     decisions: tuple[AttentionResponse, ...]
+    assurances: tuple[AssuranceResponse, ...]
     objects: tuple[ObjectDetailResponse, ...]
     evidence: tuple[ProvenanceResponse, ...]
     execution_available: bool = False
+    assurance_execution_available: bool = False
+    homologation_available: bool = False
     authority_granted: bool = False
