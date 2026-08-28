@@ -1,7 +1,7 @@
 from datetime import datetime
 from enum import StrEnum
 from typing import Self
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -39,6 +39,7 @@ class SourceContract(BaseModel):
 class ObservationContract(BaseModel):
     model_config = ConfigDict(frozen=True)
 
+    observation_id: UUID = Field(default_factory=uuid4)
     source_id: UUID
     source_object_type: str = Field(min_length=1, max_length=100)
     source_object_id: str = Field(min_length=1, max_length=255)

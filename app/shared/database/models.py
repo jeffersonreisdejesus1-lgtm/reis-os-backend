@@ -1,6 +1,12 @@
-# Import all ORM models so Alembic can discover their metadata.
+# Import ORM models so Alembic can discover their metadata.
 from app.audit.infrastructure.models import AuditEventModel
-from app.command.infrastructure.models import CommandSourceModel, ObservationModel
+from app.command.infrastructure.models import (
+    CommandSourceModel,
+    ObservationModel,
+    OperationalObjectModel,
+    ProjectionModel,
+    ProjectionObservationModel,
+)
 from app.memberships.infrastructure.models import MembershipModel
 from app.organizations.infrastructure.models import OrganizationModel
 from app.projects.infrastructure.models import ProjectModel
@@ -13,8 +19,11 @@ __all__ = [
     "CommandSourceModel",
     "MembershipModel",
     "ObservationModel",
+    "OperationalObjectModel",
     "OrganizationModel",
     "ProjectModel",
+    "ProjectionModel",
+    "ProjectionObservationModel",
     "TaskModel",
     "UserModel",
     "WorkspaceModel",

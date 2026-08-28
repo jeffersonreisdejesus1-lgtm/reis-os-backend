@@ -8,6 +8,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     String,
     Text,
     UniqueConstraint,
@@ -95,3 +96,62 @@ class ObservationModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     freshness_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     current_confirmed: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class OperationalObjectModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "operational_objects"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id",
+            "object_key",
+            name="uq_operational_object_org_key",
+        ),
+    )
+
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    object_key: Mapped[str] = mapped_column(String(255))
+    object_type: Mapped[str] = mapped_column(String(100))
+
+
+class ProjectionModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "projections"
+    __table_args__ = (
+        Index(
+            "ix_projections_object_type_version",
+            "operational_object_id",
+            "projection_type",
+            "projection_version",
+        ),
+    )
+
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    operational_object_id: Mapped[UUID] = mapped_column(
+        ForeignKey("operational_objects.id", ondelete="CASCADE"), index=True
+    )
+    projection_type: Mapped[str] = mapped_column(String(100))
+    built_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    projection_version: Mapped[int] = mapped_column(Integer)
+    freshness_state: Mapped[FreshnessState] = mapped_column(
+        Enum(
+            FreshnessState,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum: [item.value for item in enum],
+        )
+    )
+    projection_payload: Mapped[dict[str, object]] = mapped_column(JSON)
+
+
+class ProjectionObservationModel(Base):
+    __tablename__ = "projection_observations"
+
+    projection_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projections.id", ondelete="CASCADE"), primary_key=True
+    )
+    observation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("observations.id", ondelete="RESTRICT"), primary_key=True
+    )
