@@ -24,4 +24,5 @@ def is_allowed_in_observe(operation: CommandOperationClass) -> bool:
 def require_observe_permission(operation: CommandOperationClass) -> None:
     """Fail closed when an operation is outside the G4 observation boundary."""
     if not is_allowed_in_observe(operation):
-        raise PermissionError(f"Operation {operation.value!r} is not allowed in OBSERVAR")
+        message = f"Operation {operation.value!r} is not allowed in OBSERVAR"
+        raise PermissionError(message)
