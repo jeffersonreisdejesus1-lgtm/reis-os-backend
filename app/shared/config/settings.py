@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     secret_key: str = "change-me"
     access_token_expire_minutes: int = 60
+    command_github_token: SecretStr | None = None
+    command_notion_token: SecretStr | None = None
+    command_notion_version: str = "2022-06-28"
 
     model_config = SettingsConfigDict(
         env_file=".env",
