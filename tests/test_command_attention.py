@@ -6,7 +6,7 @@ from app.command.domain.attention import (
     AttentionEngine,
     AttentionSeverity,
 )
-from app.command.domain.observation import FreshnessState
+from app.command.domain.observation import FreshnessState, ObservationStatus
 from app.command.domain.projection import ProjectionContract
 from app.shared.database.base import Base
 from app.shared.database.models import (
@@ -18,6 +18,8 @@ from app.shared.database.models import (
 def make_projection(
     *,
     freshness_state: FreshnessState = FreshnessState.FRESH,
+    reliability_status: ObservationStatus = ObservationStatus.OBSERVED,
+    trusted_current: bool = False,
     payload: dict[str, object] | None = None,
 ) -> ProjectionContract:
     return ProjectionContract(
@@ -28,13 +30,18 @@ def make_projection(
         built_at=datetime.now(UTC),
         projection_version=1,
         freshness_state=freshness_state,
+        reliability_status=reliability_status,
+        trusted_current=trusted_current,
         projection_payload=payload or {},
     )
 
 
 def test_attention_engine_marks_conflict_as_p1() -> None:
     items = AttentionEngine().evaluate(
-        make_projection(freshness_state=FreshnessState.CONFLICT)
+        make_projection(
+            freshness_state=FreshnessState.CONFLICT,
+            reliability_status=ObservationStatus.CONFLICT,
+        )
     )
 
     assert len(items) == 1
@@ -43,6 +50,32 @@ def test_attention_engine_marks_conflict_as_p1() -> None:
     assert items[0].projection_refs
     assert items[0].evidence_refs
     assert items[0].derived_projection is True
+
+
+def test_partial_observation_becomes_sync_degraded_attention() -> None:
+    items = AttentionEngine().evaluate(
+        make_projection(reliability_status=ObservationStatus.PARTIAL)
+    )
+
+    assert len(items) == 1
+    assert items[0].rule_id == "SOURCE_OBSERVATION_PARTIAL"
+    assert items[0].attention_class is AttentionClass.SYNC_DEGRADED
+    assert "reliability=partial" in items[0].explanation
+
+
+def test_error_observation_becomes_source_unavailable_attention() -> None:
+    items = AttentionEngine().evaluate(
+        make_projection(
+            freshness_state=FreshnessState.UNKNOWN,
+            reliability_status=ObservationStatus.ERROR,
+        )
+    )
+
+    assert len(items) == 1
+    assert items[0].rule_id == "SOURCE_OBSERVATION_ERROR"
+    assert items[0].attention_class is AttentionClass.SOURCE_UNAVAILABLE
+    assert items[0].severity is AttentionSeverity.P1
+    assert "reliability=error" in items[0].explanation
 
 
 def test_attention_engine_is_deterministic_and_explainable() -> None:
