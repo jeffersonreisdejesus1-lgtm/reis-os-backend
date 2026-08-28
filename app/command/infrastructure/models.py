@@ -15,6 +15,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.command.domain.assurance import (
+    AssuranceStatus,
+    AssuranceVerdict,
+    HomologationState,
+)
 from app.command.domain.attention import AttentionClass, AttentionSeverity
 from app.command.domain.observation import (
     FreshnessState,
@@ -211,4 +216,51 @@ class AttentionProjectionRefModel(Base):
     )
     projection_id: Mapped[UUID] = mapped_column(
         ForeignKey("projections.id", ondelete="RESTRICT"), primary_key=True
+    )
+
+
+class AssuranceResultModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "assurance_results"
+    __table_args__ = (
+        Index("ix_assurance_org_object_status", "organization_id", "operational_object_id", "status"),
+    )
+
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    operational_object_id: Mapped[UUID] = mapped_column(
+        ForeignKey("operational_objects.id", ondelete="CASCADE"), index=True
+    )
+    scope: Mapped[str] = mapped_column(String(500))
+    status: Mapped[AssuranceStatus] = mapped_column(
+        Enum(
+            AssuranceStatus,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum: [item.value for item in enum],
+        )
+    )
+    material: Mapped[bool] = mapped_column(Boolean, default=True)
+    verdict: Mapped[AssuranceVerdict | None] = mapped_column(
+        Enum(
+            AssuranceVerdict,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        nullable=True,
+    )
+    evidence_refs: Mapped[list[str]] = mapped_column(JSON, default=list)
+    performer_ref: Mapped[str] = mapped_column(String(255))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_reference: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_revision: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    homologation_state: Mapped[HomologationState] = mapped_column(
+        Enum(
+            HomologationState,
+            native_enum=False,
+            length=30,
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        default=HomologationState.UNKNOWN,
     )
