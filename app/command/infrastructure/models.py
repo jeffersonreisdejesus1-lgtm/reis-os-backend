@@ -222,7 +222,12 @@ class AttentionProjectionRefModel(Base):
 class AssuranceResultModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "assurance_results"
     __table_args__ = (
-        Index("ix_assurance_org_object_status", "organization_id", "operational_object_id", "status"),
+        Index(
+            "ix_assurance_org_object_status",
+            "organization_id",
+            "operational_object_id",
+            "status",
+        ),
     )
 
     organization_id: Mapped[UUID] = mapped_column(
@@ -252,7 +257,9 @@ class AssuranceResultModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     evidence_refs: Mapped[list[str]] = mapped_column(JSON, default=list)
     performer_ref: Mapped[str] = mapped_column(String(255))
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     source_reference: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_revision: Mapped[str | None] = mapped_column(String(255), nullable=True)
     homologation_state: Mapped[HomologationState] = mapped_column(
