@@ -149,6 +149,16 @@ class ProjectionModel(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             values_callable=lambda enum: [item.value for item in enum],
         )
     )
+    reliability_status: Mapped[ObservationStatus] = mapped_column(
+        Enum(
+            ObservationStatus,
+            native_enum=False,
+            length=20,
+            values_callable=lambda enum: [item.value for item in enum],
+        ),
+        default=ObservationStatus.OBSERVED,
+    )
+    trusted_current: Mapped[bool] = mapped_column(Boolean, default=False)
     projection_payload: Mapped[dict[str, object]] = mapped_column(JSON)
 
 
