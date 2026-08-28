@@ -67,6 +67,9 @@ class ObservationContract(BaseModel):
         if self.current_confirmed and self.freshness_state in unreliable_current_states:
             raise ValueError("Unreliable freshness cannot be current-confirmed")
 
+        if self.current_confirmed and self.observation_status is not ObservationStatus.OBSERVED:
+            raise ValueError("Partial/error/conflict observations cannot be current-confirmed")
+
         if (
             self.observation_status is ObservationStatus.CONFLICT
             and self.freshness_state is not FreshnessState.CONFLICT
