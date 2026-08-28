@@ -67,7 +67,7 @@ class BaseReadAdapter:
                 observed_at=now,
                 source_updated_at=request.source_updated_at,
                 retrieved_at=now,
-                payload_normalized={"source_unavailable": True},
+                payload_normalized={"source_error": True},
                 observation_status=ObservationStatus.ERROR,
                 freshness_state=FreshnessState.UNKNOWN,
                 freshness_reason="source_read_failed",
