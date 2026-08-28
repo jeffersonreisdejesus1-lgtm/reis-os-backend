@@ -1,9 +1,9 @@
 import json
 import os
-from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
+from anyio import Path
 from httpx import AsyncClient
 
 from app.command.adapters.base import ReadAdapterRequest
@@ -111,8 +111,9 @@ async def test_real_github_provider_crosses_observation_pipeline(
         "presentation_readback": body["projection"],
         "external_mutation": False,
     }
-    Path("artifacts").mkdir(exist_ok=True)
-    Path("artifacts/github-live-provider.json").write_text(
+    artifacts = Path("artifacts")
+    await artifacts.mkdir(exist_ok=True)
+    await (artifacts / "github-live-provider.json").write_text(
         json.dumps(evidence, indent=2, sort_keys=True),
         encoding="utf-8",
     )
