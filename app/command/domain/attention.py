@@ -3,7 +3,7 @@ from uuid import NAMESPACE_URL, UUID, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.command.domain.observation import FreshnessState
+from app.command.domain.observation import FreshnessState, ObservationStatus
 from app.command.domain.projection import ProjectionContract
 
 
@@ -54,6 +54,27 @@ class AttentionEngine:
         projection: ProjectionContract,
     ) -> tuple[AttentionItemContract, ...]:
         items: list[AttentionItemContract] = []
+
+        if projection.reliability_status is ObservationStatus.ERROR:
+            items.append(
+                self._make_item(
+                    projection,
+                    "SOURCE_OBSERVATION_ERROR",
+                    AttentionClass.SOURCE_UNAVAILABLE,
+                    AttentionSeverity.P1,
+                    "Falha na observação da fonte",
+                )
+            )
+        elif projection.reliability_status is ObservationStatus.PARTIAL:
+            items.append(
+                self._make_item(
+                    projection,
+                    "SOURCE_OBSERVATION_PARTIAL",
+                    AttentionClass.SYNC_DEGRADED,
+                    AttentionSeverity.P2,
+                    "Observação incompleta da fonte",
+                )
+            )
 
         if projection.freshness_state is FreshnessState.CONFLICT:
             items.append(
@@ -169,6 +190,8 @@ class AttentionEngine:
             severity=severity,
             freshness_state=projection.freshness_state,
             explanation=(
-                f"{reason}; derived from projection {projection.projection_id}"
+                f"{reason}; reliability={projection.reliability_status.value}; "
+                f"trusted_current={projection.trusted_current}; "
+                f"derived from projection {projection.projection_id}"
             ),
         )
