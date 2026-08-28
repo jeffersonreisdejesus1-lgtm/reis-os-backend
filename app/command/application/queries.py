@@ -6,7 +6,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.command.domain.attention import AttentionClass, AttentionSeverity
-from app.command.domain.observation import FreshnessState, SourceType
+from app.command.domain.observation import (
+    FreshnessState,
+    ObservationStatus,
+    SourceType,
+)
 from app.command.infrastructure.models import (
     AttentionItemModel,
     CommandSourceModel,
@@ -25,6 +29,8 @@ class ProjectionView:
     projection_type: str
     built_at: datetime
     freshness_state: FreshnessState
+    reliability_status: ObservationStatus
+    trusted_current: bool
     projection_payload: dict[str, object]
 
 
@@ -47,7 +53,9 @@ class ProvenanceView:
     observed_at: datetime
     source_updated_at: datetime | None
     retrieved_at: datetime
+    observation_status: ObservationStatus
     freshness_state: FreshnessState
+    current_confirmed: bool
 
 
 @dataclass(frozen=True)
@@ -105,6 +113,8 @@ async def list_projection_views(
                 projection_type=projection.projection_type,
                 built_at=projection.built_at,
                 freshness_state=projection.freshness_state,
+                reliability_status=projection.reliability_status,
+                trusted_current=projection.trusted_current,
                 projection_payload=projection.projection_payload,
             )
         )
@@ -194,6 +204,8 @@ async def get_object_detail(
         projection_type=projection.projection_type,
         built_at=projection.built_at,
         freshness_state=projection.freshness_state,
+        reliability_status=projection.reliability_status,
+        trusted_current=projection.trusted_current,
         projection_payload=projection.projection_payload,
     )
     observation_ids = list(
@@ -235,7 +247,9 @@ async def get_object_detail(
                     observed_at=observation.observed_at,
                     source_updated_at=observation.source_updated_at,
                     retrieved_at=observation.retrieved_at,
+                    observation_status=observation.observation_status,
                     freshness_state=observation.freshness_state,
+                    current_confirmed=observation.current_confirmed,
                 )
             )
 
