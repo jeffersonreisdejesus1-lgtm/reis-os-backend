@@ -91,7 +91,7 @@ async def test_partial_github_read_stays_untrusted_end_to_end(
     adapter = GitHubReadAdapter(
         GitHubReadClient(transport=httpx.MockTransport(github_partial))
     )
-    object_key = "github:example/repo:pull_request:42"
+    object_key = "github:example-repo:pull_request:42"
 
     async with TestSessionLocal() as session:
         receipt = await ingest_provider_read(
@@ -176,7 +176,7 @@ async def test_provider_failure_stays_error_and_never_becomes_current_state(
     adapter = GitHubReadAdapter(
         GitHubReadClient(transport=httpx.MockTransport(github_failure))
     )
-    object_key = "github:example/repo:workflow_run:9"
+    object_key = "github:example-repo:workflow_run:9"
 
     async with TestSessionLocal() as session:
         receipt = await ingest_provider_read(
@@ -204,6 +204,7 @@ async def test_provider_failure_stays_error_and_never_becomes_current_state(
         f"/command/objects/{object_key}",
         headers=headers(token, organization_id),
     )
+    assert detail.status_code == 200, detail.text
     provenance = detail.json()["provenance"][0]
     assert provenance["observation_status"] == "error"
     assert provenance["current_confirmed"] is False
@@ -306,7 +307,7 @@ async def test_pa6_ingestion_remains_organization_isolated(client: AsyncClient) 
         source_object_id="1",
         source_reference="https://api.github.com/repos/example/repo/issues/1",
     )
-    object_key = "github:example/repo:issue:1"
+    object_key = "github:example-repo:issue:1"
     async with TestSessionLocal() as session:
         await ingest_provider_read(
             session,
