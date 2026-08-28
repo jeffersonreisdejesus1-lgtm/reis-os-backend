@@ -53,7 +53,9 @@ class GitHubReadClient:
         source_updated_at: datetime | None = None
         updated_at = payload.get("updated_at")
         if isinstance(updated_at, str):
-            source_updated_at = datetime.fromisoformat(updated_at.replace("Z", "+00:00"))
+            source_updated_at = datetime.fromisoformat(
+                updated_at.replace("Z", "+00:00")
+            )
 
         status = (
             ObservationStatus.PARTIAL
