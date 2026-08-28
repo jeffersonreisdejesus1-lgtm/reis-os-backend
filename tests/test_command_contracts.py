@@ -47,6 +47,21 @@ def test_unreliable_freshness_cannot_be_current_confirmed(
         make_observation(freshness_state=freshness_state)
 
 
+@pytest.mark.parametrize(
+    "status",
+    [ObservationStatus.PARTIAL, ObservationStatus.ERROR],
+)
+def test_partial_or_error_cannot_be_fresh_current_confirmed(
+    status: ObservationStatus,
+) -> None:
+    with pytest.raises(ValidationError):
+        make_observation(
+            observation_status=status,
+            freshness_state=FreshnessState.FRESH,
+            current_confirmed=True,
+        )
+
+
 def test_conflict_status_preserves_conflict_freshness() -> None:
     with pytest.raises(ValidationError):
         make_observation(
