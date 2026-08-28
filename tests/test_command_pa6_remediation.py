@@ -60,7 +60,7 @@ def source(source_type: SourceType) -> SourceContract:
 
 
 @pytest.mark.asyncio
-async def test_partial_github_read_stays_untrusted_through_presentation_and_conversation(
+async def test_partial_github_read_stays_untrusted_end_to_end(
     client: AsyncClient,
 ) -> None:
     token, organization_id = await setup_owner(
