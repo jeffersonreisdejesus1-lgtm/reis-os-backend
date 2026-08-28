@@ -60,6 +60,24 @@ jobs:
       - name: Mypy
         run: mypy app
 
+      - name: Freshness reliability invariants
+        run: |
+          pytest \
+            tests/test_command_contracts.py \
+            tests/test_command_projection.py \
+            tests/test_command_attention.py \
+            --junitxml=artifacts/freshness-reliability.xml
+
+      - name: Provider read boundary
+        run: |
+          pytest tests/test_command_read_adapters.py \
+            --junitxml=artifacts/provider-boundary.xml
+
+      - name: PA6 deterministic E2E
+        run: |
+          pytest tests/test_command_pa6_remediation.py \
+            --junitxml=artifacts/pa6-e2e.xml
+
       - name: Testes unitários
         run: |
           pytest -m "not integration" \
@@ -100,7 +118,9 @@ jobs:
         if: always()
         run: |
           {
-            echo "commit=${GITHUB_SHA}"
+            echo "workflow_head_sha=${GITHUB_SHA}"
+            echo "pr_head_sha=${{ github.event.pull_request.head.sha || '' }}"
+            echo "tested_checkout_sha=$(git rev-parse HEAD)"
             echo "run_id=${GITHUB_RUN_ID}"
             echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
             echo "python=$(python --version 2>&1)"
