@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
 
@@ -12,8 +13,18 @@ from app.command.domain.observation import (
 )
 
 
+@dataclass(frozen=True)
+class ProviderReadResult:
+    payload: dict[str, object]
+    observation_status: ObservationStatus = ObservationStatus.OBSERVED
+    source_revision: str | None = None
+    source_updated_at: datetime | None = None
+
+
 class ReadClient(Protocol):
-    async def fetch(self, reference: str) -> dict[str, object]: ...
+    async def fetch(
+        self, reference: str
+    ) -> dict[str, object] | ProviderReadResult: ...
 
 
 class ReadAdapterRequest(BaseModel):
@@ -43,26 +54,64 @@ class BaseReadAdapter:
                 "Read adapter source type does not match the configured source"
             )
 
-        try:
-            payload = await self._client.fetch(request.source_reference)
-        except Exception as exc:
-            raise SourceReadError(
-                f"Unable to read {self.expected_source_type.value} source"
-            ) from exc
-
         now = datetime.now(UTC)
+        try:
+            raw_result = await self._client.fetch(request.source_reference)
+        except Exception:
+            return ObservationContract(
+                source_id=request.source.source_id,
+                source_object_type=request.source_object_type,
+                source_object_id=request.source_object_id,
+                source_reference=request.source_reference,
+                source_revision=request.source_revision,
+                observed_at=now,
+                source_updated_at=request.source_updated_at,
+                retrieved_at=now,
+                payload_normalized={"source_unavailable": True},
+                observation_status=ObservationStatus.ERROR,
+                freshness_state=FreshnessState.UNKNOWN,
+                freshness_reason="source_read_failed",
+                current_confirmed=False,
+            )
+
+        if isinstance(raw_result, ProviderReadResult):
+            payload = raw_result.payload
+            status = raw_result.observation_status
+            source_revision = raw_result.source_revision or request.source_revision
+            source_updated_at = (
+                raw_result.source_updated_at or request.source_updated_at
+            )
+        else:
+            payload = raw_result
+            status = ObservationStatus.OBSERVED
+            source_revision = request.source_revision
+            source_updated_at = request.source_updated_at
+
+        if status is ObservationStatus.CONFLICT:
+            freshness_state = FreshnessState.CONFLICT
+            freshness_reason = "source_conflict"
+        elif status is ObservationStatus.ERROR:
+            freshness_state = FreshnessState.UNKNOWN
+            freshness_reason = "source_read_failed"
+        else:
+            freshness_state = FreshnessState.FRESH
+            freshness_reason = "provider_read_completed"
+
         return ObservationContract(
             source_id=request.source.source_id,
             source_object_type=request.source_object_type,
             source_object_id=request.source_object_id,
             source_reference=request.source_reference,
-            source_revision=request.source_revision,
+            source_revision=source_revision,
             observed_at=now,
-            source_updated_at=request.source_updated_at,
+            source_updated_at=source_updated_at,
             retrieved_at=now,
             payload_normalized=dict(payload),
-            observation_status=ObservationStatus.OBSERVED,
-            freshness_state=FreshnessState.UNKNOWN,
-            freshness_reason="freshness_policy_not_evaluated",
-            current_confirmed=False,
+            observation_status=status,
+            freshness_state=freshness_state,
+            freshness_reason=freshness_reason,
+            current_confirmed=(
+                status is ObservationStatus.OBSERVED
+                and freshness_state is FreshnessState.FRESH
+            ),
         )
