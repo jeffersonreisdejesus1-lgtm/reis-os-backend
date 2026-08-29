@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,7 +25,7 @@ class Settings(BaseSettings):
     canonical_institution_slug: str = "reis-os"
     session_cookie_name: str = "reis_os_command_session"
     session_cookie_secure: bool = True
-    session_cookie_samesite: str = "lax"
+    session_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 
     command_github_token: SecretStr | None = None
     command_notion_token: SecretStr | None = None
