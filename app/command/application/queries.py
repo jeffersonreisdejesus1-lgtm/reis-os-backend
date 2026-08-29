@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.command.domain.attention import AttentionClass, AttentionSeverity
@@ -125,11 +125,32 @@ async def list_projection_views(
     organization_id: UUID,
     limit: int = 20,
 ) -> list[ProjectionView]:
+    ranked = (
+        select(
+            ProjectionModel.id.label("projection_id"),
+            func.row_number()
+            .over(
+                partition_by=(
+                    ProjectionModel.operational_object_id,
+                    ProjectionModel.projection_type,
+                ),
+                order_by=(
+                    ProjectionModel.built_at.desc(),
+                    ProjectionModel.projection_version.desc(),
+                    ProjectionModel.id.desc(),
+                ),
+            )
+            .label("projection_rank"),
+        )
+        .where(ProjectionModel.organization_id == organization_id)
+        .subquery()
+    )
     projections = list(
         (
             await session.scalars(
                 select(ProjectionModel)
-                .where(ProjectionModel.organization_id == organization_id)
+                .join(ranked, ranked.c.projection_id == ProjectionModel.id)
+                .where(ranked.c.projection_rank == 1)
                 .order_by(ProjectionModel.built_at.desc())
                 .limit(limit)
             )
