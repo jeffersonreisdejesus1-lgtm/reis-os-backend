@@ -15,8 +15,8 @@
     .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--gap)}
     h1,h2,p{margin-top:0}h2{font-size:1rem}.status{font-size:.78rem;opacity:.72}
     ul{padding-left:18px;margin-bottom:0}.pill{display:inline-block;border:1px solid #42566b;border-radius:999px;padding:4px 8px;font-size:.72rem}
-    .danger{border-color:#8f5656}.hidden{display:none!important}
-    form{display:grid;gap:10px}input{width:100%;border:1px solid #40536a;border-radius:10px;padding:12px;background:#0f1a26;color:inherit}
+    .hidden{display:none!important}form{display:grid;gap:10px}
+    input{width:100%;border:1px solid #40536a;border-radius:10px;padding:12px;background:#0f1a26;color:inherit}
     button{border:0;border-radius:10px;padding:11px 14px;font-weight:650;cursor:pointer}
     .primary{background:#e8eef5;color:#0d1520}.ghost{background:#243447;color:#eef4fa}
     .toolbar{display:flex;gap:8px}.toolbar button{padding:8px 10px}
@@ -42,6 +42,7 @@
       <section class="card"><h2>Blockers</h2><div id="blockers" class="status">loading</div></section>
       <section class="card"><h2>Decisions</h2><div id="decisions" class="status">loading</div></section>
       <section class="card"><h2>Assurance</h2><div id="assurance" class="status">loading</div></section>
+      <section class="card"><h2>Object Detail + Provenance</h2><form id="detail-form"><input id="object-key" placeholder="object_key" required><button class="ghost" type="submit">Abrir detalhe</button></form><pre id="detail"></pre></section>
       <section class="card"><h2>Conversation · read-only</h2><form id="conversation-form"><input id="query" placeholder="Consultar contexto…" required><button class="ghost" type="submit">Consultar</button></form><pre id="conversation"></pre></section>
     </div>
   </section>
@@ -49,14 +50,16 @@
 <script>
 const ids=["situation","attention","blockers","decisions","assurance"];
 const $=id=>document.getElementById(id);
-function clearSensitive(){for(const id of ids)$(id).textContent="";$("conversation").textContent="";$("app").classList.add("hidden");$("login-card").classList.remove("hidden");$("logout").classList.add("hidden");$("session").textContent="não autenticado"}
-async function api(path,options={}){const r=await fetch(path,{...options,credentials:"same-origin",headers:{"Content-Type":"application/json",...(options.headers||{})}});if(r.status===401){clearSensitive();throw new Error("Sessão expirada ou revogada.")}if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.message||d.detail||`Erro ${r.status}`)}if(r.status===204)return null;return r.json()}
-function render(id,data){const el=$(id);if(!Array.isArray(data)||!data.length){el.textContent="empty";return}const ul=document.createElement("ul");for(const item of data){const li=document.createElement("li");const freshness=item.freshness_state||"unknown";const reliability=item.reliability_status||"unknown";li.textContent=`${item.object_key||item.reason||item.scope||"item"} · ${freshness} · ${reliability}`;ul.appendChild(li)}el.replaceChildren(ul)}
+function clearSensitive(){for(const id of ids)$(id).textContent="";$("detail").textContent="";$("conversation").textContent="";$("app").classList.add("hidden");$("login-card").classList.remove("hidden");$("logout").classList.add("hidden");$("session").textContent="não autenticado"}
+async function api(path,options={}){const r=await fetch(path,{...options,credentials:"same-origin",headers:{"Content-Type":"application/json",...(options.headers||{})}});if(r.status===401){clearSensitive();throw new Error("Sessão expirada ou revogada.")}if(!r.ok){let d={};try{d=await r.json()}catch{}throw new Error(d.error?.message||d.message||d.detail||`Erro ${r.status}`)}if(r.status===204)return null;return r.json()}
+function render(id,data){const el=$(id);if(!Array.isArray(data)||!data.length){el.textContent="empty";return}const ul=document.createElement("ul");for(const item of data){const li=document.createElement("li");const freshness=item.freshness_state||"unknown";const reliability=item.reliability_status||"unknown";li.textContent=`${item.object_key||item.reason||item.scope||"item"} · ${freshness} · ${reliability}`;if(item.object_key){li.title="Toque para abrir detalhe e provenance";li.style.cursor="pointer";li.addEventListener("click",()=>openDetail(item.object_key))}ul.appendChild(li)}el.replaceChildren(ul)}
+async function openDetail(key){$("object-key").value=key;$("detail").textContent="loading";try{const d=await api(`/command/objects/${encodeURIComponent(key)}`);$("detail").textContent=JSON.stringify(d,null,2)}catch(err){$("detail").textContent=err.message}}
 async function load(){$("global-state").textContent="loading";for(const id of ids)$(id).textContent="loading";try{const results=await Promise.all(ids.map(id=>api(`/command/${id}`)));results.forEach((d,i)=>render(ids[i],d));$("global-state").textContent="Projeções carregadas. Freshness e reliability permanecem por objeto/fonte."}catch(e){$("global-state").textContent=e.message}}
 async function enter(){await api("/auth/me");$("login-card").classList.add("hidden");$("app").classList.remove("hidden");$("logout").classList.remove("hidden");$("session").textContent="autenticado";await load()}
-$("login-form").addEventListener("submit",async e=>{e.preventDefault();$("login-error").textContent="autenticando";try{await api("/auth/login",{method:"POST",body:JSON.stringify({email:$("email").value,password:$("password").value})});$("password").value="";$("login-error").textContent="";await enter()}catch(err){clearSensitive();$("login-error").textContent=err.message}});
+$("login-form").addEventListener("submit",async e=>{e.preventDefault();$("login-error").textContent="autenticando";try{await api("/auth/session/login",{method:"POST",body:JSON.stringify({email:$("email").value,password:$("password").value})});$("password").value="";$("login-error").textContent="";await enter()}catch(err){clearSensitive();$("login-error").textContent=err.message}});
 $("logout").addEventListener("click",async()=>{try{await api("/auth/logout",{method:"POST"})}finally{clearSensitive()}});
 $("refresh").addEventListener("click",load);
+$("detail-form").addEventListener("submit",async e=>{e.preventDefault();await openDetail($("object-key").value)});
 $("conversation-form").addEventListener("submit",async e=>{e.preventDefault();$("conversation").textContent="loading";try{const d=await api("/command/conversation/query",{method:"POST",body:JSON.stringify({query:$("query").value,object_keys:[],limit:10})});$("conversation").textContent=JSON.stringify(d,null,2)}catch(err){$("conversation").textContent=err.message}});
 enter().catch(()=>clearSensitive());
 </script>
