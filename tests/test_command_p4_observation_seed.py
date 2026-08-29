@@ -57,7 +57,9 @@ async def test_initial_observation_seed_is_idempotent_read_only_and_scoped() -> 
             SourceType.NOTION,
         }
         assert all(source.organization_id == organization.id for source in sources)
-        assert all(source.authority_scope.startswith("read_only:") for source in sources)
+        assert all(
+            source.authority_scope.startswith("read_only:") for source in sources
+        )
         assert all(source.enabled for source in sources)
 
         policies = list(
