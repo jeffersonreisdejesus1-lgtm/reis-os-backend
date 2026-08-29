@@ -12,10 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.api.routes import router as auth_router
 from app.command.api.routes import router as command_router
 from app.command.application.refresh import refresh_supervisor
+from app.command.application.seed import ensure_initial_observation_seed
 from app.organizations.api.routes import router as organizations_router
 from app.projects.api.routes import router as projects_router
 from app.shared.config.settings import get_settings
-from app.shared.database.session import engine, get_db_session
+from app.shared.database.session import SessionLocal, engine, get_db_session
 from app.shared.errors.handlers import register_exception_handlers
 from app.shared.logging.setup import configure_logging
 from app.tasks.api.routes import router as tasks_router
@@ -30,6 +31,8 @@ COMMAND_UI = Path(__file__).resolve().parent / "command" / "frontend" / "index.h
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     refresh_task: asyncio.Task[None] | None = None
     if settings.command_refresh_enabled:
+        async with SessionLocal() as session:
+            await ensure_initial_observation_seed(session, settings=settings)
         refresh_task = asyncio.create_task(refresh_supervisor())
     try:
         yield
