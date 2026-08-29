@@ -8,6 +8,7 @@ from app.command.adapters.base import BaseReadAdapter, ReadAdapterRequest
 from app.command.adapters.github import GitHubReadAdapter, GitHubReadClient
 from app.command.adapters.notion import NotionReadAdapter, NotionReadClient
 from app.command.application.ingestion import ingest_provider_read
+from app.command.application.seed import ensure_initial_observation_seed
 from app.command.domain.observation import ObservationStatus, SourceContract, SourceType
 from app.command.infrastructure.models import CommandSourceModel
 from app.command.infrastructure.refresh_models import CommandRefreshPolicyModel
@@ -129,6 +130,7 @@ async def refresh_supervisor() -> None:
     while True:
         try:
             async with SessionLocal() as session:
+                await ensure_initial_observation_seed(session, settings=settings)
                 await refresh_due_sources(session, settings=settings)
         except Exception:
             # The supervisor is fail-contained. Individual source reliability
