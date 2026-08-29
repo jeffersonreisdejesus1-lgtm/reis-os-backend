@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     session_cookie_secure: bool = True
     session_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
 
+    # Refresh is backend-owned. Policies remain persistent per source/fact class.
+    command_refresh_enabled: bool = True
+    command_refresh_poll_seconds: int = Field(default=60, ge=10, le=3600)
+
     command_github_token: SecretStr | None = None
     command_notion_token: SecretStr | None = None
     command_notion_version: str = "2022-06-28"
