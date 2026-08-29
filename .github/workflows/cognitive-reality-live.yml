@@ -15,8 +15,8 @@ jobs:
       contents: read
 
     env:
-      OPENAI_API_KEY_RAW: ${{ secrets.OPENAI_API_KEY }}
-      COG_TEST_MODEL: gpt-5.6-luna
+      GEMINI_API_KEY_RAW: ${{ secrets.GEMINI_API_KEY }}
+      COG_TEST_MODEL: gemini-2.5-flash
 
     steps:
       - name: Checkout
@@ -30,20 +30,20 @@ jobs:
       - name: Preparar segredo de runtime
         shell: bash
         run: |
-          CLEAN_KEY="$(printf '%s' "$OPENAI_API_KEY_RAW" | tr -d '\r\n')"
+          CLEAN_KEY="$(printf '%s' "$GEMINI_API_KEY_RAW" | tr -d '\r\n')"
           if [ -z "$CLEAN_KEY" ]; then
-            echo "OPENAI_API_KEY repository secret is not configured."
+            echo "GEMINI_API_KEY repository secret is not configured."
             exit 2
           fi
           echo "::add-mask::$CLEAN_KEY"
-          printf 'OPENAI_API_KEY=%s\n' "$CLEAN_KEY" >> "$GITHUB_ENV"
+          printf 'GEMINI_API_KEY=%s\n' "$CLEAN_KEY" >> "$GITHUB_ENV"
 
       - name: Preparar evidências
         run: mkdir -p artifacts/cognitive-reality-live
 
       - name: Executar piloto live
         run: |
-          python -m experiments.cognitive_reality.runner \
+          python -m experiments.cognitive_reality.gemini_runner \
             --tasks experiments/cognitive_reality/tasks.json \
             --out artifacts/cognitive-reality-live \
             --limit 1 \
@@ -62,6 +62,7 @@ jobs:
             echo "commit=${GITHUB_SHA}"
             echo "run_id=${GITHUB_RUN_ID}"
             echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "provider=gemini"
             echo "model=${COG_TEST_MODEL}"
             echo "timestamp=$(date --utc --iso-8601=seconds)"
           } > artifacts/cognitive-reality-live/execution.txt
