@@ -20,6 +20,31 @@ async def get_current_organization_id(
     organization_id: Annotated[UUID | None, Header(alias="X-Organization-ID")] = None,
 ) -> UUID:
     settings = get_settings()
+
+    # The platform can retain its internal multi-org capability behind an
+    # explicit gate. COMMAND v0.1 keeps this disabled by default.
+    if settings.organization_self_service_enabled:
+        if organization_id is None:
+            raise AppError(
+                "Organization context is required.",
+                code="organization_required",
+                status_code=400,
+            )
+        membership = await session.scalar(
+            select(MembershipModel.id).where(
+                MembershipModel.organization_id == organization_id,
+                MembershipModel.user_id == current_user.id,
+                MembershipModel.status == MembershipStatus.ACTIVE,
+            )
+        )
+        if membership is None:
+            raise AppError(
+                "Organization not found or access denied.",
+                code="organization_not_found",
+                status_code=404,
+            )
+        return organization_id
+
     canonical = await session.scalar(
         select(OrganizationModel.id)
         .join(MembershipModel)
