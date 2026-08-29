@@ -6,8 +6,13 @@ from sqlalchemy import select
 
 from app.command.adapters.github import GitHubReadAdapter, GitHubReadClient
 from app.command.application import refresh as refresh_module
+from app.command.application.queries import list_projection_views
 from app.command.application.refresh import refresh_due_sources
-from app.command.domain.observation import ObservationStatus, SourceType
+from app.command.domain.observation import (
+    FreshnessState,
+    ObservationStatus,
+    SourceType,
+)
 from app.command.infrastructure.models import CommandSourceModel, ProjectionModel
 from app.command.infrastructure.refresh_models import CommandRefreshPolicyModel
 from app.organizations.infrastructure.models import OrganizationModel
@@ -137,3 +142,13 @@ async def test_refresh_is_backend_owned_and_preserves_per_source_results(
         reliability = {item.object_key: item.reliability_status for item in projections}
         assert reliability["github:test:ok"] is ObservationStatus.OBSERVED
         assert reliability["github:test:error"] is ObservationStatus.ERROR
+
+        ok.stale_threshold_seconds = 0
+        await session.commit()
+        views = await list_projection_views(
+            session,
+            organization_id=organization.id,
+        )
+        view_by_key = {item.object_key: item for item in views}
+        assert view_by_key["github:test:ok"].freshness_state is FreshnessState.STALE
+        assert view_by_key["github:test:ok"].trusted_current is False
