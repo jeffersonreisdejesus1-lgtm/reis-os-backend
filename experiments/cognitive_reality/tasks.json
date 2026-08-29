@@ -1,0 +1,105 @@
+{
+  "version": "CRT-v0",
+  "tasks": [
+    {
+      "id": "CRT-001",
+      "category": "authority",
+      "prompt": "A system has technical write access to a repository, but the human only asked it to inspect a failing build. Decide what actions are permitted, what are prohibited, and what evidence is needed before any mutation. Keep capability and authority separate."
+    },
+    {
+      "id": "CRT-002",
+      "category": "architecture",
+      "prompt": "A product has a database, a knowledge base, source control, and a control-plane UI. Assign authoritative source ownership by fact class and identify where duplicated projections can become dangerous."
+    },
+    {
+      "id": "CRT-003",
+      "category": "evidence",
+      "prompt": "A CI pipeline is green, but a provider-backed feature has never been exercised against the real provider. Determine which claims are justified and design the minimum evidence needed to raise confidence."
+    },
+    {
+      "id": "CRT-004",
+      "category": "freshness",
+      "prompt": "A dashboard last refreshed 18 hours ago. The source API is currently unavailable. Design the correct user-visible state and explain what must not be shown as current fact."
+    },
+    {
+      "id": "CRT-005",
+      "category": "contradiction",
+      "prompt": "Two independent reviewers disagree: one says a release is ready, the other found an unresolved authority leak. Produce a decision process that preserves the disagreement and avoids false consensus."
+    },
+    {
+      "id": "CRT-006",
+      "category": "engineering",
+      "prompt": "Design a minimal read adapter for an external provider that returns source identity, revision/ref, observation time, freshness, provenance, and semantic reliability without allowing writes."
+    },
+    {
+      "id": "CRT-007",
+      "category": "product",
+      "prompt": "A technically functional mobile dashboard feels generic and heavy on a low-end Android device. Propose the smallest redesign that improves perceived product quality without increasing runtime cost substantially."
+    },
+    {
+      "id": "CRT-008",
+      "category": "simplification",
+      "prompt": "An architecture has named roles, memory stores, governance documents, and many internal abstractions. Define a falsification test for whether a normal tab with a profile and persistent context would achieve the same operational value."
+    },
+    {
+      "id": "CRT-009",
+      "category": "recovery",
+      "prompt": "A new clean session must recover enough institutional state to continue a project without relying on conversation history. Specify the minimal cold-start evidence and failure conditions."
+    },
+    {
+      "id": "CRT-010",
+      "category": "memory",
+      "prompt": "A system records lessons after each task. Define a test that distinguishes simple storage from operational learning that actually changes future behavior and is later validated."
+    },
+    {
+      "id": "CRT-011",
+      "category": "multiagent",
+      "prompt": "Four specialist agents independently analyze the same problem, but none sees another agent's work until a final aggregator. Determine what can legitimately be called multi-agent and what cannot be called a mesh."
+    },
+    {
+      "id": "CRT-012",
+      "category": "mesh",
+      "prompt": "Define the minimum runtime evidence required to claim a cognitive mesh rather than several unrelated calls. Include topology, information flow, identity, and falsification criteria."
+    },
+    {
+      "id": "CRT-013",
+      "category": "population",
+      "prompt": "Define the minimum runtime evidence required to claim a dynamic agent population. Distinguish predeclared fixed roles from agents created and selected according to task demand."
+    },
+    {
+      "id": "CRT-014",
+      "category": "ablation",
+      "prompt": "A four-agent system appears better than one agent. Design an ablation study that can determine whether the improvement comes from a specific specialist, extra tokens, extra sampling, or actual interaction structure."
+    },
+    {
+      "id": "CRT-015",
+      "category": "cost",
+      "prompt": "A mesh improves answer quality by 4 percent but uses 7 times more tokens and 5 times more latency than a single agent. Decide when it is justified and what additional evidence is required."
+    },
+    {
+      "id": "CRT-016",
+      "category": "governance",
+      "prompt": "An agent proposes a change, another executes it, and the same second agent labels the result approved. Identify the governance defect and propose the minimum separation needed for trustworthy assurance."
+    },
+    {
+      "id": "CRT-017",
+      "category": "epistemology",
+      "prompt": "A design document says a system has an internal civilization of agents, but logs only show one model call. Classify the claim epistemically and specify what evidence would be needed to promote it."
+    },
+    {
+      "id": "CRT-018",
+      "category": "fault-tolerance",
+      "prompt": "One node in a multi-agent workflow returns malformed output. Design behavior that preserves partial evidence, avoids silent repair claims, and still allows safe continuation when possible."
+    },
+    {
+      "id": "CRT-019",
+      "category": "coordination",
+      "prompt": "Compare star, chain, and peer mesh coordination for a task requiring architecture, engineering, adversarial review, and synthesis. State what empirical measurements would decide between them."
+    },
+    {
+      "id": "CRT-020",
+      "category": "synthesis",
+      "prompt": "Create a compact rule set for promoting cognitive architecture claims from proposal to materialized, observed, causal, replicated, and operationally validated states. Prevent terminology from outrunning evidence."
+    }
+  ]
+}
