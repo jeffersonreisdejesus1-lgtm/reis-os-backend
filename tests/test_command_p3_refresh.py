@@ -13,7 +13,7 @@ from app.command.domain.observation import (
     ObservationStatus,
     SourceType,
 )
-from app.command.infrastructure.models import CommandSourceModel, ProjectionModel
+from app.command.infrastructure.models import CommandSourceModel
 from app.command.infrastructure.refresh_models import CommandRefreshPolicyModel
 from app.organizations.infrastructure.models import OrganizationModel
 from app.shared.security.passwords import hash_password
@@ -132,23 +132,20 @@ async def test_refresh_is_backend_owned_and_preserves_per_source_results(
         assert error.last_attempted_observation_at == now
         assert error.last_successful_observation_at is None
 
-        projections = (
-            await session.scalars(
-                select(ProjectionModel).where(
-                    ProjectionModel.organization_id == organization.id
-                )
-            )
-        ).all()
-        reliability = {item.object_key: item.reliability_status for item in projections}
+        views = await list_projection_views(
+            session,
+            organization_id=organization.id,
+        )
+        reliability = {item.object_key: item.reliability_status for item in views}
         assert reliability["github:test:ok"] is ObservationStatus.OBSERVED
         assert reliability["github:test:error"] is ObservationStatus.ERROR
 
         ok.stale_threshold_seconds = 0
         await session.commit()
-        views = await list_projection_views(
+        aged_views = await list_projection_views(
             session,
             organization_id=organization.id,
         )
-        view_by_key = {item.object_key: item for item in views}
+        view_by_key = {item.object_key: item for item in aged_views}
         assert view_by_key["github:test:ok"].freshness_state is FreshnessState.STALE
         assert view_by_key["github:test:ok"].trusted_current is False
