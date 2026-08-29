@@ -1,5 +1,6 @@
+import asyncio
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.api.routes import router as auth_router
 from app.command.api.routes import router as command_router
+from app.command.application.refresh import refresh_supervisor
 from app.organizations.api.routes import router as organizations_router
 from app.projects.api.routes import router as projects_router
 from app.shared.config.settings import get_settings
@@ -26,8 +28,17 @@ COMMAND_UI = Path(__file__).resolve().parent / "command" / "frontend" / "index.h
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    yield
-    await engine.dispose()
+    refresh_task: asyncio.Task[None] | None = None
+    if settings.command_refresh_enabled:
+        refresh_task = asyncio.create_task(refresh_supervisor())
+    try:
+        yield
+    finally:
+        if refresh_task is not None:
+            refresh_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await refresh_task
+        await engine.dispose()
 
 
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
