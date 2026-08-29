@@ -19,7 +19,7 @@ async def test_public_registration_is_fail_closed(client: AsyncClient) -> None:
         },
     )
     assert response.status_code == 404
-    assert response.json()["code"] == "public_registration_disabled"
+    assert response.json()["error"]["code"] == "public_registration_disabled"
 
 
 @pytest.mark.asyncio
