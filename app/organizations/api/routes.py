@@ -55,18 +55,20 @@ async def list_organizations(
     current_user: CurrentUser, session: DbSession
 ) -> list[OrganizationResponse]:
     settings = get_settings()
-    organizations = (
-        await session.scalars(
-            select(OrganizationModel)
-            .join(MembershipModel)
-            .where(
-                MembershipModel.user_id == current_user.id,
-                MembershipModel.status == MembershipStatus.ACTIVE,
-                OrganizationModel.slug == settings.canonical_institution_slug,
-            )
-            .order_by(OrganizationModel.name)
+    query = (
+        select(OrganizationModel)
+        .join(MembershipModel)
+        .where(
+            MembershipModel.user_id == current_user.id,
+            MembershipModel.status == MembershipStatus.ACTIVE,
         )
-    ).all()
+        .order_by(OrganizationModel.name)
+    )
+    if not settings.organization_self_service_enabled:
+        query = query.where(
+            OrganizationModel.slug == settings.canonical_institution_slug
+        )
+    organizations = (await session.scalars(query)).all()
     return [OrganizationResponse.model_validate(item) for item in organizations]
 
 
@@ -77,16 +79,20 @@ async def get_organization(
     session: DbSession,
 ) -> OrganizationResponse:
     settings = get_settings()
-    organization = await session.scalar(
+    query = (
         select(OrganizationModel)
         .join(MembershipModel)
         .where(
             OrganizationModel.id == organization_id,
-            OrganizationModel.slug == settings.canonical_institution_slug,
             MembershipModel.user_id == current_user.id,
             MembershipModel.status == MembershipStatus.ACTIVE,
         )
     )
+    if not settings.organization_self_service_enabled:
+        query = query.where(
+            OrganizationModel.slug == settings.canonical_institution_slug
+        )
+    organization = await session.scalar(query)
     if organization is None:
         raise AppError(
             "Organization not found or access denied.",
