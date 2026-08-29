@@ -1,8 +1,10 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI
+from fastapi.responses import FileResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +21,7 @@ from app.workspaces.api.routes import router as workspaces_router
 
 settings = get_settings()
 configure_logging(settings.log_level)
+COMMAND_UI = Path(__file__).resolve().parent / "command" / "frontend" / "index.html"
 
 
 @asynccontextmanager
@@ -35,6 +38,12 @@ app.include_router(workspaces_router)
 app.include_router(projects_router)
 app.include_router(tasks_router)
 app.include_router(command_router)
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/command-ui", include_in_schema=False)
+async def command_ui() -> FileResponse:
+    return FileResponse(COMMAND_UI)
 
 
 @app.get("/health", tags=["system"])
