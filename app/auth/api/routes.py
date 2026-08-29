@@ -36,6 +36,21 @@ def _set_session_cookie(response: Response, token: str) -> None:
     )
 
 
+async def _authenticate(payload: LoginRequest, session: AsyncSession) -> UserModel:
+    user = await session.scalar(
+        select(UserModel).where(UserModel.email == str(payload.email).lower())
+    )
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise AppError(
+            "Invalid email or password.",
+            code="invalid_credentials",
+            status_code=401,
+        )
+    if not user.is_active:
+        raise AppError("User is inactive.", code="user_inactive", status_code=403)
+    return user
+
+
 @router.post(
     "/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED
 )
@@ -82,24 +97,27 @@ async def login(
     session: DbSession,
     response: Response,
 ) -> AuthResponse:
-    user = await session.scalar(
-        select(UserModel).where(UserModel.email == str(payload.email).lower())
-    )
-    if user is None or not verify_password(payload.password, user.password_hash):
-        raise AppError(
-            "Invalid email or password.",
-            code="invalid_credentials",
-            status_code=401,
-        )
-    if not user.is_active:
-        raise AppError("User is inactive.", code="user_inactive", status_code=403)
-
+    """Platform-compatible bearer login; not used by the COMMAND browser shell."""
+    user = await _authenticate(payload, session)
     token = create_access_token(user.id, session_version=user.session_version)
     _set_session_cookie(response, token)
     return AuthResponse(
         access_token=token,
         user=UserResponse.model_validate(user),
     )
+
+
+@router.post("/session/login", response_model=UserResponse)
+async def session_login(
+    payload: LoginRequest,
+    session: DbSession,
+    response: Response,
+) -> UserResponse:
+    """Private product login: session credential remains in an HttpOnly cookie."""
+    user = await _authenticate(payload, session)
+    token = create_access_token(user.id, session_version=user.session_version)
+    _set_session_cookie(response, token)
+    return UserResponse.model_validate(user)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
