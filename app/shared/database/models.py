@@ -10,6 +10,7 @@ from app.command.infrastructure.models import (
     ProjectionModel,
     ProjectionObservationModel,
 )
+from app.command.infrastructure.refresh_models import CommandRefreshPolicyModel
 from app.memberships.infrastructure.models import MembershipModel
 from app.organizations.infrastructure.models import OrganizationModel
 from app.projects.infrastructure.models import ProjectModel
@@ -22,6 +23,7 @@ __all__ = [
     "AttentionItemModel",
     "AttentionProjectionRefModel",
     "AuditEventModel",
+    "CommandRefreshPolicyModel",
     "CommandSourceModel",
     "MembershipModel",
     "ObservationModel",
