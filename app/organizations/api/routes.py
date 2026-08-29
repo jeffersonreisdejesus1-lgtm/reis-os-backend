@@ -16,6 +16,7 @@ from app.organizations.api.schemas import (
 )
 from app.organizations.application.service import create_organization
 from app.organizations.infrastructure.models import OrganizationModel
+from app.shared.config.settings import get_settings
 from app.shared.database.session import get_db_session
 from app.shared.errors.exceptions import AppError
 
@@ -31,6 +32,12 @@ async def create(
     current_user: CurrentUser,
     session: DbSession,
 ) -> OrganizationCreatedResponse:
+    if not get_settings().organization_self_service_enabled:
+        raise AppError(
+            "Organization self-service is disabled for this product.",
+            code="organization_self_service_disabled",
+            status_code=404,
+        )
     organization, membership = await create_organization(
         session,
         current_user=current_user,
@@ -47,6 +54,7 @@ async def create(
 async def list_organizations(
     current_user: CurrentUser, session: DbSession
 ) -> list[OrganizationResponse]:
+    settings = get_settings()
     organizations = (
         await session.scalars(
             select(OrganizationModel)
@@ -54,6 +62,7 @@ async def list_organizations(
             .where(
                 MembershipModel.user_id == current_user.id,
                 MembershipModel.status == MembershipStatus.ACTIVE,
+                OrganizationModel.slug == settings.canonical_institution_slug,
             )
             .order_by(OrganizationModel.name)
         )
@@ -67,11 +76,13 @@ async def get_organization(
     current_user: CurrentUser,
     session: DbSession,
 ) -> OrganizationResponse:
+    settings = get_settings()
     organization = await session.scalar(
         select(OrganizationModel)
         .join(MembershipModel)
         .where(
             OrganizationModel.id == organization_id,
+            OrganizationModel.slug == settings.canonical_institution_slug,
             MembershipModel.user_id == current_user.id,
             MembershipModel.status == MembershipStatus.ACTIVE,
         )
