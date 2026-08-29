@@ -23,7 +23,9 @@ async def test_public_registration_is_fail_closed(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_institutional_command_requires_authentication(client: AsyncClient) -> None:
+async def test_institutional_command_requires_authentication(
+    client: AsyncClient,
+) -> None:
     response = await client.get("/command/situation")
     assert response.status_code == 401
 
