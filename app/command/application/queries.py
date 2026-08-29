@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import select
@@ -19,6 +19,7 @@ from app.command.infrastructure.models import (
     ProjectionModel,
     ProjectionObservationModel,
 )
+from app.command.infrastructure.refresh_models import CommandRefreshPolicyModel
 from app.shared.errors.exceptions import AppError
 
 
@@ -81,6 +82,43 @@ async def _get_operational_object(
     return item
 
 
+async def _projection_view(
+    session: AsyncSession,
+    *,
+    organization_id: UUID,
+    operational_object: OperationalObjectModel,
+    projection: ProjectionModel,
+) -> ProjectionView:
+    freshness_state = projection.freshness_state
+    trusted_current = projection.trusted_current
+    policy = await session.scalar(
+        select(CommandRefreshPolicyModel).where(
+            CommandRefreshPolicyModel.organization_id == organization_id,
+            CommandRefreshPolicyModel.object_key == operational_object.object_key,
+            CommandRefreshPolicyModel.enabled.is_(True),
+        )
+    )
+    if policy is not None:
+        built_at = projection.built_at
+        if built_at.tzinfo is None:
+            built_at = built_at.replace(tzinfo=UTC)
+        stale_at = built_at + timedelta(seconds=policy.stale_threshold_seconds)
+        if datetime.now(UTC) >= stale_at:
+            freshness_state = FreshnessState.STALE
+            trusted_current = False
+
+    return ProjectionView(
+        object_key=operational_object.object_key,
+        object_type=operational_object.object_type,
+        projection_type=projection.projection_type,
+        built_at=projection.built_at,
+        freshness_state=freshness_state,
+        reliability_status=projection.reliability_status,
+        trusted_current=trusted_current,
+        projection_payload=projection.projection_payload,
+    )
+
+
 async def list_projection_views(
     session: AsyncSession,
     *,
@@ -107,15 +145,11 @@ async def list_projection_views(
         if operational_object is None:
             continue
         views.append(
-            ProjectionView(
-                object_key=operational_object.object_key,
-                object_type=operational_object.object_type,
-                projection_type=projection.projection_type,
-                built_at=projection.built_at,
-                freshness_state=projection.freshness_state,
-                reliability_status=projection.reliability_status,
-                trusted_current=projection.trusted_current,
-                projection_payload=projection.projection_payload,
+            await _projection_view(
+                session,
+                organization_id=organization_id,
+                operational_object=operational_object,
+                projection=projection,
             )
         )
     return views
@@ -198,15 +232,11 @@ async def get_object_detail(
             provenance=(),
         )
 
-    projection_view = ProjectionView(
-        object_key=operational_object.object_key,
-        object_type=operational_object.object_type,
-        projection_type=projection.projection_type,
-        built_at=projection.built_at,
-        freshness_state=projection.freshness_state,
-        reliability_status=projection.reliability_status,
-        trusted_current=projection.trusted_current,
-        projection_payload=projection.projection_payload,
+    projection_view = await _projection_view(
+        session,
+        organization_id=organization_id,
+        operational_object=operational_object,
+        projection=projection,
     )
     observation_ids = list(
         (
