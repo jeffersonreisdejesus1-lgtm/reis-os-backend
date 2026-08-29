@@ -16,7 +16,7 @@ jobs:
 
     env:
       GEMINI_API_KEY_RAW: ${{ secrets.GEMINI_API_KEY }}
-      COG_TEST_MODEL: gemini-2.5-flash
+      COG_TEST_MODEL: gemini-3.6-flash
 
     steps:
       - name: Checkout
