@@ -1,7 +1,7 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +41,22 @@ class Settings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
+
+    @model_validator(mode="after")
+    def validate_private_production_boundary(self) -> Self:
+        if self.app_env.lower() != "production":
+            return self
+        if self.secret_key == "change-me" or len(self.secret_key) < 32:
+            raise ValueError("Production requires a non-default strong SECRET_KEY")
+        if self.debug:
+            raise ValueError("Production debug must be disabled")
+        if not self.session_cookie_secure:
+            raise ValueError("Production sessions require secure cookies")
+        if self.public_signup_enabled:
+            raise ValueError("Public signup is prohibited in COMMAND v0.1")
+        if self.organization_self_service_enabled:
+            raise ValueError("Organization self-service is prohibited in COMMAND v0.1")
+        return self
 
 
 @lru_cache
