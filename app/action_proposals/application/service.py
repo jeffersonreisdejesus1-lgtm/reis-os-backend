@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -14,7 +15,7 @@ async def create_action_proposal(
     *,
     action_type: str,
     target: str,
-    payload: dict[str, object],
+    payload: dict[str, Any],
     requested_by: str,
 ) -> ActionProposalModel:
     proposal = ActionProposalModel(
