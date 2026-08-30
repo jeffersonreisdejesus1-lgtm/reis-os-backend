@@ -30,7 +30,9 @@ def valid_payload() -> dict[str, Any]:
     }
 
 
-async def create_proposal(client: AsyncClient, headers: dict[str, str]) -> dict[str, Any]:
+async def create_proposal(
+    client: AsyncClient, headers: dict[str, str]
+) -> dict[str, Any]:
     response = await client.post(
         "/action-proposals", json=valid_payload(), headers=headers
     )
