@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import DateTime, Enum, JSON, String, Text
+from sqlalchemy import DateTime, Enum, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.action_proposals.domain.enums import ActionProposalStatus, ExecutionStatus
