@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
@@ -177,6 +178,36 @@ def central_note(config: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def status_note(successes: list[str], failures: list[tuple[str, str]]) -> str:
+    now = datetime.now(timezone.utc).isoformat()
+    lines = [
+        "---",
+        "reis_os_mirror: true",
+        "canonical_source: Notion",
+        "mirror_authority: derived_noncanonical",
+        "---",
+        "",
+        "# Mirror Sync Status",
+        "",
+        f"Last attempt (UTC): {now}",
+        "",
+        f"Successful pages: {len(successes)}",
+        f"Failed pages: {len(failures)}",
+        "",
+    ]
+    if successes:
+        lines.extend(["## Success", ""])
+        lines.extend(f"- {name}" for name in successes)
+        lines.append("")
+    if failures:
+        lines.extend(["## Failures", ""])
+        for name, error in failures:
+            safe = error.replace("\n", " ")[:800]
+            lines.append(f"- **{name}**: `{safe}`")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def write_if_changed(path: Path, content: str) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.exists() and path.read_text(encoding="utf-8") == content:
@@ -196,19 +227,31 @@ def main() -> int:
     output_dir = Path(config.get("output_dir", "obsidian-mirror"))
 
     changed = 0
+    successes: list[str] = []
+    failures: list[tuple[str, str]] = []
+
     for page_cfg in config["pages"]:
-        content = render_page(page_cfg, token)
-        if write_if_changed(output_dir / page_cfg["file"], content):
-            changed += 1
-            print(f"updated: {page_cfg['file']}")
-        else:
-            print(f"unchanged: {page_cfg['file']}")
+        try:
+            content = render_page(page_cfg, token)
+            successes.append(page_cfg["name"])
+            if write_if_changed(output_dir / page_cfg["file"], content):
+                changed += 1
+                print(f"updated: {page_cfg['file']}")
+            else:
+                print(f"unchanged: {page_cfg['file']}")
+        except Exception as exc:  # diagnostic mirror must leave an auditable status file
+            failures.append((page_cfg["name"], str(exc)))
+            print(f"failed: {page_cfg['name']}: {exc}", file=sys.stderr)
 
     if write_if_changed(output_dir / config.get("central_note", "REIS OS.md"), central_note(config)):
         changed += 1
         print("updated: central note")
 
-    print(f"mirror complete; changed_files={changed}")
+    if write_if_changed(output_dir / "_SYNC_STATUS.md", status_note(successes, failures)):
+        changed += 1
+        print("updated: sync status")
+
+    print(f"mirror complete; changed_files={changed}; successes={len(successes)}; failures={len(failures)}")
     return 0
 
 
