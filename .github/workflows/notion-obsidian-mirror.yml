@@ -4,6 +4,13 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "17 * * * *"
+  push:
+    branches:
+      - main
+    paths:
+      - "scripts/notion_to_obsidian.py"
+      - "config/notion_obsidian_pages.json"
+      - ".github/workflows/notion-obsidian-mirror.yml"
 
 permissions:
   contents: write
