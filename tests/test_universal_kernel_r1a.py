@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import replace
 import time
+from dataclasses import replace
 
 import pytest
 
@@ -14,10 +14,20 @@ from app.universal_kernel.governance import (
     EvidenceEngine,
     GovernanceEngine,
 )
-from app.universal_kernel.material import InMemoryMutationAdapter, ThinEffector, ToolBroker
-from app.universal_kernel.runtime import CognitiveRuntimePort, HandoffRouter, LPEPort, LearningCandidate, RecoveryManager
+from app.universal_kernel.material import (
+    InMemoryMutationAdapter,
+    ThinEffector,
+    ToolBroker,
+)
+from app.universal_kernel.runtime import (
+    CognitiveRuntimePort,
+    HandoffRouter,
+    LearningCandidate,
+    LPEPort,
+    RecoveryManager,
+)
 from app.universal_kernel.state import InMemoryStateManager
-from app.universal_kernel.trace import TraceEvent, TraceLedger
+from app.universal_kernel.trace import TraceLedger
 
 
 CAPABILITY = "cap.write"
@@ -49,6 +59,7 @@ def build_runtime(*, expires_at: int | None = None) -> tuple[
         )
     )
     leases = AuthorityLeaseManager()
+    expiry = expires_at if expires_at is not None else int(time.time()) + 3600
     leases.grant(
         AuthorityLease(
             lease_ref="lease-1",
@@ -59,7 +70,7 @@ def build_runtime(*, expires_at: int | None = None) -> tuple[
             object_ref="obj-1",
             scope=SCOPE,
             context_ref="ctx-1",
-            expires_at=expires_at if expires_at is not None else int(time.time()) + 3600,
+            expires_at=expiry,
             max_uses=1,
         )
     )
@@ -80,7 +91,11 @@ def build_runtime(*, expires_at: int | None = None) -> tuple[
     )
 
 
-def proposal(runtime: CognitiveRuntimePort, *, evidence_refs: tuple[str, ...] = ("ev-pass",)):
+def proposal(
+    runtime: CognitiveRuntimePort,
+    *,
+    evidence_refs: tuple[str, ...] = ("ev-pass",),
+):
     return runtime.propose(
         proposal_id="p1",
         actor="actor",
@@ -103,7 +118,11 @@ def proposal(runtime: CognitiveRuntimePort, *, evidence_refs: tuple[str, ...] = 
 def authorize(runtime_tuple):
     runtime, _, evidence, _, governance, _, _, _, _ = runtime_tuple
     p = proposal(runtime)
-    assessment = evidence.assess(proposal=p, required=True, passing_refs={"ev-pass"})
+    assessment = evidence.assess(
+        proposal=p,
+        required=True,
+        passing_refs={"ev-pass"},
+    )
     return governance.decide(
         proposal=p,
         assessment=assessment,
@@ -256,7 +275,11 @@ def test_high_risk_evidence_failure_blocks_effect() -> None:
     runtime_tuple = build_runtime()
     runtime, _, evidence, _, governance, broker, _, adapter, _ = runtime_tuple
     p = proposal(runtime, evidence_refs=("missing",))
-    assessment = evidence.assess(proposal=p, required=True, passing_refs={"other"})
+    assessment = evidence.assess(
+        proposal=p,
+        required=True,
+        passing_refs={"other"},
+    )
     decision = governance.decide(
         proposal=p,
         assessment=assessment,
