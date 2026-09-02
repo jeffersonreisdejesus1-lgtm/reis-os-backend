@@ -1,0 +1,81 @@
+name: Sofia Learning Evolution V0
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "experiments/sofia_learning_v0/**"
+      - ".github/workflows/sofia-learning-v0.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sofia-learning-v0:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GEMINI_API_KEY_RAW: ${{ secrets.GEMINI_API_KEY }}
+      SOFIA_MODEL: gemini-3.7-flash
+      SOFIA_MAX_CALLS: '16'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Prepare runtime secret
+        shell: bash
+        run: |
+          CLEAN_KEY="$(printf '%s' "$GEMINI_API_KEY_RAW" | tr -d '\r\n')"
+          if [ -z "$CLEAN_KEY" ]; then
+            echo "GEMINI_API_KEY repository secret is not configured."
+            exit 2
+          fi
+          echo "::add-mask::$CLEAN_KEY"
+          printf 'GEMINI_API_KEY=%s\n' "$CLEAN_KEY" >> "$GITHUB_ENV"
+
+      - name: Prepare evidence
+        run: mkdir -p artifacts/sofia-learning-v0
+
+      - name: Syntax gate
+        run: |
+          python -m py_compile experiments/sofia_learning_v0/run.py
+          python -m py_compile experiments/sofia_learning_v0/physiology.py
+          python -m py_compile experiments/sofia_learning_v0/test_physiology.py
+
+      - name: Verify refactored physiology prototype
+        run: |
+          python -m pip install --quiet pytest
+          pytest -q experiments/sofia_learning_v0/test_physiology.py \
+            --junitxml=artifacts/sofia-learning-v0/physiology-tests.xml
+
+      - name: Execute Sofia learning campaign
+        run: python experiments/sofia_learning_v0/run.py
+
+      - name: Record execution metadata
+        if: always()
+        run: |
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "provider=gemini"
+            echo "model=${SOFIA_MODEL}"
+            echo "max_calls=${SOFIA_MAX_CALLS}"
+            echo "python=$(python --version 2>&1)"
+            echo "timestamp=$(date --utc --iso-8601=seconds)"
+          } > artifacts/sofia-learning-v0/execution.txt
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sofia-learning-v0-evidence
+          path: artifacts/sofia-learning-v0/
+          if-no-files-found: error
