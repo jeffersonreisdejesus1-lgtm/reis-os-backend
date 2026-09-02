@@ -26,13 +26,16 @@ class UniversalKernelRuntime:
         self._state = state
         self._trace = trace
         self._seq = count(1)
-        self._completed: dict[str, ExecutionResult] = {}
+        self._completed: dict[str, tuple[str, ExecutionResult]] = {}
 
     def execute(self, proposal: ActionProposal) -> ExecutionResult:
         if proposal.idempotency_key is not None:
             completed = self._completed.get(proposal.idempotency_key)
             if completed is not None:
-                return completed
+                completed_action_id, completed_result = completed
+                if completed_action_id != proposal.action_id:
+                    return ExecutionResult(False, False, True, "idempotency_conflict")
+                return completed_result
 
         governance = self._governance.authorize(proposal)
         if (
@@ -90,7 +93,7 @@ class UniversalKernelRuntime:
             return ExecutionResult(True, effected, False, str(exc))
 
         result = ExecutionResult(True, True, True, "effect_proven", readback)
-        self._completed[envelope.idempotency_key] = result
+        self._completed[envelope.idempotency_key] = (envelope.action_id, result)
         return result
 
     def _event_id(self, action_id: str, stage: str) -> str:
