@@ -6,7 +6,7 @@ mirror_authority: derived_noncanonical
 
 # REIS OS
 
-> Espelho derivado para navegação/visualização. O estado canônico permanece no Notion.
+> Índice derivado. O estado canônico permanece nos Evolution Cores do Notion.
 
 ## OCS
 
