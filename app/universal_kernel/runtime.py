@@ -26,22 +26,44 @@ class UniversalKernelRuntime:
         self._state = state
         self._trace = trace
         self._seq = count(1)
+        self._completed: dict[str, ExecutionResult] = {}
 
     def execute(self, proposal: ActionProposal) -> ExecutionResult:
+        if proposal.idempotency_key is not None:
+            completed = self._completed.get(proposal.idempotency_key)
+            if completed is not None:
+                return completed
+
         governance = self._governance.authorize(proposal)
         if (
             governance.decision is AuthorizationDecision.DENY
             or governance.envelope is None
         ):
             return ExecutionResult(False, False, True, governance.reason)
-        envelope = governance.envelope
+
+        reservation = self._governance.reserve_authority(governance.envelope)
+        if (
+            reservation.decision is AuthorizationDecision.DENY
+            or reservation.envelope is None
+        ):
+            return ExecutionResult(False, False, True, reservation.reason)
+
+        envelope = reservation.envelope
+        effected = False
         try:
             self._trace.append_stage(
                 event_id=self._event_id(proposal.action_id, "authorized"),
                 action_id=proposal.action_id,
                 stage="AUTHORIZED_ACTION_ENVELOPE",
+                details={
+                    "trace_id": envelope.trace_id,
+                    "lease_id": envelope.lease_id,
+                    "lease_use_index": envelope.lease_use_index,
+                    "idempotency_key": envelope.idempotency_key,
+                },
             )
             readback = self._effector.execute(envelope)
+            effected = True
             self._trace.append_stage(
                 event_id=self._event_id(proposal.action_id, "readback"),
                 action_id=proposal.action_id,
@@ -65,8 +87,11 @@ class UniversalKernelRuntime:
                 details={"state_id": state.state_id, "version": state.version},
             )
         except RuntimeError as exc:
-            return ExecutionResult(True, True, False, str(exc))
-        return ExecutionResult(True, True, True, "effect_proven", readback)
+            return ExecutionResult(True, effected, False, str(exc))
+
+        result = ExecutionResult(True, True, True, "effect_proven", readback)
+        self._completed[envelope.idempotency_key] = result
+        return result
 
     def _event_id(self, action_id: str, stage: str) -> str:
         return f"trace:{action_id}:{stage}:{next(self._seq)}"
