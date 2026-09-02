@@ -45,6 +45,8 @@ class ActionProposal:
     risk: RiskLevel
     lease_id: str | None = None
     evidence: tuple[Evidence, ...] = ()
+    action_type: str | None = None
+    issued_at: float | None = None
     csp_ref: str | None = None
     object_ref: str | None = None
     tenant: str | None = None
@@ -69,6 +71,8 @@ class AuthorizedActionEnvelope:
     ocs: str
     capability: str
     operation: str
+    action_type: str
+    issued_at: float
     payload: dict[str, object]
     lease_id: str
     evidence_refs: tuple[str, ...]
