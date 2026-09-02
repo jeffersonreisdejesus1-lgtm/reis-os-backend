@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from enum import StrEnum
 from threading import RLock
 from time import time
 
@@ -63,6 +64,12 @@ class EvidenceEngine:
         return True, "evidence_sufficient"
 
 
+class LeaseState(StrEnum):
+    ACTIVE = "active"
+    CONSUMED = "consumed"
+    RELEASED = "released"
+
+
 @dataclass(frozen=True)
 class AuthorityLease:
     lease_id: str
@@ -74,7 +81,10 @@ class AuthorityLease:
     context_ref: str = ""
     authority_ref: str = ""
     policy_snapshot: str = ""
+    action_binding: str = ""
+    object_ref_or_selector: str = ""
     max_uses: int = 1
+    state: LeaseState = LeaseState.ACTIVE
     revoked: bool = False
 
 
@@ -95,11 +105,15 @@ class AuthorityLeaseManager:
             raise ValueError("lease_max_uses_must_be_positive")
         if not lease.scope:
             raise ValueError("lease_scope_required")
+        if lease.state is not LeaseState.ACTIVE:
+            raise ValueError("lease_must_issue_active")
         bindings = (
             lease.tenant,
             lease.context_ref,
             lease.authority_ref,
             lease.policy_snapshot,
+            lease.action_binding,
+            lease.object_ref_or_selector,
         )
         if not all(bindings):
             raise ValueError("lease_binding_required")
@@ -113,6 +127,15 @@ class AuthorityLeaseManager:
         with self._lock:
             lease = self._leases[lease_id]
             self._leases[lease_id] = replace(lease, revoked=True)
+
+    def release(self, lease_id: str) -> None:
+        with self._lock:
+            lease = self._leases[lease_id]
+            if lease.state is LeaseState.RELEASED:
+                return
+            if lease.state is not LeaseState.CONSUMED:
+                raise ValueError("lease_release_requires_consumed_state")
+            self._leases[lease_id] = replace(lease, state=LeaseState.RELEASED)
 
     def lease_for(self, lease_id: str) -> AuthorityLease:
         with self._lock:
@@ -138,6 +161,10 @@ class AuthorityLeaseManager:
                 return False, reason
             assert proposal.lease_id is not None
             lease = self._leases[proposal.lease_id]
+            if proposal.action_type != lease.action_binding:
+                return False, "lease_action_binding_mismatch"
+            if proposal.object_ref != lease.object_ref_or_selector:
+                return False, "lease_object_binding_mismatch"
             if proposal.tenant != lease.tenant:
                 return False, "lease_tenant_mismatch"
             if proposal.context_ref != lease.context_ref:
@@ -169,6 +196,10 @@ class AuthorityLeaseManager:
                 return False, reason, None
             lease = self._leases[envelope.lease_id]
             usage = self._usage[envelope.lease_id]
+            if envelope.action_type != lease.action_binding:
+                return False, "lease_action_binding_mismatch", None
+            if envelope.object_ref != lease.object_ref_or_selector:
+                return False, "lease_object_binding_mismatch", None
             if envelope.tenant != lease.tenant:
                 return False, "lease_tenant_mismatch", None
             if envelope.context_ref != lease.context_ref:
@@ -203,6 +234,10 @@ class AuthorityLeaseManager:
                 envelope.action_id,
                 use_index,
             )
+            self._leases[envelope.lease_id] = replace(
+                lease,
+                state=LeaseState.CONSUMED,
+            )
             return True, "lease_use_reserved", use_index
 
     def uses_consumed(self, lease_id: str) -> int:
@@ -222,6 +257,8 @@ class AuthorityLeaseManager:
             return False, "lease_unknown"
         if lease.revoked:
             return False, "lease_revoked"
+        if lease.state is LeaseState.RELEASED:
+            return False, "lease_released"
         if lease.expires_at <= time():
             return False, "lease_expired"
         if lease.ocs != ocs or lease.capability != capability:
@@ -279,6 +316,8 @@ class GovernanceEngine:
             return GovernanceResult(AuthorizationDecision.DENY, lease_reason)
 
         assert proposal.lease_id is not None
+        assert proposal.action_type is not None
+        assert proposal.issued_at is not None
         assert proposal.csp_ref is not None
         assert proposal.object_ref is not None
         assert proposal.tenant is not None
@@ -301,6 +340,8 @@ class GovernanceEngine:
             ocs=proposal.ocs,
             capability=proposal.capability,
             operation=proposal.operation,
+            action_type=proposal.action_type,
+            issued_at=proposal.issued_at,
             payload=proposal.payload,
             lease_id=proposal.lease_id,
             evidence_refs=tuple(item.ref for item in proposal.evidence),
@@ -344,6 +385,8 @@ class GovernanceEngine:
     @staticmethod
     def _validate_envelope_contract(proposal: ActionProposal) -> tuple[bool, str]:
         required = {
+            "action_type": proposal.action_type,
+            "issued_at": proposal.issued_at,
             "csp_ref": proposal.csp_ref,
             "object_ref": proposal.object_ref,
             "tenant": proposal.tenant,
@@ -369,4 +412,11 @@ class GovernanceEngine:
             return False, f"action_envelope_incomplete:{missing_fields}"
         if not proposal.scope:
             return False, "action_envelope_incomplete:scope"
+        assert proposal.issued_at is not None
+        assert proposal.expires_at is not None
+        now = time()
+        if proposal.issued_at > now:
+            return False, "action_envelope_issued_in_future"
+        if proposal.issued_at > proposal.expires_at:
+            return False, "action_envelope_invalid_lifetime"
         return True, "action_envelope_complete"
