@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from hashlib import sha256
-import json
 
 from .contracts import ActionProposal, HandoffPackage
 from .state import InMemoryStateManager, StateSnapshot
@@ -170,9 +170,14 @@ class LearningCandidate:
 
 
 class LPEPort:
-    """Local learning port. It cannot mutate authority or foreign OCS state."""
+    """Local learning port without authority or foreign-state mutation."""
 
-    def consolidate(self, candidate: LearningCandidate, *, verified: bool) -> LearningCandidate:
+    def consolidate(
+        self,
+        candidate: LearningCandidate,
+        *,
+        verified: bool,
+    ) -> LearningCandidate:
         if candidate.authority_delta != 0:
             raise PermissionError("learning cannot expand authority")
         return LearningCandidate(
