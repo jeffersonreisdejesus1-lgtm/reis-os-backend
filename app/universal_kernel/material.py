@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
 from typing import Protocol
 
 from .contracts import AuthorizedActionEnvelope, EffectAttemptResult
@@ -29,7 +29,10 @@ class InMemoryMutationAdapter:
         return 1, f"provider://{self.adapter_id}/{envelope.action_id}"
 
     def readback(self, envelope: AuthorizedActionEnvelope) -> str:
-        return f"readback://{self.adapter_id}/{envelope.action_id}/{self.mutation_count}"
+        return (
+            f"readback://{self.adapter_id}/{envelope.action_id}/"
+            f"{self.mutation_count}"
+        )
 
 
 @dataclass(frozen=True)
@@ -54,7 +57,11 @@ class ToolBroker:
     def bind_adapter(self, adapter: MaterialAdapter) -> None:
         self._adapters[adapter.adapter_id] = adapter
 
-    def resolve(self, envelope: AuthorizedActionEnvelope, capability_ref: str) -> EffectorInvocation:
+    def resolve(
+        self,
+        envelope: AuthorizedActionEnvelope,
+        capability_ref: str,
+    ) -> EffectorInvocation:
         descriptor = self._registry.describe(capability_ref)
         lease = self._leases.get(envelope.lease_ref)
         if not lease.active:
@@ -65,7 +72,10 @@ class ToolBroker:
         self.resolution_count += 1
         self._trace.append(
             "tool_broker_resolution",
-            {"action_id": envelope.action_id, "adapter_id": descriptor.adapter_id},
+            {
+                "action_id": envelope.action_id,
+                "adapter_id": descriptor.adapter_id,
+            },
         )
         return EffectorInvocation(envelope=envelope, adapter=adapter)
 
@@ -98,7 +108,6 @@ class ThinEffector:
                 ended_at=int(time.time()),
                 trace_ref=event.event_hash,
             )
-
         mutation_count, provider_ref = invocation.adapter.execute(envelope)
         readback_ref = invocation.adapter.readback(envelope)
         event = self._trace.append(
