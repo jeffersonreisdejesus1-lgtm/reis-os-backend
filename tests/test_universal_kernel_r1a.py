@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from time import time
+from time import sleep, time
 
 import pytest
 
@@ -249,7 +249,10 @@ def test_lease_contract_materializes_frozen_fields() -> None:
 
 
 def test_expired_lease_causes_zero_mutation() -> None:
-    runtime, adapter, _, _, _, _, _ = build_runtime(lease_expires_at=time() - 1)
+    runtime, adapter, _, _, _, _, _ = build_runtime(
+        lease_expires_at=time() + 0.2
+    )
+    sleep(0.25)
     result = runtime.execute(proposal())
     assert not result.authorized
     assert result.reason == "lease_expired"
