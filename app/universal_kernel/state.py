@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from hashlib import sha256
 import json
 import time
+from dataclasses import dataclass
+from hashlib import sha256
 
 from .contracts import StateCommitRecord
 from .trace import TraceLedger
@@ -47,9 +47,12 @@ class InMemoryStateManager:
         current_version = current.version if current else None
         if current_version != expected_predecessor:
             raise StateConflictError("predecessor mismatch")
-        if current is not None and current.predecessor_version is None and current.version != 1:
+        if (
+            current is not None
+            and current.predecessor_version is None
+            and current.version != 1
+        ):
             raise StateConflictError("non-genesis state requires predecessor")
-
         version = 1 if current is None else current.version + 1
         content_hash = self._hash_payload(payload)
         snapshot = StateSnapshot(
@@ -62,12 +65,10 @@ class InMemoryStateManager:
         )
         stream = self._streams.setdefault(namespace, [])
         stream.append(snapshot)
-
         readback = self.read_state(namespace)
         if readback is None or readback.content_hash != content_hash:
             stream.pop()
             raise RuntimeError("readback verification failed")
-
         verified = StateSnapshot(
             namespace=snapshot.namespace,
             version=snapshot.version,
