@@ -95,9 +95,13 @@ class AuthorityLeaseManager:
             raise ValueError("lease_max_uses_must_be_positive")
         if not lease.scope:
             raise ValueError("lease_scope_required")
-        if not all(
-            (lease.tenant, lease.context_ref, lease.authority_ref, lease.policy_snapshot)
-        ):
+        bindings = (
+            lease.tenant,
+            lease.context_ref,
+            lease.authority_ref,
+            lease.policy_snapshot,
+        )
+        if not all(bindings):
             raise ValueError("lease_binding_required")
         with self._lock:
             if lease.lease_id in self._leases:
@@ -109,6 +113,10 @@ class AuthorityLeaseManager:
         with self._lock:
             lease = self._leases[lease_id]
             self._leases[lease_id] = replace(lease, revoked=True)
+
+    def lease_for(self, lease_id: str) -> AuthorityLease:
+        with self._lock:
+            return self._leases[lease_id]
 
     def validate(
         self,
@@ -169,7 +177,10 @@ class AuthorityLeaseManager:
                 return False, "lease_authority_ref_mismatch", None
             if envelope.policy_snapshot != lease.policy_snapshot:
                 return False, "lease_policy_snapshot_mismatch", None
-            if not envelope.valid_scope or not set(envelope.scope).issubset(set(lease.scope)):
+            valid_scope = envelope.valid_scope and set(envelope.scope).issubset(
+                set(lease.scope)
+            )
+            if not valid_scope:
                 return False, "lease_scope_mismatch", None
             if envelope.expires_at > lease.expires_at or envelope.expires_at <= time():
                 return False, "envelope_expired", None
@@ -283,7 +294,7 @@ class GovernanceEngine:
         assert proposal.evidence_assessment_ref is not None
         assert proposal.trace_id is not None
 
-        lease = self._leases._leases[proposal.lease_id]
+        lease = self._leases.lease_for(proposal.lease_id)
         envelope = AuthorizedActionEnvelope(
             action_id=proposal.action_id,
             actor=proposal.actor,
@@ -348,9 +359,14 @@ class GovernanceEngine:
             "evidence_assessment_ref": proposal.evidence_assessment_ref,
             "trace_id": proposal.trace_id,
         }
-        missing = [name for name, value in required.items() if value is None or value == ""]
+        missing = [
+            name
+            for name, value in required.items()
+            if value is None or value == ""
+        ]
         if missing:
-            return False, f"action_envelope_incomplete:{','.join(sorted(missing))}"
+            missing_fields = ",".join(sorted(missing))
+            return False, f"action_envelope_incomplete:{missing_fields}"
         if not proposal.scope:
             return False, "action_envelope_incomplete:scope"
         return True, "action_envelope_complete"
