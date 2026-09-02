@@ -131,17 +131,39 @@ class LearningState:
         idx, exp = self._find(experience_id)
         if exp.status is not LearningStatus.VERIFIED:
             raise ValueError("rollback target must be verified")
+
+        restored_predecessor_id: str | None = None
+        if exp.predecessor is not None:
+            try:
+                predecessor_idx, predecessor = self._find(exp.predecessor)
+            except KeyError:
+                predecessor = None
+            if (
+                predecessor is not None
+                and predecessor.status is LearningStatus.SUPERSEDED
+                and predecessor.supersedes == experience_id
+            ):
+                self.records[predecessor_idx] = replace(predecessor, status=LearningStatus.VERIFIED)
+                restored_predecessor_id = predecessor.experience_id
+
         self.records[idx] = replace(exp, status=LearningStatus.ROLLED_BACK)
         marker = self.append_candidate(
             experience_id=rollback_id,
             category=exp.category,
             problem=f"rollback:{exp.problem}",
-            solution="restore predecessor behavior",
+            solution=(
+                f"restore predecessor behavior:{restored_predecessor_id}"
+                if restored_predecessor_id is not None
+                else "restore baseline behavior"
+            ),
             outcome="rollback_applied",
             evidence=evidence,
         )
+        marker_idx, _ = self._find(marker.experience_id)
+        persisted_marker = replace(marker, rollback_of=experience_id)
+        self.records[marker_idx] = persisted_marker
         self.epoch += 1
-        return replace(marker, rollback_of=experience_id)
+        return persisted_marker
 
     def retrieve(self, query: str, category: str, k: int = 3) -> list[Experience]:
         if category not in self.profile.allowed_categories:
@@ -186,4 +208,6 @@ def _tokens(text: str) -> set[str]:
 # PARAMETRIC_CHANGE != CONSTITUTION_CHANGE
 # UNVERIFIED_LEARNING != ACTIVE_LEARNED_POLICY
 # FAILED_EVOLUTION -> ROLLBACK
+# Rollback semantics: deactivate bad learning, reactivate its superseded predecessor when present,
+# otherwise return to baseline behavior; always preserve rollback provenance in EXPERIENCE_STORE.
 # OCS_LOCAL_EXPERIENCE_ONLY = TRUE
