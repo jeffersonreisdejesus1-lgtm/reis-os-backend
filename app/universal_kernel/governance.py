@@ -88,7 +88,12 @@ class AuthorityLeaseManager:
             revoked=True,
         )
 
-    def validate(self, lease_id: str | None, ocs: str, capability: str) -> tuple[bool, str]:
+    def validate(
+        self,
+        lease_id: str | None,
+        ocs: str,
+        capability: str,
+    ) -> tuple[bool, str]:
         if lease_id is None:
             return False, "lease_required"
         lease = self._leases.get(lease_id)
@@ -119,17 +124,29 @@ class GovernanceEngine:
     def authorize(self, proposal: ActionProposal) -> GovernanceResult:
         identity = self._identities.load(proposal.ocs)
         if proposal.actor != proposal.ocs:
-            return GovernanceResult(AuthorizationDecision.DENY, "actor_ocs_mismatch")
+            return GovernanceResult(
+                AuthorizationDecision.DENY,
+                "actor_ocs_mismatch",
+            )
         if proposal.capability not in identity.allowed_capabilities:
-            return GovernanceResult(AuthorizationDecision.DENY, "constitution_denies_capability")
+            return GovernanceResult(
+                AuthorizationDecision.DENY,
+                "constitution_denies_capability",
+            )
         if not self._capabilities.has(proposal.ocs, proposal.capability):
-            return GovernanceResult(AuthorizationDecision.DENY, "capability_not_registered")
+            return GovernanceResult(
+                AuthorizationDecision.DENY,
+                "capability_not_registered",
+            )
         if any(
             evidence.independent_assurer in {proposal.ocs, proposal.actor}
             for evidence in proposal.evidence
             if evidence.independent_assurer is not None
         ):
-            return GovernanceResult(AuthorizationDecision.DENY, "self_assurance_denied")
+            return GovernanceResult(
+                AuthorizationDecision.DENY,
+                "self_assurance_denied",
+            )
         evidence_ok, evidence_reason = self._evidence.sufficient(proposal)
         if not evidence_ok:
             return GovernanceResult(AuthorizationDecision.DENY, evidence_reason)
@@ -150,4 +167,8 @@ class GovernanceEngine:
             lease_id=proposal.lease_id,
             evidence_refs=tuple(item.ref for item in proposal.evidence),
         )
-        return GovernanceResult(AuthorizationDecision.ALLOW, "authorized", envelope)
+        return GovernanceResult(
+            AuthorizationDecision.ALLOW,
+            "authorized",
+            envelope,
+        )
