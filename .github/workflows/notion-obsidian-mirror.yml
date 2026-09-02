@@ -1,0 +1,42 @@
+name: Notion to Obsidian Mirror
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: notion-obsidian-mirror
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Export canonical Notion pages to Markdown
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: python scripts/notion_to_obsidian.py
+
+      - name: Commit mirror changes
+        run: |
+          if git diff --quiet -- obsidian-mirror; then
+            echo "No mirror changes."
+            exit 0
+          fi
+          git config user.name "reis-os-bot"
+          git config user.email "reis-os-bot@users.noreply.github.com"
+          git add obsidian-mirror
+          git commit -m "chore: refresh Notion Obsidian mirror"
+          git push
