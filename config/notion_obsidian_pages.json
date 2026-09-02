@@ -1,0 +1,17 @@
+{
+  "output_dir": "obsidian-mirror",
+  "central_note": "REIS OS.md",
+  "pages": [
+    {"name": "Nóesis", "page_id": "3c9d31bc-7b67-815f-99f6-d31bc49a0a92", "file": "Nóesis.md", "ocs": true},
+    {"name": "Dédala", "page_id": "3c9d31bc-7b67-81d1-a02f-fe2a6e21ecfa", "file": "Dédala.md", "ocs": true},
+    {"name": "Sýnesis", "page_id": "3c9d31bc-7b67-816f-b7b2-d56f4a408ec6", "file": "Sýnesis.md", "ocs": true},
+    {"name": "Íris", "page_id": "3c9d31bc-7b67-81f3-94b4-d0502d282ac6", "file": "Íris.md", "ocs": true},
+    {"name": "Lyra", "page_id": "3c9d31bc-7b67-812c-9e35-f539331ad7b7", "file": "Lyra.md", "ocs": true},
+    {"name": "Sofia", "page_id": "3c9d31bc-7b67-81c3-bb79-e17ebe2017e6", "file": "Sofia.md", "ocs": true},
+    {"name": "Mêtis", "page_id": "3c9d31bc-7b67-8189-8614-e8f9fc0e6dac", "file": "Mêtis.md", "ocs": true},
+    {"name": "Ágora", "page_id": "3c9d31bc-7b67-81fa-8e5c-f952171f5c2b", "file": "Ágora.md", "ocs": true},
+    {"name": "Auri", "page_id": "3c9d31bc-7b67-812f-be12-f20a86077669", "file": "Auri.md", "ocs": true},
+    {"name": "Synergeia", "page_id": "3c9d31bc-7b67-81c4-adc3-efa9da150537", "file": "Synergeia.md", "ocs": true},
+    {"name": "Institucional", "page_id": "3cad31bc-7b67-8177-9aef-c4eb3c4ddfd7", "file": "_Institucional.md", "ocs": false}
+  ]
+}
