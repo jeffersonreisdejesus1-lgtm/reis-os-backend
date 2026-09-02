@@ -45,13 +45,46 @@ def test_supersession_and_rollback(profile):
     category = profile.allowed_categories[0]
     old = f"{profile.ocs}-old"
     new = f"{profile.ocs}-new"
+    rollback_id = f"{profile.ocs}-rb"
+
     state.append_candidate(experience_id=old, category=category, problem="problem", solution="old", outcome="pass", evidence=passing())
     state.verify(old)
     replacement = state.supersede(old, new, category=category, problem="problem", solution="new", outcome="pass", evidence=passing())
+
     assert replacement.status is LearningStatus.VERIFIED
     assert state.retrieve("problem", category)[0].experience_id == new
-    marker = state.rollback(new, f"{profile.ocs}-rb", passing("rollback"))
+
+    marker = state.rollback(new, rollback_id, passing("rollback"))
+
+    stored = {record.experience_id: record for record in state.records}
     assert marker.rollback_of == new
+    assert stored[rollback_id].rollback_of == new
+    assert stored[new].status is LearningStatus.ROLLED_BACK
+    assert stored[old].status is LearningStatus.VERIFIED
+    assert stored[old].supersedes == new
+    assert f"restore predecessor behavior:{old}" == stored[rollback_id].solution
+
+    retrieved = state.retrieve("problem", category)
+    assert retrieved
+    assert retrieved[0].experience_id == old
+    assert all(record.experience_id != new for record in retrieved)
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_rollback_without_superseded_predecessor_restores_baseline(profile):
+    state = LearningState(profile)
+    category = profile.allowed_categories[0]
+    target = f"{profile.ocs}-target"
+    rollback_id = f"{profile.ocs}-baseline-rb"
+
+    state.append_candidate(experience_id=target, category=category, problem="problem", solution="solution", outcome="pass", evidence=passing())
+    state.verify(target)
+    state.rollback(target, rollback_id, passing("rollback"))
+
+    stored = {record.experience_id: record for record in state.records}
+    assert stored[target].status is LearningStatus.ROLLED_BACK
+    assert stored[rollback_id].rollback_of == target
+    assert stored[rollback_id].solution == "restore baseline behavior"
     assert state.retrieve("problem", category) == []
 
 
