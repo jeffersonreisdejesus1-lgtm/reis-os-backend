@@ -1,16 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 
 
-class RiskLevel(str, Enum):
+class RiskLevel(StrEnum):
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
 
 
-class AuthorizationDecision(str, Enum):
+class AuthorizationDecision(StrEnum):
     ALLOW = "allow"
     DENY = "deny"
 
