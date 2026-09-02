@@ -29,6 +29,7 @@ from app.universal_kernel.governance import (
     EvidenceEngine,
     GovernanceEngine,
     IdentityConstitutionLoader,
+    LeaseState,
     OCSIdentity,
 )
 from app.universal_kernel.ports import (
@@ -108,6 +109,8 @@ def build_runtime(
             context_ref="context-1",
             authority_ref="authority-1",
             policy_snapshot="policy-r1",
+            action_binding="repository.write",
+            object_ref_or_selector="object:r1a",
             max_uses=max_uses,
         )
     )
@@ -141,12 +144,15 @@ def proposal(
     idempotency_key: str = "idem-1",
     scope: tuple[str, ...] = ("repo.write",),
     expires_at: float | None = None,
+    action_type: str = "repository.write",
+    object_ref: str = "object:r1a",
 ) -> ActionProposal:
     bound_evidence = (
         (Evidence("e-1", True, "SYNESIS"),)
         if evidence is None
         else evidence
     )
+    issued_at = time()
     return ActionProposal(
         action_id=action_id,
         actor="SOFIA",
@@ -157,8 +163,10 @@ def proposal(
         risk=risk,
         lease_id="lease-1",
         evidence=bound_evidence,
+        action_type=action_type,
+        issued_at=issued_at,
         csp_ref="CSP_SOFIA",
-        object_ref="object:r1a",
+        object_ref=object_ref,
         tenant="tenant-1",
         context_ref="context-1",
         scope=scope,
@@ -198,6 +206,8 @@ def test_authorized_action_envelope_is_materially_complete() -> None:
     assert result.decision is AuthorizationDecision.ALLOW
     assert result.envelope is not None
     envelope = result.envelope
+    assert envelope.action_type == "repository.write"
+    assert envelope.issued_at > 0
     assert envelope.csp_ref == "CSP_SOFIA"
     assert envelope.object_ref == "object:r1a"
     assert envelope.tenant == "tenant-1"
@@ -252,14 +262,47 @@ def test_scope_binding_mismatch_causes_zero_mutation() -> None:
     assert adapter.mutations == 0
 
 
+def test_mismatched_object_denies_zero_mutation() -> None:
+    runtime, adapter, leases, _, _, _, _ = build_runtime()
+    result = runtime.execute(proposal(object_ref="object:other"))
+    assert not result.authorized
+    assert result.reason == "lease_object_binding_mismatch"
+    assert leases.uses_consumed("lease-1") == 0
+    assert adapter.mutations == 0
+
+
+def test_mismatched_action_denies_zero_mutation() -> None:
+    runtime, adapter, leases, _, _, _, _ = build_runtime()
+    result = runtime.execute(proposal(action_type="repository.delete"))
+    assert not result.authorized
+    assert result.reason == "lease_action_binding_mismatch"
+    assert leases.uses_consumed("lease-1") == 0
+    assert adapter.mutations == 0
+
+
 def test_lease_use_is_consumed_before_adapter_resolution() -> None:
     runtime, adapter, leases, _, _, broker, _ = build_runtime(observing_broker=True)
     result = runtime.execute(proposal())
     assert result.proven
     assert adapter.mutations == 1
     assert leases.uses_consumed("lease-1") == 1
+    assert leases.lease_for("lease-1").state is LeaseState.CONSUMED
     assert isinstance(broker, ObservingBroker)
     assert broker.reservation_seen_before_resolution is True
+
+
+def test_released_lease_denies_use() -> None:
+    runtime, adapter, leases, _, _, _, _ = build_runtime(max_uses=2)
+    first = runtime.execute(proposal(action_id="a-1", idempotency_key="idem-1"))
+    assert first.proven
+    assert leases.lease_for("lease-1").state is LeaseState.CONSUMED
+    leases.release("lease-1")
+    assert leases.lease_for("lease-1").state is LeaseState.RELEASED
+    second = runtime.execute(proposal(action_id="a-2", idempotency_key="idem-2"))
+    assert not second.authorized
+    assert second.reason == "lease_released"
+    assert leases.uses_consumed("lease-1") == 1
+    assert adapter.mutations == 1
 
 
 def test_max_uses_blocks_second_distinct_action_before_mutation() -> None:
