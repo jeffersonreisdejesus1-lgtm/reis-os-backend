@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 
-class GovernanceResult(str, Enum):
+class GovernanceResult(StrEnum):
     AUTHORIZE = "authorize"
     DENY = "deny"
     HOLD = "hold"
