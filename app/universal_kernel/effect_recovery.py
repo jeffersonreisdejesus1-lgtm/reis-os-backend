@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from .contracts import AuthorizedActionEnvelope, MaterialReadback, VerifiedCheckpoint
+from .contracts import (
+    AuthorizedActionEnvelope,
+    MaterialReadback,
+    StateRecord,
+    VerifiedCheckpoint,
+)
 from .state_trace import StateCore
 
 
@@ -41,5 +46,5 @@ class ThinEffector:
 class RecoveryManager:
     state: StateCore
 
-    def restore(self, checkpoint: VerifiedCheckpoint):  # type: ignore[no-untyped-def]
+    def restore(self, checkpoint: VerifiedCheckpoint) -> StateRecord:
         return self.state.restore_verified(checkpoint)
