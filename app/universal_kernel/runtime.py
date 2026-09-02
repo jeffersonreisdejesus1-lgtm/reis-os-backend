@@ -89,6 +89,22 @@ class UniversalKernelRuntime:
                 stage="STATE_MANAGER_COMMIT",
                 details={"state_id": state.state_id, "version": state.version},
             )
+            lease_state = self._governance.finalize_authority(envelope)
+            self._trace.append_stage(
+                event_id=self._event_id(proposal.action_id, "lease-finalize"),
+                action_id=proposal.action_id,
+                stage="LEASE_FINALIZE_OR_RELEASE",
+                details={
+                    "lease_id": envelope.lease_id,
+                    "lease_state": lease_state.value,
+                },
+            )
+            self._trace.append_stage(
+                event_id=self._event_id(proposal.action_id, "close"),
+                action_id=proposal.action_id,
+                stage="TRACE_CLOSE",
+                details={"trace_id": envelope.trace_id},
+            )
         except RuntimeError as exc:
             return ExecutionResult(True, effected, False, str(exc))
 
