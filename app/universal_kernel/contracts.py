@@ -15,6 +15,18 @@ class AuthorizationDecision(StrEnum):
     DENY = "deny"
 
 
+class SideEffectClass(StrEnum):
+    NONE = "none"
+    BOUNDED = "bounded"
+    MATERIAL = "material"
+
+
+class ReversibilityClass(StrEnum):
+    REVERSIBLE = "reversible"
+    COMPENSATABLE = "compensatable"
+    IRREVERSIBLE = "irreversible"
+
+
 @dataclass(frozen=True)
 class Evidence:
     ref: str
@@ -33,6 +45,21 @@ class ActionProposal:
     risk: RiskLevel
     lease_id: str | None = None
     evidence: tuple[Evidence, ...] = ()
+    csp_ref: str | None = None
+    object_ref: str | None = None
+    tenant: str | None = None
+    context_ref: str | None = None
+    scope: tuple[str, ...] = ()
+    authority_ref: str | None = None
+    policy_snapshot: str | None = None
+    idempotency_key: str | None = None
+    expected_effect: str | None = None
+    side_effect_class: SideEffectClass | None = None
+    reversibility_class: ReversibilityClass | None = None
+    recovery_ref: str | None = None
+    expires_at: float | None = None
+    evidence_assessment_ref: str | None = None
+    trace_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -43,8 +70,26 @@ class AuthorizedActionEnvelope:
     capability: str
     operation: str
     payload: dict[str, object]
-    lease_id: str | None
+    lease_id: str
     evidence_refs: tuple[str, ...]
+    csp_ref: str
+    object_ref: str
+    tenant: str
+    context_ref: str
+    scope: tuple[str, ...]
+    valid_scope: bool
+    authority_ref: str
+    policy_snapshot: str
+    idempotency_key: str
+    expected_effect: str
+    side_effect_class: SideEffectClass
+    reversibility_class: ReversibilityClass
+    recovery_ref: str
+    expires_at: float
+    evidence_assessment_ref: str
+    max_uses: int
+    trace_id: str
+    lease_use_index: int | None = None
 
 
 @dataclass(frozen=True)
