@@ -83,6 +83,8 @@ def build_runtime(
     lease_expires_at: float | None = None,
     max_uses: int = 1,
     observing_broker: bool = False,
+    single_use: bool = False,
+    revocable: bool = True,
 ):  # type: ignore[no-untyped-def]
     identities = IdentityConstitutionLoader(
         (
@@ -97,6 +99,7 @@ def build_runtime(
     capabilities = CapabilityRegistry()
     capabilities.register("SOFIA", frozenset({"repo.write"}))
     leases = AuthorityLeaseManager()
+    lease_issued_at = time() - 1
     expires_at = time() + 60 if lease_expires_at is None else lease_expires_at
     leases.issue(
         AuthorityLease(
@@ -104,6 +107,9 @@ def build_runtime(
             ocs="SOFIA",
             capability="repo.write",
             expires_at=expires_at,
+            actor="SOFIA",
+            issued_at=lease_issued_at,
+            not_before=lease_issued_at,
             scope=("repo.write", "repo.read"),
             tenant="tenant-1",
             context_ref="context-1",
@@ -111,7 +117,11 @@ def build_runtime(
             policy_snapshot="policy-r1",
             action_binding="repository.write",
             object_ref_or_selector="object:r1a",
+            trace_ref="trace:r1a",
             max_uses=max_uses,
+            uses_consumed=0,
+            revocable=revocable,
+            single_use=single_use,
         )
     )
     governance = GovernanceEngine(
@@ -179,7 +189,7 @@ def proposal(
         recovery_ref="recovery:r1a",
         expires_at=time() + 30 if expires_at is None else expires_at,
         evidence_assessment_ref="assessment:r1a",
-        trace_id=f"trace:{action_id}",
+        trace_id="trace:r1a",
     )
 
 
@@ -223,7 +233,19 @@ def test_authorized_action_envelope_is_materially_complete() -> None:
     assert envelope.recovery_ref == "recovery:r1a"
     assert envelope.evidence_assessment_ref == "assessment:r1a"
     assert envelope.max_uses == 2
-    assert envelope.trace_id == "trace:a-1"
+    assert envelope.trace_id == "trace:r1a"
+
+
+def test_lease_contract_materializes_frozen_fields() -> None:
+    _, _, leases, _, _, _, _ = build_runtime(single_use=True)
+    lease = leases.lease_for("lease-1")
+    assert lease.actor == "SOFIA"
+    assert lease.issued_at > 0
+    assert lease.not_before >= lease.issued_at
+    assert lease.uses_consumed == 0
+    assert lease.revocable is True
+    assert lease.single_use is True
+    assert lease.trace_ref == "trace:r1a"
 
 
 def test_expired_lease_causes_zero_mutation() -> None:
@@ -241,6 +263,12 @@ def test_revoked_lease_causes_zero_mutation() -> None:
     assert not result.authorized
     assert result.reason == "lease_revoked"
     assert adapter.mutations == 0
+
+
+def test_non_revocable_lease_rejects_revocation() -> None:
+    _, _, leases, _, _, _, _ = build_runtime(revocable=False)
+    with pytest.raises(ValueError, match="lease_not_revocable"):
+        leases.revoke("lease-1")
 
 
 def test_revocation_between_authorize_and_reserve_blocks_effect_path() -> None:
@@ -303,6 +331,22 @@ def test_released_lease_denies_use() -> None:
     assert second.reason == "lease_released"
     assert leases.uses_consumed("lease-1") == 1
     assert adapter.mutations == 1
+
+
+def test_runtime_finalizes_single_use_lease_after_state_commit() -> None:
+    runtime, adapter, leases, state, trace, _, _ = build_runtime(single_use=True)
+    result = runtime.execute(proposal())
+    assert result.proven
+    assert adapter.mutations == 1
+    assert state.current("SOFIA") is not None
+    assert leases.uses_consumed("lease-1") == 1
+    assert leases.lease_for("lease-1").state is LeaseState.RELEASED
+    stages = [event.stage for event in trace.events]
+    assert stages[-3:] == [
+        "STATE_MANAGER_COMMIT",
+        "LEASE_FINALIZE_OR_RELEASE",
+        "TRACE_CLOSE",
+    ]
 
 
 def test_max_uses_blocks_second_distinct_action_before_mutation() -> None:
@@ -442,6 +486,7 @@ def test_authorized_path_effects_and_readbacks() -> None:
     assert result.readback is not None
     assert state.current("SOFIA") is not None
     assert trace.chain_is_valid()
+    assert trace.events[-1].stage == "TRACE_CLOSE"
 
 
 def test_lateral_effect_route_exists_false() -> None:
