@@ -44,7 +44,16 @@ jobs:
         run: mkdir -p artifacts/sofia-learning-v0
 
       - name: Syntax gate
-        run: python -m py_compile experiments/sofia_learning_v0/run.py
+        run: |
+          python -m py_compile experiments/sofia_learning_v0/run.py
+          python -m py_compile experiments/sofia_learning_v0/physiology.py
+          python -m py_compile experiments/sofia_learning_v0/test_physiology.py
+
+      - name: Verify refactored physiology prototype
+        run: |
+          python -m pip install --quiet pytest
+          pytest -q experiments/sofia_learning_v0/test_physiology.py \
+            --junitxml=artifacts/sofia-learning-v0/physiology-tests.xml
 
       - name: Execute Sofia learning campaign
         run: python experiments/sofia_learning_v0/run.py
