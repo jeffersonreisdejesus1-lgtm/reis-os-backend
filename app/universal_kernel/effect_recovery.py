@@ -13,7 +13,12 @@ from .state_trace import StateCore
 
 
 class MutableAdapter(Protocol):
-    def mutate(self, operation: str, payload: dict[str, object]) -> str: ...
+    def mutate(
+        self,
+        operation: str,
+        payload: dict[str, object],
+        idempotency_key: str,
+    ) -> str: ...
 
     def readback(self, mutation_id: str) -> MaterialReadback: ...
 
@@ -35,11 +40,21 @@ class ToolBroker:
 class ThinEffector:
     def __init__(self, broker: ToolBroker) -> None:
         self._broker = broker
+        self._completed: dict[str, MaterialReadback] = {}
 
     def execute(self, envelope: AuthorizedActionEnvelope) -> MaterialReadback:
+        cached = self._completed.get(envelope.idempotency_key)
+        if cached is not None:
+            return cached
         adapter = self._broker.adapter_for(envelope.capability)
-        mutation_id = adapter.mutate(envelope.operation, envelope.payload)
-        return adapter.readback(mutation_id)
+        mutation_id = adapter.mutate(
+            envelope.operation,
+            envelope.payload,
+            envelope.idempotency_key,
+        )
+        readback = adapter.readback(mutation_id)
+        self._completed[envelope.idempotency_key] = readback
+        return readback
 
 
 @dataclass
