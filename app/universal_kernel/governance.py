@@ -159,7 +159,10 @@ class AuthorityLeaseManager:
             self._leases[lease_id] = replace(lease, state=LeaseState.RELEASED)
 
     def finalize(self, lease_id: str) -> LeaseState:
-        """Finalize a consumed lease after state commit; release when contract requires it."""
+        """Finalize a consumed lease after state commit.
+
+        Release when the contract requires it.
+        """
         with self._lock:
             lease = self._leases[lease_id]
             if lease.state is LeaseState.RELEASED:
