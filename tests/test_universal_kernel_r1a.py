@@ -13,7 +13,11 @@ from app.universal_kernel.contracts import (
     StateRecord,
     VerifiedCheckpoint,
 )
-from app.universal_kernel.effect_recovery import RecoveryManager, ThinEffector, ToolBroker
+from app.universal_kernel.effect_recovery import (
+    RecoveryManager,
+    ThinEffector,
+    ToolBroker,
+)
 from app.universal_kernel.governance import (
     AuthorityLease,
     AuthorityLeaseManager,
@@ -23,7 +27,12 @@ from app.universal_kernel.governance import (
     IdentityConstitutionLoader,
     OCSIdentity,
 )
-from app.universal_kernel.ports import HandoffRouter, LPEPort, PIActivation, PIActivationRegistry
+from app.universal_kernel.ports import (
+    HandoffRouter,
+    LPEPort,
+    PIActivation,
+    PIActivationRegistry,
+)
 from app.universal_kernel.runtime import UniversalKernelRuntime
 from app.universal_kernel.state_trace import StateCore, TraceCore
 
@@ -54,25 +63,45 @@ def build_runtime(*, lease_expires_at: float | None = None):  # type: ignore[no-
     capabilities = CapabilityRegistry()
     capabilities.register("SOFIA", frozenset({"repo.write"}))
     leases = AuthorityLeaseManager()
+    expires_at = time() + 60 if lease_expires_at is None else lease_expires_at
     leases.issue(
         AuthorityLease(
             lease_id="lease-1",
             ocs="SOFIA",
             capability="repo.write",
-            expires_at=time() + 60 if lease_expires_at is None else lease_expires_at,
+            expires_at=expires_at,
         )
     )
-    governance = GovernanceEngine(identities, capabilities, EvidenceEngine(), leases)
+    governance = GovernanceEngine(
+        identities,
+        capabilities,
+        EvidenceEngine(),
+        leases,
+    )
     broker = ToolBroker()
     adapter = FakeAdapter()
     broker.register("repo.write", adapter)
     state = StateCore()
     trace = TraceCore()
-    runtime = UniversalKernelRuntime(governance, ThinEffector(broker), state, trace)
+    runtime = UniversalKernelRuntime(
+        governance,
+        ThinEffector(broker),
+        state,
+        trace,
+    )
     return runtime, adapter, leases, state, trace
 
 
-def proposal(*, evidence: tuple[Evidence, ...] | None = None, risk: RiskLevel = RiskLevel.LOW) -> ActionProposal:
+def proposal(
+    *,
+    evidence: tuple[Evidence, ...] | None = None,
+    risk: RiskLevel = RiskLevel.LOW,
+) -> ActionProposal:
+    bound_evidence = (
+        (Evidence("e-1", True, "SYNESIS"),)
+        if evidence is None
+        else evidence
+    )
     return ActionProposal(
         action_id="a-1",
         actor="SOFIA",
@@ -82,13 +111,14 @@ def proposal(*, evidence: tuple[Evidence, ...] | None = None, risk: RiskLevel = 
         payload={"value": 1},
         risk=risk,
         lease_id="lease-1",
-        evidence=(Evidence("e-1", True, "SYNESIS"),) if evidence is None else evidence,
+        evidence=bound_evidence,
     )
 
 
 def test_deny_causes_zero_mutation() -> None:
     runtime, adapter, _, _, _ = build_runtime()
-    result = runtime.execute(proposal(evidence=(Evidence("e", False, "SYNESIS"),)))
+    failed = (Evidence("e", False, "SYNESIS"),)
+    result = runtime.execute(proposal(evidence=failed))
     assert not result.authorized
     assert adapter.mutations == 0
 
@@ -112,7 +142,10 @@ def test_revoked_lease_causes_zero_mutation() -> None:
 
 def test_high_risk_evidence_failure_blocks_effect() -> None:
     runtime, adapter, _, _, _ = build_runtime()
-    result = runtime.execute(proposal(evidence=(Evidence("e", True),), risk=RiskLevel.HIGH))
+    evidence = (Evidence("e", True),)
+    result = runtime.execute(
+        proposal(evidence=evidence, risk=RiskLevel.HIGH)
+    )
     assert not result.authorized
     assert result.reason == "independent_assurance_required"
     assert adapter.mutations == 0
@@ -120,7 +153,8 @@ def test_high_risk_evidence_failure_blocks_effect() -> None:
 
 def test_self_assurance_is_denied() -> None:
     runtime, adapter, _, _, _ = build_runtime()
-    result = runtime.execute(proposal(evidence=(Evidence("e", True, "SOFIA"),)))
+    evidence = (Evidence("e", True, "SOFIA"),)
+    result = runtime.execute(proposal(evidence=evidence))
     assert not result.authorized
     assert result.reason == "self_assurance_denied"
     assert adapter.mutations == 0
@@ -166,7 +200,10 @@ def test_trace_break_returns_not_proven() -> None:
 
 def test_handoff_transfers_no_authority() -> None:
     receipt = HandoffRouter().close(
-        receipt_id="h-1", source_ocs="SOFIA", target_ocs="AGORA", state_ref="s-1"
+        receipt_id="h-1",
+        source_ocs="SOFIA",
+        target_ocs="AGORA",
+        state_ref="s-1",
     )
     assert receipt.target_ocs == "AGORA"
     assert receipt.authority_transferred is False
@@ -181,13 +218,17 @@ def test_lpe_cannot_expand_authority_or_constitution() -> None:
 
 
 def test_cross_ocs_autobiography_import_is_prohibited() -> None:
+    update = LPEUpdate(
+        "SOFIA",
+        "build",
+        "x",
+        imports_autobiography_from_ocs="IRIS",
+    )
     with pytest.raises(ValueError, match="cross_ocs_autobiography"):
-        LPEPort().validate(
-            LPEUpdate("SOFIA", "build", "x", imports_autobiography_from_ocs="IRIS")
-        )
+        LPEPort().validate(update)
 
 
-def test_pi_activation_is_ocS_local() -> None:
+def test_pi_activation_is_ocs_local() -> None:
     registry = PIActivationRegistry()
     registry.set(PIActivation("pi-1", "SOFIA", True))
     assert registry.is_active("pi-1", "SOFIA")
