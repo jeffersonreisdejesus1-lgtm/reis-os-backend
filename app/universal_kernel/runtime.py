@@ -29,7 +29,10 @@ class UniversalKernelRuntime:
 
     def execute(self, proposal: ActionProposal) -> ExecutionResult:
         governance = self._governance.authorize(proposal)
-        if governance.decision is AuthorizationDecision.DENY or governance.envelope is None:
+        if (
+            governance.decision is AuthorizationDecision.DENY
+            or governance.envelope is None
+        ):
             return ExecutionResult(False, False, True, governance.reason)
         envelope = governance.envelope
         try:
