@@ -25,7 +25,14 @@ class PIActivationRegistry:
 
 
 class HandoffRouter:
-    def close(self, *, receipt_id: str, source_ocs: str, target_ocs: str, state_ref: str) -> HandoffReceipt:
+    def close(
+        self,
+        *,
+        receipt_id: str,
+        source_ocs: str,
+        target_ocs: str,
+        state_ref: str,
+    ) -> HandoffReceipt:
         return HandoffReceipt(
             receipt_id=receipt_id,
             source_ocs=source_ocs,
