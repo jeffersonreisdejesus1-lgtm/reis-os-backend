@@ -28,17 +28,17 @@ class StateCore:
         state_ref: str | None = None,
         authority_context: str | None = None,
     ) -> StateRecord:
-        actor = record.ocs if actor_ocs_id is None else actor_ocs_id
-        namespace = (
-            f"state://{record.ocs}/runtime"
-            if target_namespace is None
-            else target_namespace
-        )
-        self._validate_namespace(actor, namespace, record.ocs)
-        if state_ref is not None and state_ref != record.state_id:
-            raise ValueError("state_ref_mismatch")
-        if authority_context is not None and not authority_context:
+        if actor_ocs_id is None:
+            raise ValueError("state_actor_ocs_required")
+        if target_namespace is None:
+            raise ValueError("state_namespace_required")
+        if state_ref is None:
+            raise ValueError("state_ref_required")
+        if authority_context is None or not authority_context:
             raise ValueError("state_authority_context_required")
+        self._validate_namespace(actor_ocs_id, target_namespace, record.ocs)
+        if state_ref != record.state_id:
+            raise ValueError("state_ref_mismatch")
         if record.version < 1:
             raise ValueError("state_version_required")
         current = self.current(record.ocs)
@@ -70,6 +70,8 @@ class StateCore:
         if not target_namespace.startswith(prefix):
             raise ValueError("state_namespace_invalid")
         owner = target_namespace[len(prefix) :].split("/", 1)[0]
+        if not owner:
+            raise ValueError("state_namespace_owner_required")
         if owner.casefold() != record_ocs.casefold():
             raise ValueError("state_namespace_record_owner_mismatch")
         if actor_ocs_id.casefold() != owner.casefold():
@@ -139,6 +141,11 @@ class TraceCore:
         self.append(event)
         return event
 
+    def preflight_gate(self) -> None:
+        if self.fail_next_preflight:
+            self.fail_next_preflight = False
+            raise RuntimeError("trace_preflight_failed")
+
     def preflight(
         self,
         *,
@@ -148,9 +155,7 @@ class TraceCore:
         authority_ref: str,
         lease_id: str,
     ) -> TraceEvent:
-        if self.fail_next_preflight:
-            self.fail_next_preflight = False
-            raise RuntimeError("trace_preflight_failed")
+        self.preflight_gate()
         return self.append_stage(
             event_id=event_id,
             action_id=action_id,
