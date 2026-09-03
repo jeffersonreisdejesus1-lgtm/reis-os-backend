@@ -80,7 +80,10 @@ class ToolBroker:
     ) -> None:
         if id(adapter) in self.__bound_adapter_ids:
             raise ValueError("adapter_already_broker_bound")
-        if compensation_verifier is adapter:
+        if (
+            compensation_verifier is not None
+            and id(compensation_verifier) == id(adapter)
+        ):
             raise ValueError("compensation_verifier_must_be_independent")
         original_mutate = adapter.mutate
 
@@ -122,7 +125,11 @@ class ToolBroker:
     def has_independent_compensation_verifier(self, capability: str) -> bool:
         verifier = self._compensation_verifiers.get(capability)
         adapter = self._adapters.get(capability)
-        return verifier is not None and verifier is not adapter
+        return (
+            verifier is not None
+            and adapter is not None
+            and id(verifier) != id(adapter)
+        )
 
     def adapter_for(self, capability: str) -> MutableAdapter:
         if self.__active_resolution.get() is not self.__resolution_token:
@@ -180,7 +187,11 @@ class ToolBroker:
         self._validate_envelope(envelope)
         verifier = self._compensation_verifiers.get(envelope.capability)
         adapter = self._adapters.get(envelope.capability)
-        if verifier is None or verifier is adapter:
+        if (
+            verifier is None
+            or adapter is None
+            or id(verifier) == id(adapter)
+        ):
             raise RuntimeError("independent_compensation_verifier_required")
         reset_token = self.__active_resolution.set(self.__resolution_token)
         try:
