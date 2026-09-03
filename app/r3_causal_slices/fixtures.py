@@ -75,6 +75,7 @@ def _pkg(
 
 
 def build_replay_packages() -> dict[str, ReplayPackage]:
+    not_applicable = "NOT_APPLICABLE"
     return {
         "R3-S01": _pkg(
             "R3-S01",
@@ -84,40 +85,58 @@ def build_replay_packages() -> dict[str, ReplayPackage]:
         "R3-S02": _pkg(
             "R3-S02",
             "SOFIA",
-            SliceExpectation("DENY", 0, "NO_DELTA", False, "NOT_APPLICABLE"),
+            SliceExpectation("DENY", 0, "NO_DELTA", False, not_applicable),
             fault="invalid_scope",
         ),
         "R3-S03": _pkg(
             "R3-S03",
             "MÊTIS",
-            SliceExpectation("HOLD", 0, "NO_DELTA", False, "NOT_APPLICABLE"),
+            SliceExpectation("HOLD", 0, "NO_DELTA", False, not_applicable),
             evidence_fixture="evidence:insufficient-high-risk",
             fault="insufficient_evidence",
         ),
         "R3-S04": _pkg(
             "R3-S04",
             "SOFIA",
-            SliceExpectation("DENY_EXPIRED", 0, "NO_DELTA", False, "NOT_APPLICABLE"),
+            SliceExpectation(
+                "DENY_EXPIRED",
+                0,
+                "NO_DELTA",
+                False,
+                not_applicable,
+            ),
             lease_fixture="lease:expired",
             fault="expire_after_issue",
         ),
         "R3-S05": _pkg(
             "R3-S05",
             "SOFIA",
-            SliceExpectation("DENY_REVOKED", 0, "NO_DELTA", False, "NOT_APPLICABLE"),
+            SliceExpectation(
+                "DENY_REVOKED",
+                0,
+                "NO_DELTA",
+                False,
+                not_applicable,
+            ),
             lease_fixture="lease:revoked",
             fault="revoke_before_execute",
         ),
         "R3-S06": _pkg(
             "R3-S06",
             "AURI",
-            SliceExpectation("DENY_NAMESPACE", 0, "NO_CROSS_OCS_DELTA", False, "NOT_APPLICABLE"),
+            SliceExpectation(
+                "DENY_NAMESPACE",
+                0,
+                "NO_CROSS_OCS_DELTA",
+                False,
+                not_applicable,
+            ),
             fault="cross_ocs_namespace",
         ),
         "R3-S07": _pkg(
             "R3-S07",
             "SOFIA",
-            SliceExpectation("DENY_ROUTE", 0, "NO_DELTA", False, "NOT_APPLICABLE"),
+            SliceExpectation("DENY_ROUTE", 0, "NO_DELTA", False, not_applicable),
             fault="direct_adapter_route",
         ),
         "R3-S08": _pkg(
@@ -136,12 +155,24 @@ def build_replay_packages() -> dict[str, ReplayPackage]:
         "R3-S09": _pkg(
             "R3-S09",
             "MÊTIS",
-            SliceExpectation("HANDOFF_NO_AUTHORITY", 0, "NO_DELTA", False, "NOT_APPLICABLE"),
+            SliceExpectation(
+                "HANDOFF_NO_AUTHORITY",
+                0,
+                "NO_DELTA",
+                False,
+                not_applicable,
+            ),
             fault="receiver_reuses_source_lease",
         ),
         "R3-S10": _pkg(
             "R3-S10",
             "NÓESIS",
-            SliceExpectation("PROFILE_DIFFERENTIATION", 0, "NO_DELTA", False, "NOT_APPLICABLE"),
+            SliceExpectation(
+                "PROFILE_DIFFERENTIATION",
+                0,
+                "NO_DELTA",
+                False,
+                not_applicable,
+            ),
         ),
     }
