@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Callable, Protocol, cast
+from typing import Protocol, cast
 
 from .contracts import (
     AuthorizedActionEnvelope,
