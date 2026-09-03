@@ -124,6 +124,12 @@ class _LeaseUsage:
     reservations: dict[str, tuple[str, int]] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class LeaseSnapshot:
+    lease: AuthorityLease
+    reservations: tuple[tuple[str, str, int], ...] = ()
+
+
 class AuthorityLeaseManager:
     def __init__(self) -> None:
         self._leases: dict[str, AuthorityLease] = {}
@@ -166,22 +172,42 @@ class AuthorityLeaseManager:
             self._leases[lease.lease_id] = lease
             self._usage[lease.lease_id] = _LeaseUsage()
 
-    def snapshot(self) -> tuple[AuthorityLease, ...]:
+    def snapshot(self) -> tuple[LeaseSnapshot, ...]:
         with self._lock:
-            return tuple(self._leases.values())
+            snapshots: list[LeaseSnapshot] = []
+            for lease_id, lease in self._leases.items():
+                usage = self._usage[lease_id]
+                reservations = tuple(
+                    sorted(
+                        (key, action_id, use_index)
+                        for key, (action_id, use_index) in usage.reservations.items()
+                    )
+                )
+                snapshots.append(LeaseSnapshot(lease, reservations))
+            return tuple(snapshots)
 
     @classmethod
     def from_snapshot(
         cls,
-        snapshot: tuple[AuthorityLease, ...],
+        snapshot: tuple[LeaseSnapshot, ...],
     ) -> AuthorityLeaseManager:
         manager = cls()
         with manager._lock:
-            for lease in snapshot:
+            for item in snapshot:
+                lease = item.lease
                 if lease.lease_id in manager._leases:
                     raise ValueError("duplicate_lease_id")
+                reservations: dict[str, tuple[str, int]] = {}
+                for key, action_id, use_index in item.reservations:
+                    if use_index < 1 or use_index > lease.uses_consumed:
+                        raise ValueError("lease_snapshot_usage_invalid")
+                    if key in reservations:
+                        raise ValueError("lease_snapshot_duplicate_idempotency_key")
+                    reservations[key] = (action_id, use_index)
+                if len(reservations) > lease.uses_consumed:
+                    raise ValueError("lease_snapshot_usage_invalid")
                 manager._leases[lease.lease_id] = lease
-                manager._usage[lease.lease_id] = _LeaseUsage()
+                manager._usage[lease.lease_id] = _LeaseUsage(reservations)
         return manager
 
     def revoke(self, lease_id: str) -> None:
@@ -398,6 +424,12 @@ class GovernanceEngine:
                 "self_assurance_denied",
             )
         assessment = self._evidence.assess(proposal)
+        if assessment.contradictions:
+            return GovernanceResult(
+                AuthorizationDecision.DENY,
+                "evidence_failed",
+                evidence_assessment=assessment,
+            )
         if not assessment.sufficiency:
             return GovernanceResult(
                 AuthorizationDecision.HOLD,
