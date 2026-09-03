@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from dataclasses import replace
 from hashlib import sha256
 from json import dumps
 from time import sleep, time
@@ -17,7 +16,11 @@ from app.universal_kernel.contracts import (
     StateRecord,
     VerifiedCheckpoint,
 )
-from app.universal_kernel.effect_recovery import RecoveryManager, ThinEffector, ToolBroker
+from app.universal_kernel.effect_recovery import (
+    RecoveryManager,
+    ThinEffector,
+    ToolBroker,
+)
 from app.universal_kernel.governance import (
     AuthorityLease,
     AuthorityLeaseManager,
@@ -52,7 +55,10 @@ class FixtureAdapter:
         return MaterialReadback(mutation_id, self.values[mutation_id])
 
 
-def _runtime(*, lease_expires_at: float | None = None):  # type: ignore[no-untyped-def]
+def _runtime(
+    *,
+    lease_expires_at: float | None = None,
+):  # type: ignore[no-untyped-def]
     identity = OCSIdentity(
         ocs="SOFIA",
         specialty="software_engineering",
@@ -64,12 +70,13 @@ def _runtime(*, lease_expires_at: float | None = None):  # type: ignore[no-untyp
     capabilities.register("SOFIA", frozenset({"repo.write"}))
     leases = AuthorityLeaseManager()
     issued = time() - 1
+    expires_at = time() + 60 if lease_expires_at is None else lease_expires_at
     leases.issue(
         AuthorityLease(
             lease_id="r3-lease",
             ocs="SOFIA",
             capability="repo.write",
-            expires_at=time() + 60 if lease_expires_at is None else lease_expires_at,
+            expires_at=expires_at,
             actor="SOFIA",
             issued_at=issued,
             not_before=issued,
@@ -84,13 +91,23 @@ def _runtime(*, lease_expires_at: float | None = None):  # type: ignore[no-untyp
             max_uses=2,
         )
     )
-    governance = GovernanceEngine(identities, capabilities, EvidenceEngine(), leases)
+    governance = GovernanceEngine(
+        identities,
+        capabilities,
+        EvidenceEngine(),
+        leases,
+    )
     broker = ToolBroker()
     adapter = FixtureAdapter()
     broker.register("repo.write", adapter)
     state = StateCore()
     trace = TraceCore()
-    runtime = UniversalKernelRuntime(governance, ThinEffector(broker), state, trace)
+    runtime = UniversalKernelRuntime(
+        governance,
+        ThinEffector(broker),
+        state,
+        trace,
+    )
     return runtime, adapter, leases, state, trace, broker
 
 
@@ -111,7 +128,11 @@ def _proposal(
         payload={"r3": "value"},
         risk=risk,
         lease_id="r3-lease",
-        evidence=(Evidence("e:r3", True, "AGORA"),) if evidence is None else evidence,
+        evidence=(
+            (Evidence("e:r3", True, "AGORA"),)
+            if evidence is None
+            else evidence
+        ),
         action_type="repository.write",
         issued_at=time(),
         csp_ref="csp://sofia/current",
@@ -156,7 +177,9 @@ def test_r3_s01_authorized_persistent_mutation_and_idempotent_replay() -> None:
     current = state.current("SOFIA")
     assert first.proven and replay == first
     assert adapter.mutations == 1
-    assert current is not None and current.version == 1 and current.predecessor is None
+    assert current is not None
+    assert current.version == 1
+    assert current.predecessor is None
     assert first.readback is not None
     assert _hash(first.readback.state) == _hash(current.payload)
     assert trace.chain_is_valid()
@@ -189,10 +212,13 @@ def test_r3_s03_hold_insufficient_evidence_stops_before_kernel_effect_path() -> 
 
 
 def test_r3_s04_expired_lease_zero_mutation() -> None:
-    runtime, adapter, _, state, _, _ = _runtime(lease_expires_at=time() + 0.15)
+    runtime, adapter, _, state, _, _ = _runtime(
+        lease_expires_at=time() + 0.15
+    )
     sleep(0.2)
     result = runtime.execute(_proposal())
-    assert not result.authorized and result.reason == "lease_expired"
+    assert not result.authorized
+    assert result.reason == "lease_expired"
     assert adapter.mutations == 0
     assert state.current("SOFIA") is None
 
@@ -201,7 +227,9 @@ def test_r3_s05_revoked_lease_zero_mutation_and_no_resurrection() -> None:
     runtime, adapter, leases, state, _, _ = _runtime()
     leases.revoke("r3-lease")
     first = runtime.execute(_proposal())
-    second = runtime.execute(_proposal(action_id="r3-replay", idem="r3-idem-2"))
+    second = runtime.execute(
+        _proposal(action_id="r3-replay", idem="r3-idem-2")
+    )
     assert first.reason == second.reason == "lease_revoked"
     assert adapter.mutations == 0
     assert state.current("SOFIA") is None
@@ -236,7 +264,10 @@ def test_r3_s08_verified_recovery_restores_checkpoint_content() -> None:
         {"r3": "safe"},
         True,
     )
-    state.write(checkpoint_state, lambda stored: stored == checkpoint_state)
+    state.write(
+        checkpoint_state,
+        lambda stored: stored == checkpoint_state,
+    )
     effect = runtime.execute(_proposal())
     assert effect.proven and adapter.mutations == 1
     checkpoint = VerifiedCheckpoint("r3-checkpoint", checkpoint_state)
