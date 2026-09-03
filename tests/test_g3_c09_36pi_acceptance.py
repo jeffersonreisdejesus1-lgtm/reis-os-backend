@@ -79,7 +79,8 @@ def test_c09_reachability_without_consumption_or_causality_is_not_accepted() -> 
     assert summary.c09_pass is False
 
 
-def test_c09_one_complete_observation_accepts_only_that_pi_not_global_plenitude() -> None:
+def test_c09_one_complete_observation_accepts_only_that_pi_not_global_plenitude(
+) -> None:
     pi_id = FROZEN_PI_IDS[0]
     evaluated, summary = evaluate_acceptance(
         PI_ACCEPTANCE_MANIFEST,
