@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from app.profile_bindings.profiles import OCSProfile, PROFILES
+from app.profile_bindings.profiles import PROFILES, OCSProfile
 from app.universal_kernel.state_trace import StateCore
 
 
