@@ -41,7 +41,14 @@ def _profile(
     denied: tuple[str, ...],
     support: tuple[str, ...],
 ) -> OCSProfile:
-    slug = ocs_id.lower().replace("ê", "e").replace("ý", "y").replace("ó", "o").replace("í", "i").replace("á", "a")
+    slug = (
+        ocs_id.lower()
+        .replace("ê", "e")
+        .replace("ý", "y")
+        .replace("ó", "o")
+        .replace("í", "i")
+        .replace("á", "a")
+    )
     return OCSProfile(
         ocs_id=ocs_id,
         identity=f"identity://{slug}",
@@ -81,7 +88,11 @@ PROFILES: dict[str, OCSProfile] = {
         "DÉDALA",
         "technical_architecture_systems_integration_security_recovery",
         ("architectural_analysis", "technical_design", "technical_recovery_planning"),
-        ("unmediated_material_effect", "self_assurance", "nontechnical_domain_takeover"),
+        (
+            "unmediated_material_effect",
+            "self_assurance",
+            "nontechnical_domain_takeover",
+        ),
         ("architecture", "systems", "security", "integration"),
     ),
     "SÝNESIS": _profile(
@@ -109,7 +120,11 @@ PROFILES: dict[str, OCSProfile] = {
         "SOFIA",
         "software_implementation_code_incremental_integration",
         ("software_implementation_via_valid_envelope_lease_effector",),
-        ("architecture_rewrite_without_authority", "self_assurance", "lateral_effect_route"),
+        (
+            "architecture_rewrite_without_authority",
+            "self_assurance",
+            "lateral_effect_route",
+        ),
         ("code", "integration", "implementation"),
     ),
     "MÊTIS": _profile(
@@ -136,8 +151,15 @@ PROFILES: dict[str, OCSProfile] = {
     "SYNERGEIA": _profile(
         "SYNERGEIA",
         "gtm_activation_distribution_channels_market_coordination",
-        ("gtm_execution_with_approved_strategy_budget_authority", "channel_coordination"),
-        ("strategy_invention_as_authority", "unapproved_spend", "unapproved_publication"),
+        (
+            "gtm_execution_with_approved_strategy_budget_authority",
+            "channel_coordination",
+        ),
+        (
+            "strategy_invention_as_authority",
+            "unapproved_spend",
+            "unapproved_publication",
+        ),
         ("gtm", "activation", "distribution", "channels"),
     ),
 }
