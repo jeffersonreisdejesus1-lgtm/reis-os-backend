@@ -80,7 +80,11 @@ class EvidenceEngine:
 
     def sufficient(self, proposal: ActionProposal) -> tuple[bool, str]:
         assessment = self.assess(proposal)
-        reason = assessment.deficits[0] if assessment.deficits else "evidence_sufficient"
+        reason = (
+            assessment.deficits[0]
+            if assessment.deficits
+            else "evidence_sufficient"
+        )
         return assessment.sufficiency, reason
 
 
