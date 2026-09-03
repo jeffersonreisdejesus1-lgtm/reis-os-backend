@@ -72,6 +72,19 @@ class UniversalKernelRuntime:
                 trace_id=proposal.trace_id,
             )
 
+        # A preflight fault must not spend authority or reach the broker.
+        try:
+            self._trace.preflight_gate()
+        except RuntimeError as exc:
+            return ExecutionResult(
+                True,
+                False,
+                False,
+                str(exc),
+                governance_decision=governance.decision,
+                trace_id=proposal.trace_id,
+            )
+
         reservation = self._governance.reserve_authority(governance.envelope)
         if (
             reservation.decision is AuthorizationDecision.DENY
