@@ -6,6 +6,7 @@ from .contracts import (
     ActionProposal,
     AuthorizationDecision,
     ExecutionResult,
+    GovernanceResult,
     StateRecord,
 )
 from .effect_recovery import (
@@ -51,8 +52,8 @@ class UniversalKernelRuntime:
                 return completed_result
 
         governance = self._governance.authorize(proposal)
-        trace_ok = self._trace_governance(proposal, governance)
         if governance.decision is not AuthorizationDecision.ALLOW:
+            trace_ok = self._trace_governance(proposal, governance)
             return ExecutionResult(
                 False,
                 False,
@@ -70,15 +71,6 @@ class UniversalKernelRuntime:
                 governance_decision=governance.decision,
                 trace_id=proposal.trace_id,
             )
-        if not trace_ok:
-            return ExecutionResult(
-                True,
-                False,
-                False,
-                "trace_append_failed",
-                governance_decision=governance.decision,
-                trace_id=proposal.trace_id,
-            )
 
         reservation = self._governance.reserve_authority(governance.envelope)
         if (
@@ -91,6 +83,17 @@ class UniversalKernelRuntime:
                 True,
                 reservation.reason,
                 governance_decision=AuthorizationDecision.DENY,
+                trace_id=proposal.trace_id,
+            )
+
+        trace_ok = self._trace_governance(proposal, governance)
+        if not trace_ok:
+            return ExecutionResult(
+                True,
+                False,
+                False,
+                "trace_append_failed",
+                governance_decision=governance.decision,
                 trace_id=proposal.trace_id,
             )
 
@@ -212,7 +215,11 @@ class UniversalKernelRuntime:
         self._completed[envelope.idempotency_key] = (envelope.action_id, result)
         return result
 
-    def _trace_governance(self, proposal: ActionProposal, governance) -> bool:  # type: ignore[no-untyped-def]
+    def _trace_governance(
+        self,
+        proposal: ActionProposal,
+        governance: GovernanceResult,
+    ) -> bool:
         assessment = governance.evidence_assessment
         try:
             self._trace.append_stage(
