@@ -47,7 +47,9 @@ class Round2Adapter:
         self.fail_readback = fail_readback
         self.compensation_verified = compensation_verified
         self.values: dict[str, dict[str, object]] = {}
-        self.compensation_store = {} if compensation_store is None else compensation_store
+        self.compensation_store = (
+            {} if compensation_store is None else compensation_store
+        )
 
     def mutate(
         self,
