@@ -63,7 +63,9 @@ def test_g3_f01_survives_statecore_destruction_and_fresh_reload(tmp_path: Path) 
     assert second_core.get(genesis.state_id) == reloaded
 
 
-def test_g3_f01_preserves_version_and_predecessor_across_restart(tmp_path: Path) -> None:
+def test_g3_f01_preserves_version_and_predecessor_across_restart(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "statecore.sqlite3"
     first_core = StateCore(SQLiteStatePersistencePort(db_path))
     genesis = _record("state:sofia:1", version=1, predecessor=None, value="alpha")
@@ -88,7 +90,9 @@ def test_g3_f01_preserves_version_and_predecessor_across_restart(tmp_path: Path)
     assert reloaded.state_id == successor.state_id
     assert reloaded.version == 2
     assert reloaded.predecessor == genesis.state_id
-    assert state_record_hash(third_core.get(genesis.state_id)) == state_record_hash(genesis)
+    assert state_record_hash(third_core.get(genesis.state_id)) == state_record_hash(
+        genesis
+    )
     assert state_record_hash(reloaded) == state_record_hash(successor)
 
 
