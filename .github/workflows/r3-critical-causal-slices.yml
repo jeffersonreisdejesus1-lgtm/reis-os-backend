@@ -1,0 +1,32 @@
+name: R3 Critical Causal Slices
+
+on:
+  push:
+    branches:
+      - r3/critical-causal-slices-v0
+  pull_request:
+    paths:
+      - 'app/r3_causal_slices/**'
+      - 'tests/test_r3_critical_causal_slices.py'
+      - '.github/workflows/r3-critical-causal-slices.yml'
+
+jobs:
+  r3-critical-causal-slices:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: R3 critical causal slice tests
+        run: pytest -q tests/test_r3_critical_causal_slices.py
+      - name: Frozen R2 profile regression
+        run: pytest -q tests/test_r2_profile_bindings.py
+      - name: Frozen R1 kernel regression
+        run: pytest -q tests/test_universal_kernel_r1a.py
+      - name: Ruff R3
+        run: ruff check app/r3_causal_slices tests/test_r3_critical_causal_slices.py
+      - name: Mypy R3
+        run: mypy app/r3_causal_slices
