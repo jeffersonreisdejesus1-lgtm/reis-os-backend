@@ -56,7 +56,7 @@ class ToolBroker:
                 raise ValueError("direct_adapter_mutation_prohibited")
             return original_mutate(operation, payload, idempotency_key)
 
-        setattr(adapter, "mutate", guarded_mutate)
+        adapter.mutate = guarded_mutate
         original_compensate = getattr(adapter, "compensate", None)
         if original_compensate is not None:
 
@@ -75,7 +75,7 @@ class ToolBroker:
                     idempotency_key,
                 )
 
-            setattr(adapter, "compensate", guarded_compensate)
+            object.__setattr__(adapter, "compensate", guarded_compensate)
         self.__bound_adapter_ids.add(id(adapter))
         self._adapters[capability] = adapter
 
