@@ -19,7 +19,12 @@ class Adapter:
     def __init__(self) -> None:
         self.mutations = 0
 
-    def mutate(self, operation: str, payload: dict[str, object], idempotency_key: str) -> str:
+    def mutate(
+        self,
+        operation: str,
+        payload: dict[str, object],
+        idempotency_key: str,
+    ) -> str:
         self.mutations += 1
         return f"m-{self.mutations}"
 
@@ -35,17 +40,31 @@ class Adapter:
     ) -> str:
         return f"c-{mutation_id}"
 
-    def verify_compensation(self, mutation_id: str, readback: MaterialReadback) -> bool:
+    def verify_compensation(
+        self,
+        mutation_id: str,
+        readback: MaterialReadback,
+    ) -> bool:
         return True
 
 
 class IndependentVerifier:
+    def readback(self, compensation_id: str) -> MaterialReadback:
+        original_mutation_id = compensation_id.removeprefix("c-")
+        return MaterialReadback(
+            compensation_id,
+            {"compensated": original_mutation_id},
+        )
+
     def verify(
         self,
         original_mutation_id: str,
         compensation_readback: MaterialReadback,
     ) -> bool:
-        return compensation_readback.mutation_id == f"c-{original_mutation_id}"
+        return (
+            compensation_readback.state.get("compensated")
+            == original_mutation_id
+        )
 
 
 def _lease(*, lease_id: str = "lease-1", uses: int = 0) -> AuthorityLease:
@@ -75,7 +94,6 @@ def test_f003_python_bypass_forces_claim_narrowing() -> None:
     broker = ToolBroker()
     adapter = Adapter()
     broker.register("repo.write", adapter)
-    # Python can bypass an instance monkey-patch by dispatching through the type.
     type(adapter).mutate(adapter, "write", {}, "bypass")
     assert adapter.mutations == 1
     claim = broker.material_boundary_claim()
@@ -107,7 +125,6 @@ def test_f005_unauthenticated_snapshot_restore_is_rejected() -> None:
 
 def test_f005_authenticated_snapshot_requires_exact_index_set() -> None:
     key = b"fourth-round-test-key"
-    manager = AuthorityLeaseManager()
     malformed = LeaseSnapshot(
         _lease(uses=2),
         (("k1", "a1", 1),),
@@ -117,7 +134,7 @@ def test_f005_authenticated_snapshot_requires_exact_index_set() -> None:
         AuthorityLeaseManager.from_snapshot(bundle, authentication_key=key)
 
 
-def test_f005_authenticated_snapshot_rejects_duplicate_or_out_of_range_indices() -> None:
+def test_f005_authenticated_snapshot_rejects_duplicate_indices() -> None:
     key = b"fourth-round-test-key"
     malformed = LeaseSnapshot(
         _lease(uses=2),
@@ -130,7 +147,10 @@ def test_f005_authenticated_snapshot_rejects_duplicate_or_out_of_range_indices()
 
 def test_f005_tampered_authenticated_snapshot_is_rejected() -> None:
     key = b"fourth-round-test-key"
-    original = AuthenticatedLeaseSnapshot.sign((LeaseSnapshot(_lease(), ()),), key)
+    original = AuthenticatedLeaseSnapshot.sign(
+        (LeaseSnapshot(_lease(), ()),),
+        key,
+    )
     tampered = replace(original, mac="00" * 32)
     with pytest.raises(ValueError, match="lease_snapshot_authentication_failed"):
         AuthorityLeaseManager.from_snapshot(tampered, authentication_key=key)
