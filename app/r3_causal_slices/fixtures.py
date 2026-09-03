@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from app.profile_bindings.profiles import PROFILE_VERSION
 
-SLICE_VERSION = "r3-v0.1.0"
+SLICE_VERSION = "r3-v0.1.1"
 CAUSAL_CHAIN = (
     "GOAL",
     "COGNITIVE_PLAN",
@@ -45,7 +45,9 @@ class ReplayPackage:
     lease_fixture: str
     evidence_fixture: str
     expectation: SliceExpectation
+    trace_id: str
     trace_sequence: tuple[str, ...]
+    replay_hook: str
     fault_injection_hook: str | None
 
 
@@ -69,7 +71,9 @@ def _pkg(
         lease_fixture=lease_fixture,
         evidence_fixture=evidence_fixture,
         expectation=expectation,
+        trace_id=f"trace:{slice_id.lower()}",
         trace_sequence=CAUSAL_CHAIN,
+        replay_hook=f"replay:{slice_id.lower()}",
         fault_injection_hook=fault,
     )
 
@@ -150,17 +154,17 @@ def build_replay_packages() -> dict[str, ReplayPackage]:
                 "MATCH",
                 "RESTORED_STATE_MATCHES_CHECKPOINT",
             ),
-            fault="post_effect_failure",
+            fault="post_effect_readback_failure",
         ),
         "R3-S09": _pkg(
             "R3-S09",
             "MÊTIS",
             SliceExpectation(
                 "HANDOFF_NO_AUTHORITY",
-                0,
-                "NO_DELTA",
-                False,
-                not_applicable,
+                1,
+                "RECEIVER_INDEPENDENT_GRANT",
+                True,
+                "MATCH",
             ),
             fault="receiver_reuses_source_lease",
         ),
