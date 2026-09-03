@@ -1,0 +1,35 @@
+name: G3 F01 Durable StateCore
+
+on:
+  pull_request:
+  push:
+    branches:
+      - repair/g3-f01-durable-statecore-v0
+
+jobs:
+  g3-f01-durable-statecore:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: G3 F01 native falsification tests
+        run: pytest -q tests/test_g3_f01_durable_statecore.py
+      - name: R1 regression
+        run: pytest -q tests/test_universal_kernel_r1a.py
+      - name: R2 regression
+        run: pytest -q tests/test_r2_profile_bindings.py
+      - name: R3 regression
+        run: pytest -q tests/test_r3_critical_causal_slices.py
+      - name: Post-promotion regressions
+        run: |
+          pytest -q tests/test_post_promotion_r3_conformance.py
+          pytest -q tests/test_post_promotion_r3_round2_conformance.py
+          pytest -q tests/test_post_promotion_r3_fourth_round_conformance.py
+      - name: Ruff
+        run: ruff check app/universal_kernel tests/test_g3_f01_durable_statecore.py
+      - name: Mypy kernel
+        run: mypy app/universal_kernel
