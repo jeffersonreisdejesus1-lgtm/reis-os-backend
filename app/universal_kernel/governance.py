@@ -3,7 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
 from hashlib import sha256
-from hmac import compare_digest, new as hmac_new
+from hmac import compare_digest
+from hmac import new as hmac_new
 from json import dumps
 from threading import RLock
 from time import time
@@ -83,7 +84,11 @@ class EvidenceEngine:
 
     def sufficient(self, proposal: ActionProposal) -> tuple[bool, str]:
         assessment = self.assess(proposal)
-        reason = assessment.deficits[0] if assessment.deficits else "evidence_sufficient"
+        reason = (
+            assessment.deficits[0]
+            if assessment.deficits
+            else "evidence_sufficient"
+        )
         return assessment.sufficiency, reason
 
 
@@ -222,8 +227,14 @@ class AuthorityLeaseManager:
                 snapshots.append(LeaseSnapshot(lease, reservations))
             return tuple(snapshots)
 
-    def authenticated_snapshot(self, authentication_key: bytes) -> AuthenticatedLeaseSnapshot:
-        return AuthenticatedLeaseSnapshot.sign(self.snapshot(), authentication_key)
+    def authenticated_snapshot(
+        self,
+        authentication_key: bytes,
+    ) -> AuthenticatedLeaseSnapshot:
+        return AuthenticatedLeaseSnapshot.sign(
+            self.snapshot(),
+            authentication_key,
+        )
 
     @classmethod
     def from_snapshot(
@@ -254,7 +265,8 @@ class AuthorityLeaseManager:
                     reservations[key] = (action_id, use_index)
                     indices.append(use_index)
                 expected_indices = list(range(1, lease.uses_consumed + 1))
-                if sorted(indices) != expected_indices or len(set(indices)) != len(indices):
+                unique_indices = len(set(indices)) == len(indices)
+                if sorted(indices) != expected_indices or not unique_indices:
                     raise ValueError("lease_snapshot_index_set_invalid")
                 manager._leases[lease.lease_id] = lease
                 manager._usage[lease.lease_id] = _LeaseUsage(reservations)
