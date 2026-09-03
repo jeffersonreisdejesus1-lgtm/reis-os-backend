@@ -14,7 +14,11 @@ from app.universal_kernel.contracts import (
     SideEffectClass,
     StateRecord,
 )
-from app.universal_kernel.effect_recovery import RecoveryManager, ThinEffector, ToolBroker
+from app.universal_kernel.effect_recovery import (
+    RecoveryManager,
+    ThinEffector,
+    ToolBroker,
+)
 from app.universal_kernel.governance import (
     AuthorityLease,
     AuthorityLeaseManager,
@@ -357,7 +361,8 @@ def test_round2_006_handoff_cannot_reuse_source_authority_behaviorally() -> None
     assert denied.reason == "lease_scope_mismatch"
 
 
-def test_round2_007_preflight_failure_spends_no_authority_and_no_material_effect() -> None:
+def test_round2_007_preflight_failure_spends_no_authority_and_no_material_effect(
+) -> None:
     trace = TraceCore()
     trace.fail_next_preflight = True
     runtime, adapter, leases, _, _, _, _ = _runtime(trace=trace, max_uses=1)
