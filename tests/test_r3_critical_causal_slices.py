@@ -25,7 +25,11 @@ from app.universal_kernel.contracts import (
     StateRecord,
     VerifiedCheckpoint,
 )
-from app.universal_kernel.effect_recovery import RecoveryManager, ThinEffector, ToolBroker
+from app.universal_kernel.effect_recovery import (
+    RecoveryManager,
+    ThinEffector,
+    ToolBroker,
+)
 from app.universal_kernel.governance import (
     AuthorityLease,
     AuthorityLeaseManager,
@@ -278,7 +282,8 @@ def test_r3_s02_deny_is_preserved_in_causal_trace_with_zero_mutation() -> None:
         state_delta="NO_DELTA",
         readback_oracle="NOT_APPLICABLE",
     )
-    assert receipt.event("GOVERNANCE_DECISION").details["reason"] == "lease_scope_mismatch"
+    deny_reason = receipt.event("GOVERNANCE_DECISION").details["reason"]
+    assert deny_reason == "lease_scope_mismatch"
     _assert_receipt_matches_package(receipt, "R3-S02")
 
 
@@ -325,7 +330,12 @@ def test_r3_s04_expired_lease_traces_expiry_and_replay_no_resurrection() -> None
     first = governance.authorize(proposal)
     recorder.append("GOVERNANCE_DECISION", "DENY_EXPIRED", reason=first.reason)
     result_1 = runtime.execute(proposal)
-    result_2 = runtime.execute(replace(proposal, action_id="r3-expired-replay", idempotency_key="r3-expired-2"))
+    replay_proposal = replace(
+        proposal,
+        action_id="r3-expired-replay",
+        idempotency_key="r3-expired-2",
+    )
+    result_2 = runtime.execute(replay_proposal)
     recorder.append("AUTHORITY_LEASE_CHECK", "EXPIRED_REPLAY", reason=result_2.reason)
     recorder.append("STATE_COMMIT_OR_NO_COMMIT", "NO_COMMIT")
     assert result_1.reason == result_2.reason == "lease_expired"
@@ -338,7 +348,8 @@ def test_r3_s04_expired_lease_traces_expiry_and_replay_no_resurrection() -> None
         state_delta="NO_DELTA",
         readback_oracle="NOT_APPLICABLE",
     )
-    assert sum(event.stage == "AUTHORITY_LEASE_CHECK" for event in receipt.events) >= 2
+    checks = sum(event.stage == "AUTHORITY_LEASE_CHECK" for event in receipt.events)
+    assert checks >= 2
     _assert_receipt_matches_package(receipt, "R3-S04")
 
 
@@ -351,7 +362,12 @@ def test_r3_s05_revoked_lease_zero_mutation_and_no_resurrection() -> None:
     decision = governance.authorize(proposal)
     recorder.append("GOVERNANCE_DECISION", "DENY_REVOKED", reason=decision.reason)
     first = runtime.execute(proposal)
-    second = runtime.execute(replace(proposal, action_id="r3-revoked-replay", idempotency_key="r3-revoked-2"))
+    replay_proposal = replace(
+        proposal,
+        action_id="r3-revoked-replay",
+        idempotency_key="r3-revoked-2",
+    )
+    second = runtime.execute(replay_proposal)
     recorder.append("AUTHORITY_LEASE_CHECK", "REVOKED_REPLAY", reason=second.reason)
     recorder.append("STATE_COMMIT_OR_NO_COMMIT", "NO_COMMIT")
     assert first.reason == second.reason == "lease_revoked"
@@ -570,7 +586,11 @@ def test_r3_s09_handoff_rejects_source_lease_and_requires_receiver_grant() -> No
         action_id="reuse-source-authority",
     )
     denied = governance.authorize(reused)
-    recorder.append("AUTHORITY_LEASE_CHECK", "SOURCE_LEASE_REJECTED", reason=denied.reason)
+    recorder.append(
+        "AUTHORITY_LEASE_CHECK",
+        "SOURCE_LEASE_REJECTED",
+        reason=denied.reason,
+    )
     recorder.append("GOVERNANCE_DECISION", "DENY_SOURCE_AUTHORITY_REUSE")
     assert denied.envelope is None
     assert denied.reason == "lease_scope_mismatch"
