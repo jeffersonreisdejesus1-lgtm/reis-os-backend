@@ -262,7 +262,14 @@ def test_post_004_runtime_dispatches_compensation_after_post_effect_failure() ->
         VerifiedCheckpoint("cp:post-r3", checkpoint_state),
     )
     identities = IdentityConstitutionLoader(
-        (OCSIdentity("SOFIA", "software_engineering", "post-r3", frozenset({"repo.write"})),)
+        (
+            OCSIdentity(
+                "SOFIA",
+                "software_engineering",
+                "post-r3",
+                frozenset({"repo.write"}),
+            ),
+        )
     )
     capabilities = CapabilityRegistry()
     capabilities.register("SOFIA", frozenset({"repo.write"}))
@@ -301,7 +308,8 @@ def test_post_004_runtime_dispatches_compensation_after_post_effect_failure() ->
     assert irreversible.recovery_receipt.residual_effect is True
 
 
-def test_post_005_invalid_lease_does_not_resurrect_across_replay_reload_or_new_grant() -> None:
+def test_post_005_invalid_lease_does_not_resurrect_across_replay_reload(
+) -> None:
     leases = AuthorityLeaseManager()
     leases.issue(_lease(lease_id="old"))
     leases.revoke("old")
@@ -348,7 +356,8 @@ def test_post_006_handoff_acceptance_has_context_but_no_executable_authority() -
     assert accepted.executable_authority_ref is None
 
 
-def test_post_007_trace_preflight_precedes_broker_and_finalization_failure_preserves_effect() -> None:
+def test_post_007_trace_preflight_precedes_broker_and_finalization_failure(
+) -> None:
     trace = TraceCore()
     trace.fail_next_preflight = True
     runtime, adapter, _, _, _, broker, _ = _runtime(trace=trace)
