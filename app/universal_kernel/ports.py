@@ -36,6 +36,8 @@ class HandoffRouter:
         evidence_refs: tuple[str, ...] = (),
         source_authority_ref: str = "",
     ) -> HandoffReceipt:
+        # Authority is intentionally not propagated across the handoff boundary.
+        _ = source_authority_ref
         return HandoffReceipt(
             receipt_id=receipt_id,
             source_ocs=source_ocs,
@@ -44,7 +46,7 @@ class HandoffRouter:
             authority_transferred=False,
             context_refs=context_refs,
             evidence_refs=evidence_refs,
-            source_authority_ref=source_authority_ref,
+            source_authority_ref="",
         )
 
     def accept(
@@ -55,6 +57,8 @@ class HandoffRouter:
     ) -> HandoffAcceptance:
         if receiver_ocs != receipt.target_ocs:
             raise ValueError("handoff_receiver_mismatch")
+        if receipt.authority_transferred or receipt.source_authority_ref:
+            raise ValueError("handoff_authority_material_detected")
         return HandoffAcceptance(
             handoff_id=receipt.handoff_id,
             receiver_ocs=receiver_ocs,
