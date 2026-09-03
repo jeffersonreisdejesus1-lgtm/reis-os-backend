@@ -255,7 +255,7 @@ def test_post_002_statecore_rejects_direct_cross_namespace_write() -> None:
     assert state.current("SOFIA") == record
 
 
-def test_post_003_direct_adapter_resolution_is_structurally_denied() -> None:
+def test_post_003_direct_adapter_guard_is_not_structural_denial() -> None:
     broker = ToolBroker()
     adapter = AdversarialAdapter()
     broker.register("repo.write", adapter)
@@ -264,9 +264,12 @@ def test_post_003_direct_adapter_resolution_is_structurally_denied() -> None:
     with pytest.raises(ValueError, match="direct_adapter_mutation_prohibited"):
         adapter.mutate("write", {}, "direct")
     assert adapter.mutations == 0
+    claim = broker.material_boundary_claim()
+    assert claim.strength == "IN_PROCESS_GUARD_ONLY"
+    assert claim.structural_denial is False
 
 
-def test_post_004_runtime_dispatches_compensation_after_post_effect_failure() -> None:
+def test_post_004_self_attested_compensation_is_not_verified() -> None:
     adapter = AdversarialAdapter(fail_readback=True)
     state = StateCore()
     checkpoint_state = StateRecord("safe", "SOFIA", 1, None, {"safe": True}, True)
@@ -310,11 +313,12 @@ def test_post_004_runtime_dispatches_compensation_after_post_effect_failure() ->
     result = runtime.execute(_proposal())
     assert result.authorized and result.effected and not result.proven
     assert adapter.mutations == 1
-    assert adapter.compensations == 1
+    assert adapter.compensations == 0
     assert result.recovery_receipt is not None
-    assert result.recovery_receipt.material_compensated is True
-    assert result.recovery_receipt.residual_effect is False
-    assert result.recovery_receipt.external_readback is not None
+    assert result.recovery_receipt.disposition == "compensation_unverified"
+    assert result.recovery_receipt.material_compensated is False
+    assert result.recovery_receipt.residual_effect is True
+    assert result.recovery_receipt.external_readback is None
 
     irreversible_adapter = AdversarialAdapter(fail_readback=True)
     runtime2, _, _, _, _, _, _ = _runtime(adapter=irreversible_adapter)
@@ -335,8 +339,12 @@ def test_post_005_invalid_lease_does_not_resurrect_across_replay_reload(
     leases = AuthorityLeaseManager()
     leases.issue(_lease(lease_id="old"))
     leases.revoke("old")
-    snapshot = leases.snapshot()
-    reloaded = AuthorityLeaseManager.from_snapshot(snapshot)
+    key = b"post-r3-regression-auth-key"
+    snapshot = leases.authenticated_snapshot(key)
+    reloaded = AuthorityLeaseManager.from_snapshot(
+        snapshot,
+        authentication_key=key,
+    )
     ok, reason = reloaded.validate("old", "SOFIA", "repo.write")
     assert not ok and reason == "lease_revoked"
 

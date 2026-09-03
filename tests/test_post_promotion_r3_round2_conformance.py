@@ -15,6 +15,7 @@ from app.universal_kernel.contracts import (
     StateRecord,
 )
 from app.universal_kernel.effect_recovery import (
+    CompensationVerifier,
     RecoveryManager,
     ThinEffector,
     ToolBroker,
@@ -39,12 +40,16 @@ class Round2Adapter:
         *,
         fail_readback: bool = False,
         compensation_verified: bool = True,
+        compensation_store: dict[str, dict[str, object]] | None = None,
     ) -> None:
         self.mutations = 0
         self.compensations = 0
         self.fail_readback = fail_readback
         self.compensation_verified = compensation_verified
         self.values: dict[str, dict[str, object]] = {}
+        self.compensation_store = (
+            {} if compensation_store is None else compensation_store
+        )
 
     def mutate(
         self,
@@ -71,7 +76,7 @@ class Round2Adapter:
     ) -> str:
         self.compensations += 1
         compensation_id = f"c-{self.compensations}"
-        self.values[compensation_id] = {
+        self.compensation_store[compensation_id] = {
             "compensated": mutation_id,
             "verified": self.compensation_verified,
         }
@@ -82,10 +87,24 @@ class Round2Adapter:
         mutation_id: str,
         readback: MaterialReadback,
     ) -> bool:
+        return True
+
+
+class Round2IndependentVerifier:
+    def __init__(self, store: dict[str, dict[str, object]]) -> None:
+        self._store = store
+
+    def readback(self, compensation_id: str) -> MaterialReadback:
+        return MaterialReadback(compensation_id, dict(self._store[compensation_id]))
+
+    def verify(
+        self,
+        original_mutation_id: str,
+        compensation_readback: MaterialReadback,
+    ) -> bool:
         return bool(
-            self.compensation_verified
-            and readback.state.get("compensated") == mutation_id
-            and readback.state.get("verified") is True
+            compensation_readback.state.get("compensated") == original_mutation_id
+            and compensation_readback.state.get("verified") is True
         )
 
 
@@ -171,6 +190,7 @@ def _runtime(
     adapter: Round2Adapter | None = None,
     trace: TraceCore | None = None,
     max_uses: int = 2,
+    verifier: CompensationVerifier | None = None,
 ):  # type: ignore[no-untyped-def]
     identities = IdentityConstitutionLoader(
         (
@@ -189,7 +209,7 @@ def _runtime(
     governance = GovernanceEngine(identities, capabilities, EvidenceEngine(), leases)
     broker = ToolBroker()
     bound_adapter = Round2Adapter() if adapter is None else adapter
-    broker.register("repo.write", bound_adapter)
+    broker.register("repo.write", bound_adapter, compensation_verifier=verifier)
     state = StateCore()
     bound_trace = TraceCore() if trace is None else trace
     recovery = RecoveryManager(state)
@@ -253,23 +273,32 @@ def test_round2_003_registered_adapter_mutation_requires_broker_context() -> Non
     assert adapter.mutations == 0
     with pytest.raises(ValueError, match="direct_adapter_resolution_prohibited"):
         broker.adapter_for("repo.write")
+    assert broker.material_boundary_claim().structural_denial is False
 
 
-def test_round2_004_compensation_requires_semantic_verification() -> None:
-    deceptive = Round2Adapter(fail_readback=True, compensation_verified=False)
+def test_round2_004_compensation_requires_independent_verification() -> None:
+    deceptive = Round2Adapter(fail_readback=True, compensation_verified=True)
     runtime, _, _, _, _, _, _ = _runtime(adapter=deceptive)
     result = runtime.execute(_proposal())
     assert result.authorized and result.effected and not result.proven
     assert deceptive.mutations == 1
-    assert deceptive.compensations == 1
+    assert deceptive.compensations == 0
     assert result.recovery_receipt is not None
+    assert result.recovery_receipt.disposition == "compensation_unverified"
     assert result.recovery_receipt.material_compensated is False
     assert result.recovery_receipt.residual_effect is True
 
-    verified = Round2Adapter(fail_readback=True, compensation_verified=True)
-    runtime2, _, _, _, _, _, _ = _runtime(adapter=verified)
+    store: dict[str, dict[str, object]] = {}
+    verified = Round2Adapter(
+        fail_readback=True,
+        compensation_verified=True,
+        compensation_store=store,
+    )
+    verifier = Round2IndependentVerifier(store)
+    runtime2, _, _, _, _, _, _ = _runtime(adapter=verified, verifier=verifier)
     result2 = runtime2.execute(_proposal(action_id="verified", idem="verified"))
     assert result2.recovery_receipt is not None
+    assert verified.compensations == 1
     assert result2.recovery_receipt.material_compensated is True
     assert result2.recovery_receipt.residual_effect is False
 
@@ -283,7 +312,9 @@ def test_round2_005_snapshot_preserves_usage_and_idempotency_reservations() -> N
     assert reserved.envelope is not None
     assert leases.uses_consumed("lease-sofia") == 1
 
-    reloaded = AuthorityLeaseManager.from_snapshot(leases.snapshot())
+    key = b"round2-regression-auth-key"
+    snapshot = leases.authenticated_snapshot(key)
+    reloaded = AuthorityLeaseManager.from_snapshot(snapshot, authentication_key=key)
     replay_ok, replay_reason, replay_index = reloaded.reserve_use(reserved.envelope)
     assert replay_ok
     assert replay_reason == "lease_use_already_reserved"

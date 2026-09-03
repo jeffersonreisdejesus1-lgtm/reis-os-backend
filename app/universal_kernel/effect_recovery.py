@@ -27,7 +27,24 @@ class MutableAdapter(Protocol):
     def readback(self, mutation_id: str) -> MaterialReadback: ...
 
 
+class CompensationVerifier(Protocol):
+    def readback(self, compensation_id: str) -> MaterialReadback: ...
+
+    def verify(
+        self,
+        original_mutation_id: str,
+        compensation_readback: MaterialReadback,
+    ) -> bool: ...
+
+
 CompensateFn = Callable[[str, dict[str, object], str, str], str]
+
+
+@dataclass(frozen=True)
+class MaterialBoundaryClaim:
+    strength: str
+    structural_denial: bool
+    process_isolated: bool
 
 
 class MaterialEffectFailure(RuntimeError):
@@ -39,6 +56,7 @@ class MaterialEffectFailure(RuntimeError):
 class ToolBroker:
     def __init__(self) -> None:
         self._adapters: dict[str, MutableAdapter] = {}
+        self._compensation_verifiers: dict[str, CompensationVerifier] = {}
         self.__resolution_token = object()
         self.__active_resolution: ContextVar[object | None] = ContextVar(
             f"broker_resolution_{id(self)}",
@@ -46,9 +64,27 @@ class ToolBroker:
         )
         self.__bound_adapter_ids: set[int] = set()
 
-    def register(self, capability: str, adapter: MutableAdapter) -> None:
+    def material_boundary_claim(self) -> MaterialBoundaryClaim:
+        return MaterialBoundaryClaim(
+            strength="IN_PROCESS_GUARD_ONLY",
+            structural_denial=False,
+            process_isolated=False,
+        )
+
+    def register(
+        self,
+        capability: str,
+        adapter: MutableAdapter,
+        *,
+        compensation_verifier: CompensationVerifier | None = None,
+    ) -> None:
         if id(adapter) in self.__bound_adapter_ids:
             raise ValueError("adapter_already_broker_bound")
+        if (
+            compensation_verifier is not None
+            and id(compensation_verifier) == id(adapter)
+        ):
+            raise ValueError("compensation_verifier_must_be_independent")
         original_mutate = adapter.mutate
 
         def guarded_mutate(
@@ -83,6 +119,17 @@ class ToolBroker:
             object.__setattr__(adapter, "compensate", guarded_compensate)
         self.__bound_adapter_ids.add(id(adapter))
         self._adapters[capability] = adapter
+        if compensation_verifier is not None:
+            self._compensation_verifiers[capability] = compensation_verifier
+
+    def has_independent_compensation_verifier(self, capability: str) -> bool:
+        verifier = self._compensation_verifiers.get(capability)
+        adapter = self._adapters.get(capability)
+        return (
+            verifier is not None
+            and adapter is not None
+            and id(verifier) != id(adapter)
+        )
 
     def adapter_for(self, capability: str) -> MutableAdapter:
         if self.__active_resolution.get() is not self.__resolution_token:
@@ -138,27 +185,32 @@ class ToolBroker:
         mutation_id: str,
     ) -> MaterialReadback:
         self._validate_envelope(envelope)
+        verifier = self._compensation_verifiers.get(envelope.capability)
+        adapter = self._adapters.get(envelope.capability)
+        if (
+            verifier is None
+            or adapter is None
+            or id(verifier) == id(adapter)
+        ):
+            raise RuntimeError("independent_compensation_verifier_required")
         reset_token = self.__active_resolution.set(self.__resolution_token)
         try:
-            adapter = self.adapter_for(envelope.capability)
-            compensate = getattr(adapter, "compensate", None)
+            bound_adapter = self.adapter_for(envelope.capability)
+            compensate = getattr(bound_adapter, "compensate", None)
             if compensate is None:
                 raise RuntimeError("material_compensation_unavailable")
-            verify_compensation = getattr(adapter, "verify_compensation", None)
-            if verify_compensation is None:
-                raise RuntimeError("material_compensation_verification_unavailable")
             compensation_id = compensate(
                 envelope.operation,
                 envelope.payload,
                 mutation_id,
                 f"compensate:{envelope.idempotency_key}",
             )
-            readback = adapter.readback(compensation_id)
-            if not bool(verify_compensation(mutation_id, readback)):
-                raise RuntimeError("material_compensation_verification_failed")
-            return readback
         finally:
             self.__active_resolution.reset(reset_token)
+        external_readback = verifier.readback(compensation_id)
+        if not verifier.verify(mutation_id, external_readback):
+            raise RuntimeError("material_compensation_verification_failed")
+        return external_readback
 
 
 class ThinEffector:
@@ -221,7 +273,7 @@ class RecoveryManager:
             external_readback = effector.compensate(envelope, mutation_id)
         except (RuntimeError, ValueError):
             return RecoveryReceipt(
-                disposition="incident",
+                disposition="compensation_unverified",
                 state_recovered=False,
                 material_compensated=False,
                 residual_effect=True,

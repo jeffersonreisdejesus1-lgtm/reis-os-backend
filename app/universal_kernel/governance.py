@@ -1,7 +1,11 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
+from hashlib import sha256
+from hmac import compare_digest
+from hmac import new as hmac_new
+from json import dumps
 from threading import RLock
 from time import time
 
@@ -130,6 +134,43 @@ class LeaseSnapshot:
     reservations: tuple[tuple[str, str, int], ...] = ()
 
 
+def _canonical_snapshot_bytes(snapshot: tuple[LeaseSnapshot, ...]) -> bytes:
+    payload = [asdict(item) for item in snapshot]
+    return dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+
+
+@dataclass(frozen=True)
+class AuthenticatedLeaseSnapshot:
+    snapshots: tuple[LeaseSnapshot, ...]
+    mac: str
+    algorithm: str = "HMAC-SHA256"
+
+    @classmethod
+    def sign(
+        cls,
+        snapshots: tuple[LeaseSnapshot, ...],
+        authentication_key: bytes,
+    ) -> AuthenticatedLeaseSnapshot:
+        if not authentication_key:
+            raise ValueError("lease_snapshot_authentication_key_required")
+        mac = hmac_new(
+            authentication_key,
+            _canonical_snapshot_bytes(snapshots),
+            sha256,
+        ).hexdigest()
+        return cls(snapshots=snapshots, mac=mac)
+
+    def authenticated(self, authentication_key: bytes) -> bool:
+        if self.algorithm != "HMAC-SHA256" or not authentication_key:
+            return False
+        expected = hmac_new(
+            authentication_key,
+            _canonical_snapshot_bytes(self.snapshots),
+            sha256,
+        ).hexdigest()
+        return compare_digest(expected, self.mac)
+
+
 class AuthorityLeaseManager:
     def __init__(self) -> None:
         self._leases: dict[str, AuthorityLease] = {}
@@ -186,26 +227,47 @@ class AuthorityLeaseManager:
                 snapshots.append(LeaseSnapshot(lease, reservations))
             return tuple(snapshots)
 
+    def authenticated_snapshot(
+        self,
+        authentication_key: bytes,
+    ) -> AuthenticatedLeaseSnapshot:
+        return AuthenticatedLeaseSnapshot.sign(
+            self.snapshot(),
+            authentication_key,
+        )
+
     @classmethod
     def from_snapshot(
         cls,
-        snapshot: tuple[LeaseSnapshot, ...],
+        snapshot: AuthenticatedLeaseSnapshot | tuple[LeaseSnapshot, ...],
+        *,
+        authentication_key: bytes | None = None,
     ) -> AuthorityLeaseManager:
+        if not isinstance(snapshot, AuthenticatedLeaseSnapshot):
+            raise ValueError("lease_snapshot_authentication_required")
+        if authentication_key is None or not snapshot.authenticated(authentication_key):
+            raise ValueError("lease_snapshot_authentication_failed")
         manager = cls()
         with manager._lock:
-            for item in snapshot:
+            for item in snapshot.snapshots:
                 lease = item.lease
                 if lease.lease_id in manager._leases:
                     raise ValueError("duplicate_lease_id")
+                if lease.uses_consumed < 0 or lease.uses_consumed > lease.max_uses:
+                    raise ValueError("lease_snapshot_usage_invalid")
                 reservations: dict[str, tuple[str, int]] = {}
+                indices: list[int] = []
                 for key, action_id, use_index in item.reservations:
-                    if use_index < 1 or use_index > lease.uses_consumed:
-                        raise ValueError("lease_snapshot_usage_invalid")
+                    if not key or not action_id:
+                        raise ValueError("lease_snapshot_reservation_binding_invalid")
                     if key in reservations:
                         raise ValueError("lease_snapshot_duplicate_idempotency_key")
                     reservations[key] = (action_id, use_index)
-                if len(reservations) > lease.uses_consumed:
-                    raise ValueError("lease_snapshot_usage_invalid")
+                    indices.append(use_index)
+                expected_indices = list(range(1, lease.uses_consumed + 1))
+                unique_indices = len(set(indices)) == len(indices)
+                if sorted(indices) != expected_indices or not unique_indices:
+                    raise ValueError("lease_snapshot_index_set_invalid")
                 manager._leases[lease.lease_id] = lease
                 manager._usage[lease.lease_id] = _LeaseUsage(reservations)
         return manager
@@ -227,7 +289,6 @@ class AuthorityLeaseManager:
             self._leases[lease_id] = replace(lease, state=LeaseState.RELEASED)
 
     def finalize(self, lease_id: str) -> LeaseState:
-        """Finalize a consumed lease after state commit."""
         with self._lock:
             lease = self._leases[lease_id]
             if lease.state is LeaseState.RELEASED:
@@ -294,7 +355,6 @@ class AuthorityLeaseManager:
         self,
         envelope: AuthorizedActionEnvelope,
     ) -> tuple[bool, str, int | None]:
-        """Atomically revalidate and consume authority before adapter resolution."""
         with self._lock:
             basic_ok, reason = self._validate_basic_unlocked(
                 envelope.lease_id,
@@ -332,17 +392,14 @@ class AuthorityLeaseManager:
                 return False, "envelope_expired", None
             if envelope.max_uses != lease.max_uses:
                 return False, "lease_max_uses_binding_mismatch", None
-
             existing = usage.reservations.get(envelope.idempotency_key)
             if existing is not None:
                 existing_action, use_index = existing
                 if existing_action != envelope.action_id:
                     return False, "idempotency_conflict", None
                 return True, "lease_use_already_reserved", use_index
-
             if lease.uses_consumed >= lease.max_uses:
                 return False, "lease_max_uses_exhausted", None
-
             use_index = lease.uses_consumed + 1
             usage.reservations[envelope.idempotency_key] = (
                 envelope.action_id,
@@ -400,10 +457,7 @@ class GovernanceEngine:
     def authorize(self, proposal: ActionProposal) -> GovernanceResult:
         identity = self._identities.load(proposal.ocs)
         if proposal.actor != proposal.ocs:
-            return GovernanceResult(
-                AuthorizationDecision.DENY,
-                "actor_ocs_mismatch",
-            )
+            return GovernanceResult(AuthorizationDecision.DENY, "actor_ocs_mismatch")
         if proposal.capability not in identity.allowed_capabilities:
             return GovernanceResult(
                 AuthorizationDecision.DENY,
@@ -450,7 +504,6 @@ class GovernanceEngine:
                 lease_reason,
                 evidence_assessment=assessment,
             )
-
         assert proposal.lease_id is not None
         assert proposal.action_type is not None
         assert proposal.issued_at is not None
@@ -468,7 +521,6 @@ class GovernanceEngine:
         assert proposal.expires_at is not None
         assert proposal.evidence_assessment_ref is not None
         assert proposal.trace_id is not None
-
         lease = self._leases.lease_for(proposal.lease_id)
         envelope = AuthorizedActionEnvelope(
             action_id=proposal.action_id,
@@ -543,9 +595,7 @@ class GovernanceEngine:
             "trace_id": proposal.trace_id,
         }
         missing = [
-            name
-            for name, value in required.items()
-            if value is None or value == ""
+            name for name, value in required.items() if value is None or value == ""
         ]
         if missing:
             missing_fields = ",".join(sorted(missing))
