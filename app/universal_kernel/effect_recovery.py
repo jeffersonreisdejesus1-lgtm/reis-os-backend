@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -34,13 +35,17 @@ class MaterialEffectFailure(RuntimeError):
 class ToolBroker:
     def __init__(self) -> None:
         self._adapters: dict[str, MutableAdapter] = {}
-        self._resolution_depth = 0
+        self.__resolution_token = object()
+        self.__active_resolution: ContextVar[object | None] = ContextVar(
+            f"broker_resolution_{id(self)}",
+            default=None,
+        )
 
     def register(self, capability: str, adapter: MutableAdapter) -> None:
         self._adapters[capability] = adapter
 
     def adapter_for(self, capability: str) -> MutableAdapter:
-        if self._resolution_depth <= 0:
+        if self.__active_resolution.get() is not self.__resolution_token:
             raise ValueError("direct_adapter_resolution_prohibited")
         try:
             return self._adapters[capability]
@@ -52,11 +57,11 @@ class ToolBroker:
             raise ValueError("material_boundary_scope_invalid")
         if not envelope.authority_ref or envelope.lease_use_index is None:
             raise ValueError("material_boundary_authority_required")
-        self._resolution_depth += 1
+        reset_token = self.__active_resolution.set(self.__resolution_token)
         try:
             return self.adapter_for(envelope.capability)
         finally:
-            self._resolution_depth -= 1
+            self.__active_resolution.reset(reset_token)
 
 
 class ThinEffector:
@@ -90,13 +95,19 @@ class ThinEffector:
         compensate = getattr(adapter, "compensate", None)
         if compensate is None:
             raise RuntimeError("material_compensation_unavailable")
+        verify_compensation = getattr(adapter, "verify_compensation", None)
+        if verify_compensation is None:
+            raise RuntimeError("material_compensation_verification_unavailable")
         compensation_id = compensate(
             envelope.operation,
             envelope.payload,
             mutation_id,
             f"compensate:{envelope.idempotency_key}",
         )
-        return adapter.readback(compensation_id)
+        readback = adapter.readback(compensation_id)
+        if not bool(verify_compensation(mutation_id, readback)):
+            raise RuntimeError("material_compensation_verification_failed")
+        return readback
 
 
 @dataclass
