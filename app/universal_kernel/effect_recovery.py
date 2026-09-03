@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Callable, Protocol, cast
 
 from .contracts import (
     AuthorizedActionEnvelope,
@@ -24,6 +24,9 @@ class MutableAdapter(Protocol):
     ) -> str: ...
 
     def readback(self, mutation_id: str) -> MaterialReadback: ...
+
+
+CompensateFn = Callable[[str, dict[str, object], str, str], str]
 
 
 class MaterialEffectFailure(RuntimeError):
@@ -56,9 +59,10 @@ class ToolBroker:
                 raise ValueError("direct_adapter_mutation_prohibited")
             return original_mutate(operation, payload, idempotency_key)
 
-        adapter.mutate = guarded_mutate
-        original_compensate = getattr(adapter, "compensate", None)
-        if original_compensate is not None:
+        object.__setattr__(adapter, "mutate", guarded_mutate)
+        raw_compensate = getattr(adapter, "compensate", None)
+        if raw_compensate is not None:
+            original_compensate = cast(CompensateFn, raw_compensate)
 
             def guarded_compensate(
                 operation: str,
