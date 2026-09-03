@@ -8,7 +8,11 @@ from .contracts import (
     ExecutionResult,
     StateRecord,
 )
-from .effect_recovery import ThinEffector
+from .effect_recovery import (
+    MaterialEffectFailure,
+    RecoveryManager,
+    ThinEffector,
+)
 from .governance import GovernanceEngine
 from .state_trace import StateCore, TraceCore
 
@@ -20,11 +24,13 @@ class UniversalKernelRuntime:
         effector: ThinEffector,
         state: StateCore,
         trace: TraceCore,
+        recovery: RecoveryManager | None = None,
     ) -> None:
         self._governance = governance
         self._effector = effector
         self._state = state
         self._trace = trace
+        self._recovery = recovery
         self._seq = count(1)
         self._completed: dict[str, tuple[str, ExecutionResult]] = {}
 
@@ -34,25 +40,63 @@ class UniversalKernelRuntime:
             if completed is not None:
                 completed_action_id, completed_result = completed
                 if completed_action_id != proposal.action_id:
-                    return ExecutionResult(False, False, True, "idempotency_conflict")
+                    return ExecutionResult(
+                        False,
+                        False,
+                        True,
+                        "idempotency_conflict",
+                        governance_decision=AuthorizationDecision.DENY,
+                        trace_id=proposal.trace_id,
+                    )
                 return completed_result
 
         governance = self._governance.authorize(proposal)
-        if (
-            governance.decision is AuthorizationDecision.DENY
-            or governance.envelope is None
-        ):
-            return ExecutionResult(False, False, True, governance.reason)
+        trace_ok = self._trace_governance(proposal, governance)
+        if governance.decision is not AuthorizationDecision.ALLOW:
+            return ExecutionResult(
+                False,
+                False,
+                trace_ok,
+                governance.reason,
+                governance_decision=governance.decision,
+                trace_id=proposal.trace_id,
+            )
+        if governance.envelope is None:
+            return ExecutionResult(
+                False,
+                False,
+                False,
+                "authorized_envelope_missing",
+                governance_decision=governance.decision,
+                trace_id=proposal.trace_id,
+            )
+        if not trace_ok:
+            return ExecutionResult(
+                True,
+                False,
+                False,
+                "trace_append_failed",
+                governance_decision=governance.decision,
+                trace_id=proposal.trace_id,
+            )
 
         reservation = self._governance.reserve_authority(governance.envelope)
         if (
             reservation.decision is AuthorizationDecision.DENY
             or reservation.envelope is None
         ):
-            return ExecutionResult(False, False, True, reservation.reason)
+            return ExecutionResult(
+                False,
+                False,
+                True,
+                reservation.reason,
+                governance_decision=AuthorizationDecision.DENY,
+                trace_id=proposal.trace_id,
+            )
 
         envelope = reservation.envelope
         effected = False
+        readback = None
         try:
             self._trace.append_stage(
                 event_id=self._event_id(proposal.action_id, "authorized"),
@@ -64,6 +108,13 @@ class UniversalKernelRuntime:
                     "lease_use_index": envelope.lease_use_index,
                     "idempotency_key": envelope.idempotency_key,
                 },
+            )
+            self._trace.preflight(
+                event_id=self._event_id(proposal.action_id, "preflight"),
+                action_id=proposal.action_id,
+                trace_id=envelope.trace_id,
+                authority_ref=envelope.authority_ref,
+                lease_id=envelope.lease_id,
             )
             readback = self._effector.execute(envelope)
             effected = True
@@ -82,7 +133,14 @@ class UniversalKernelRuntime:
                 payload=readback.state,
                 verified=True,
             )
-            self._state.write(state, lambda stored: stored == state)
+            self._state.write(
+                state,
+                lambda stored: stored == state,
+                actor_ocs_id=proposal.ocs,
+                target_namespace=f"state://{proposal.ocs}/runtime",
+                state_ref=state.state_id,
+                authority_context=envelope.authority_ref,
+            )
             self._trace.append_stage(
                 event_id=self._event_id(proposal.action_id, "state"),
                 action_id=proposal.action_id,
@@ -105,12 +163,88 @@ class UniversalKernelRuntime:
                 stage="TRACE_CLOSE",
                 details={"trace_id": envelope.trace_id},
             )
+        except MaterialEffectFailure as exc:
+            effected = True
+            recovery_receipt = None
+            if self._recovery is not None:
+                recovery_receipt = self._recovery.recover_post_effect(
+                    envelope,
+                    exc.mutation_id,
+                    self._effector,
+                )
+            return ExecutionResult(
+                True,
+                True,
+                False,
+                str(exc),
+                governance_decision=AuthorizationDecision.ALLOW,
+                trace_id=envelope.trace_id,
+                recovery_receipt=recovery_receipt,
+                residual_effect=(
+                    True
+                    if recovery_receipt is None
+                    else recovery_receipt.residual_effect
+                ),
+            )
         except RuntimeError as exc:
-            return ExecutionResult(True, effected, False, str(exc))
+            reason = str(exc)
+            residual_effect = effected
+            return ExecutionResult(
+                True,
+                effected,
+                False,
+                reason,
+                readback=readback,
+                governance_decision=AuthorizationDecision.ALLOW,
+                trace_id=envelope.trace_id,
+                residual_effect=residual_effect,
+            )
 
-        result = ExecutionResult(True, True, True, "effect_proven", readback)
+        result = ExecutionResult(
+            True,
+            True,
+            True,
+            "effect_proven",
+            readback,
+            governance_decision=AuthorizationDecision.ALLOW,
+            trace_id=envelope.trace_id,
+        )
         self._completed[envelope.idempotency_key] = (envelope.action_id, result)
         return result
+
+    def _trace_governance(self, proposal: ActionProposal, governance) -> bool:  # type: ignore[no-untyped-def]
+        assessment = governance.evidence_assessment
+        try:
+            self._trace.append_stage(
+                event_id=self._event_id(proposal.action_id, "proposal"),
+                action_id=proposal.action_id,
+                stage="ACTION_PROPOSAL",
+                details={"trace_id": proposal.trace_id or ""},
+            )
+            self._trace.append_stage(
+                event_id=self._event_id(proposal.action_id, "evidence"),
+                action_id=proposal.action_id,
+                stage="EVIDENCE_ASSESSMENT",
+                details={
+                    "sufficiency": (
+                        None if assessment is None else assessment.sufficiency
+                    ),
+                    "deficits": () if assessment is None else assessment.deficits,
+                },
+            )
+            self._trace.append_stage(
+                event_id=self._event_id(proposal.action_id, "governance"),
+                action_id=proposal.action_id,
+                stage="GOVERNANCE_DECISION",
+                details={
+                    "decision": governance.decision.value,
+                    "reason": governance.reason,
+                    "trace_id": proposal.trace_id or "",
+                },
+            )
+        except RuntimeError:
+            return False
+        return True
 
     def _event_id(self, action_id: str, stage: str) -> str:
         return f"trace:{action_id}:{stage}:{next(self._seq)}"
