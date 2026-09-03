@@ -406,9 +406,23 @@ def test_self_assurance_is_denied() -> None:
 def test_state_write_has_version_and_predecessor() -> None:
     state = StateCore()
     first = StateRecord("s1", "SOFIA", 1, None, {"v": 1}, True)
-    state.write(first, lambda stored: stored == first)
+    state.write(
+        first,
+        lambda stored: stored == first,
+        actor_ocs_id="SOFIA",
+        target_namespace="state://SOFIA/runtime",
+        state_ref="s1",
+        authority_context="authority:r1-regression",
+    )
     second = StateRecord("s2", "SOFIA", 2, "s1", {"v": 2}, True)
-    state.write(second, lambda stored: stored == second)
+    state.write(
+        second,
+        lambda stored: stored == second,
+        actor_ocs_id="SOFIA",
+        target_namespace="state://SOFIA/runtime",
+        state_ref="s2",
+        authority_context="authority:r1-regression",
+    )
     assert state.current("SOFIA") == second
 
 
