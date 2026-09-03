@@ -13,6 +13,7 @@ class RiskLevel(StrEnum):
 class AuthorizationDecision(StrEnum):
     ALLOW = "allow"
     DENY = "deny"
+    HOLD = "hold"
 
 
 class SideEffectClass(StrEnum):
@@ -32,6 +33,15 @@ class Evidence:
     ref: str
     passed: bool
     independent_assurer: str | None = None
+
+
+@dataclass(frozen=True)
+class EvidenceAssessment:
+    sufficiency: bool
+    deficits: tuple[str, ...]
+    contradictions: tuple[str, ...]
+    risk_burden: RiskLevel
+    evidence_ref: str
 
 
 @dataclass(frozen=True)
@@ -101,6 +111,7 @@ class GovernanceResult:
     decision: AuthorizationDecision
     reason: str
     envelope: AuthorizedActionEnvelope | None = None
+    evidence_assessment: EvidenceAssessment | None = None
 
 
 @dataclass(frozen=True)
@@ -110,12 +121,25 @@ class MaterialReadback:
 
 
 @dataclass(frozen=True)
+class RecoveryReceipt:
+    disposition: str
+    state_recovered: bool
+    material_compensated: bool
+    residual_effect: bool
+    external_readback: MaterialReadback | None = None
+
+
+@dataclass(frozen=True)
 class ExecutionResult:
     authorized: bool
     effected: bool
     proven: bool
     reason: str
     readback: MaterialReadback | None = None
+    governance_decision: AuthorizationDecision | None = None
+    trace_id: str | None = None
+    recovery_receipt: RecoveryReceipt | None = None
+    residual_effect: bool = False
 
 
 @dataclass(frozen=True)
@@ -150,6 +174,22 @@ class HandoffReceipt:
     target_ocs: str
     state_ref: str
     authority_transferred: bool = False
+    context_refs: tuple[str, ...] = ()
+    evidence_refs: tuple[str, ...] = ()
+    source_authority_ref: str = ""
+
+    @property
+    def handoff_id(self) -> str:
+        return self.receipt_id
+
+
+@dataclass(frozen=True)
+class HandoffAcceptance:
+    handoff_id: str
+    receiver_ocs: str
+    context_refs: tuple[str, ...]
+    evidence_refs: tuple[str, ...]
+    executable_authority_ref: str | None = None
 
 
 @dataclass(frozen=True)
