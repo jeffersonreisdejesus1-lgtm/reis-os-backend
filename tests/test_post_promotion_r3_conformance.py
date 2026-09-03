@@ -67,8 +67,21 @@ class AdversarialAdapter:
     ) -> str:
         self.compensations += 1
         compensation_id = f"c-{self.compensations}"
-        self.values[compensation_id] = {"compensated": mutation_id}
+        self.values[compensation_id] = {
+            "compensated": mutation_id,
+            "verified": True,
+        }
         return compensation_id
+
+    def verify_compensation(
+        self,
+        mutation_id: str,
+        readback: MaterialReadback,
+    ) -> bool:
+        return bool(
+            readback.state.get("compensated") == mutation_id
+            and readback.state.get("verified") is True
+        )
 
 
 class ObservingBroker(ToolBroker):
@@ -248,6 +261,8 @@ def test_post_003_direct_adapter_resolution_is_structurally_denied() -> None:
     broker.register("repo.write", adapter)
     with pytest.raises(ValueError, match="direct_adapter_resolution_prohibited"):
         broker.adapter_for("repo.write")
+    with pytest.raises(ValueError, match="direct_adapter_mutation_prohibited"):
+        adapter.mutate("write", {}, "direct")
     assert adapter.mutations == 0
 
 
@@ -255,7 +270,14 @@ def test_post_004_runtime_dispatches_compensation_after_post_effect_failure() ->
     adapter = AdversarialAdapter(fail_readback=True)
     state = StateCore()
     checkpoint_state = StateRecord("safe", "SOFIA", 1, None, {"safe": True}, True)
-    state.write(checkpoint_state, lambda stored: stored == checkpoint_state)
+    state.write(
+        checkpoint_state,
+        lambda stored: stored == checkpoint_state,
+        actor_ocs_id="SOFIA",
+        target_namespace="state://SOFIA/checkpoint",
+        state_ref=checkpoint_state.state_id,
+        authority_context="authority:checkpoint",
+    )
     recovery = RecoveryManager(state)
     recovery.register_checkpoint(
         "recovery:post-r3",
@@ -351,6 +373,7 @@ def test_post_006_handoff_acceptance_has_context_but_no_executable_authority() -
     accepted = router.accept(receipt, receiver_ocs="SYNERGEIA")
     assert receipt.handoff_id == "handoff:post-r3"
     assert receipt.authority_transferred is False
+    assert receipt.source_authority_ref == ""
     assert accepted.context_refs == ("context:market",)
     assert accepted.evidence_refs == ("evidence:market",)
     assert accepted.executable_authority_ref is None
@@ -360,10 +383,11 @@ def test_post_007_trace_preflight_precedes_broker_and_finalization_failure(
 ) -> None:
     trace = TraceCore()
     trace.fail_next_preflight = True
-    runtime, adapter, _, _, _, broker, _ = _runtime(trace=trace)
+    runtime, adapter, leases, _, _, broker, _ = _runtime(trace=trace)
     result = runtime.execute(_proposal())
     assert result.authorized and not result.effected and not result.proven
     assert result.reason == "trace_preflight_failed"
+    assert leases.uses_consumed("lease-sofia") == 0
     assert broker.resolutions == 0
     assert adapter.mutations == 0
 

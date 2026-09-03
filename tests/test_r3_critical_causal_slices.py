@@ -437,7 +437,14 @@ def test_r3_s08_post_effect_failure_triggers_verified_recovery_receipt() -> None
         {"r3": "safe"},
         True,
     )
-    state.write(checkpoint_state, lambda stored: stored == checkpoint_state)
+    state.write(
+        checkpoint_state,
+        lambda stored: stored == checkpoint_state,
+        actor_ocs_id="SOFIA",
+        target_namespace="state://SOFIA/runtime",
+        state_ref=checkpoint_state.state_id,
+        authority_context="authority:r3-regression",
+    )
     proposal = _proposal()
     recorder = CausalRecorder("R3-S08", "trace:r3-s08")
     _record_common_prefix(recorder, proposal, evidence_engine, leases)
