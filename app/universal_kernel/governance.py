@@ -9,6 +9,7 @@ from .contracts import (
     ActionProposal,
     AuthorizationDecision,
     AuthorizedActionEnvelope,
+    EvidenceAssessment,
     GovernanceResult,
     RiskLevel,
 )
@@ -46,11 +47,15 @@ class CapabilityRegistry:
 
 
 class EvidenceEngine:
-    def sufficient(self, proposal: ActionProposal) -> tuple[bool, str]:
+    def assess(self, proposal: ActionProposal) -> EvidenceAssessment:
+        deficits: list[str] = []
+        contradictions: list[str] = []
         if not proposal.evidence:
-            return False, "evidence_required"
-        if not all(evidence.passed for evidence in proposal.evidence):
-            return False, "evidence_failed"
+            deficits.append("evidence_required")
+        failed = tuple(item.ref for item in proposal.evidence if not item.passed)
+        if failed:
+            deficits.append("evidence_failed")
+            contradictions.extend(failed)
         if proposal.risk is RiskLevel.HIGH:
             independent = [
                 evidence
@@ -58,10 +63,29 @@ class EvidenceEngine:
                 if evidence.independent_assurer is not None
                 and evidence.independent_assurer != proposal.ocs
                 and evidence.independent_assurer != proposal.actor
+                and evidence.passed
             ]
             if not independent:
-                return False, "independent_assurance_required"
-        return True, "evidence_sufficient"
+                deficits.append("independent_assurance_required")
+        evidence_ref = proposal.evidence_assessment_ref or (
+            f"assessment:{proposal.action_id}"
+        )
+        return EvidenceAssessment(
+            sufficiency=not deficits,
+            deficits=tuple(deficits),
+            contradictions=tuple(contradictions),
+            risk_burden=proposal.risk,
+            evidence_ref=evidence_ref,
+        )
+
+    def sufficient(self, proposal: ActionProposal) -> tuple[bool, str]:
+        assessment = self.assess(proposal)
+        reason = (
+            assessment.deficits[0]
+            if assessment.deficits
+            else "evidence_sufficient"
+        )
+        return assessment.sufficiency, reason
 
 
 class LeaseState(StrEnum):
@@ -142,6 +166,24 @@ class AuthorityLeaseManager:
             self._leases[lease.lease_id] = lease
             self._usage[lease.lease_id] = _LeaseUsage()
 
+    def snapshot(self) -> tuple[AuthorityLease, ...]:
+        with self._lock:
+            return tuple(self._leases.values())
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        snapshot: tuple[AuthorityLease, ...],
+    ) -> AuthorityLeaseManager:
+        manager = cls()
+        with manager._lock:
+            for lease in snapshot:
+                if lease.lease_id in manager._leases:
+                    raise ValueError("duplicate_lease_id")
+                manager._leases[lease.lease_id] = lease
+                manager._usage[lease.lease_id] = _LeaseUsage()
+        return manager
+
     def revoke(self, lease_id: str) -> None:
         with self._lock:
             lease = self._leases[lease_id]
@@ -159,10 +201,7 @@ class AuthorityLeaseManager:
             self._leases[lease_id] = replace(lease, state=LeaseState.RELEASED)
 
     def finalize(self, lease_id: str) -> LeaseState:
-        """Finalize a consumed lease after state commit.
-
-        Release when the contract requires it.
-        """
+        """Finalize a consumed lease after state commit."""
         with self._lock:
             lease = self._leases[lease_id]
             if lease.state is LeaseState.RELEASED:
@@ -358,15 +397,27 @@ class GovernanceEngine:
                 AuthorizationDecision.DENY,
                 "self_assurance_denied",
             )
-        evidence_ok, evidence_reason = self._evidence.sufficient(proposal)
-        if not evidence_ok:
-            return GovernanceResult(AuthorizationDecision.DENY, evidence_reason)
+        assessment = self._evidence.assess(proposal)
+        if not assessment.sufficiency:
+            return GovernanceResult(
+                AuthorizationDecision.HOLD,
+                assessment.deficits[0],
+                evidence_assessment=assessment,
+            )
         envelope_ok, envelope_reason = self._validate_envelope_contract(proposal)
         if not envelope_ok:
-            return GovernanceResult(AuthorizationDecision.DENY, envelope_reason)
+            return GovernanceResult(
+                AuthorizationDecision.DENY,
+                envelope_reason,
+                evidence_assessment=assessment,
+            )
         lease_ok, lease_reason = self._leases.validate_proposal(proposal)
         if not lease_ok:
-            return GovernanceResult(AuthorizationDecision.DENY, lease_reason)
+            return GovernanceResult(
+                AuthorizationDecision.DENY,
+                lease_reason,
+                evidence_assessment=assessment,
+            )
 
         assert proposal.lease_id is not None
         assert proposal.action_type is not None
@@ -420,6 +471,7 @@ class GovernanceEngine:
             AuthorizationDecision.ALLOW,
             "authorized",
             envelope,
+            assessment,
         )
 
     def reserve_authority(

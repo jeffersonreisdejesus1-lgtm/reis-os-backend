@@ -22,7 +22,23 @@ class StateCore:
         self,
         record: StateRecord,
         readback_check: Callable[[StateRecord], bool],
+        *,
+        actor_ocs_id: str | None = None,
+        target_namespace: str | None = None,
+        state_ref: str | None = None,
+        authority_context: str | None = None,
     ) -> StateRecord:
+        actor = record.ocs if actor_ocs_id is None else actor_ocs_id
+        namespace = (
+            f"state://{record.ocs}/runtime"
+            if target_namespace is None
+            else target_namespace
+        )
+        self._validate_namespace(actor, namespace, record.ocs)
+        if state_ref is not None and state_ref != record.state_id:
+            raise ValueError("state_ref_mismatch")
+        if authority_context is not None and not authority_context:
+            raise ValueError("state_authority_context_required")
         if record.version < 1:
             raise ValueError("state_version_required")
         current = self.current(record.ocs)
@@ -44,6 +60,21 @@ class StateCore:
         self._current[record.ocs] = record.state_id
         return persisted
 
+    @staticmethod
+    def _validate_namespace(
+        actor_ocs_id: str,
+        target_namespace: str,
+        record_ocs: str,
+    ) -> None:
+        prefix = "state://"
+        if not target_namespace.startswith(prefix):
+            raise ValueError("state_namespace_invalid")
+        owner = target_namespace[len(prefix) :].split("/", 1)[0]
+        if owner.casefold() != record_ocs.casefold():
+            raise ValueError("state_namespace_record_owner_mismatch")
+        if actor_ocs_id.casefold() != owner.casefold():
+            raise ValueError("state_namespace_violation")
+
     def restore_verified(self, checkpoint: VerifiedCheckpoint) -> StateRecord:
         if not checkpoint.state.verified:
             raise ValueError("verified_checkpoint_required")
@@ -56,13 +87,22 @@ class StateCore:
             predecessor=current.state_id if current is not None else None,
             verified=True,
         )
-        return self.write(restored, lambda stored: stored == restored)
+        return self.write(
+            restored,
+            lambda stored: stored == restored,
+            actor_ocs_id=restored.ocs,
+            target_namespace=f"state://{restored.ocs}/recovery",
+            state_ref=restored.state_id,
+            authority_context="recovery:verified-checkpoint",
+        )
 
 
 class TraceCore:
     def __init__(self) -> None:
         self._events: list[TraceEvent] = []
         self.fail_next_append = False
+        self.fail_next_preflight = False
+        self.fail_next_finalization = False
 
     @property
     def events(self) -> tuple[TraceEvent, ...]:
@@ -85,6 +125,9 @@ class TraceCore:
         stage: str,
         details: dict[str, object] | None = None,
     ) -> TraceEvent:
+        if stage == "TRACE_CLOSE" and self.fail_next_finalization:
+            self.fail_next_finalization = False
+            raise RuntimeError("trace_finalization_failed")
         predecessor = self._events[-1].event_id if self._events else None
         event = TraceEvent(
             event_id=event_id,
@@ -95,6 +138,29 @@ class TraceCore:
         )
         self.append(event)
         return event
+
+    def preflight(
+        self,
+        *,
+        event_id: str,
+        action_id: str,
+        trace_id: str,
+        authority_ref: str,
+        lease_id: str,
+    ) -> TraceEvent:
+        if self.fail_next_preflight:
+            self.fail_next_preflight = False
+            raise RuntimeError("trace_preflight_failed")
+        return self.append_stage(
+            event_id=event_id,
+            action_id=action_id,
+            stage="TRACE_PREFLIGHT",
+            details={
+                "trace_id": trace_id,
+                "authority_ref": authority_ref,
+                "lease_id": lease_id,
+            },
+        )
 
     def chain_is_valid(self) -> bool:
         predecessor: str | None = None
