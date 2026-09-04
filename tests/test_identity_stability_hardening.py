@@ -4,7 +4,11 @@ from time import time
 
 import pytest
 
-from app.universal_kernel.context_guard import ContextClass, ContextItem, ContextSanitizer
+from app.universal_kernel.context_guard import (
+    ContextClass,
+    ContextItem,
+    ContextSanitizer,
+)
 from app.universal_kernel.contracts import (
     ActionProposal,
     Evidence,
