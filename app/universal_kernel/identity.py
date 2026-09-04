@@ -176,7 +176,7 @@ class IdentityAuditLog:
                 memory_namespace=str(raw["memory_namespace"]),
                 authority_envelope_ref=str(raw["authority_envelope_ref"]),
                 profile_version=str(raw["profile_version"]),
-                bound_at=float(raw["bound_at"]),
+                bound_at=float(str(raw["bound_at"])),
                 status=status,
                 hold_reason=(None if raw.get("hold_reason") is None else str(raw["hold_reason"])),
             )
