@@ -43,7 +43,12 @@ class HandoffIdentityGate:
     def _binding_hash(binding: ActiveIdentityBinding) -> str:
         raw = asdict(binding)
         raw["status"] = binding.status.value
-        canonical = dumps(raw, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        canonical = dumps(
+            raw,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
         return sha256(canonical.encode("utf-8")).hexdigest()
 
     def issue(
@@ -122,8 +127,6 @@ class HandoffIdentityGate:
         if not receipt.sender_ocs_id or not receipt.sender_identity_binding_hash:
             raise ValueError("handoff_sender_identity_binding_required")
 
-        # The receiver obtains its own binding. Sender identity, authority and memory
-        # are never imported as receiver identity/authority/memory.
         receiver_binding = receiver_guard.bind_active_identity(
             run_id=receiver_run_id,
             ocs_id=receiver_ocs,
