@@ -9,11 +9,7 @@ from .contracts import (
     GovernanceResult,
     StateRecord,
 )
-from .effect_recovery import (
-    MaterialEffectFailure,
-    RecoveryManager,
-    ThinEffector,
-)
+from .effect_recovery import MaterialEffectFailure, RecoveryManager, ThinEffector
 from .governance import GovernanceEngine
 from .state_trace import StateCore, TraceCore
 
@@ -72,7 +68,6 @@ class UniversalKernelRuntime:
                 trace_id=proposal.trace_id,
             )
 
-        # A preflight fault must not spend authority or reach the broker.
         try:
             self._trace.preflight_gate()
         except RuntimeError as exc:
@@ -132,7 +127,11 @@ class UniversalKernelRuntime:
                 authority_ref=envelope.authority_ref,
                 lease_id=envelope.lease_id,
             )
-            readback = self._effector.execute(envelope)
+            # Final authoritative lease/reservation check at the material boundary.
+            # The lease-manager lock remains held through the adapter mutation so
+            # revoke/release cannot race between validation and effect in-process.
+            with self._governance.material_effect_guard(envelope):
+                readback = self._effector.execute(envelope)
             effected = True
             self._trace.append_stage(
                 event_id=self._event_id(proposal.action_id, "readback"),
@@ -179,6 +178,16 @@ class UniversalKernelRuntime:
                 stage="TRACE_CLOSE",
                 details={"trace_id": envelope.trace_id},
             )
+        except ValueError as exc:
+            return ExecutionResult(
+                False,
+                False,
+                True,
+                str(exc),
+                governance_decision=AuthorizationDecision.DENY,
+                trace_id=envelope.trace_id,
+                residual_effect=False,
+            )
         except MaterialEffectFailure as exc:
             effected = True
             recovery_receipt = None
@@ -197,9 +206,7 @@ class UniversalKernelRuntime:
                 trace_id=envelope.trace_id,
                 recovery_receipt=recovery_receipt,
                 residual_effect=(
-                    True
-                    if recovery_receipt is None
-                    else recovery_receipt.residual_effect
+                    True if recovery_receipt is None else recovery_receipt.residual_effect
                 ),
             )
         except RuntimeError as exc:
@@ -246,9 +253,7 @@ class UniversalKernelRuntime:
                 action_id=proposal.action_id,
                 stage="EVIDENCE_ASSESSMENT",
                 details={
-                    "sufficiency": (
-                        None if assessment is None else assessment.sufficiency
-                    ),
+                    "sufficiency": None if assessment is None else assessment.sufficiency,
                     "deficits": () if assessment is None else assessment.deficits,
                 },
             )
