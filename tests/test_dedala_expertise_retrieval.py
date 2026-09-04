@@ -2,7 +2,11 @@ import pytest
 
 from app.expertise.registry import build_retrieval_plan
 from app.expertise.retriever import retrieve_expert_evidence
-from app.expertise.sources import ExpertEvidenceFragment, ExpertSourceRecord, sha256_text
+from app.expertise.sources import (
+    ExpertEvidenceFragment,
+    ExpertSourceRecord,
+    sha256_text,
+)
 
 
 def source(source_id: str, author: str, tags: tuple[str, ...]) -> ExpertSourceRecord:
@@ -20,7 +24,12 @@ def source(source_id: str, author: str, tags: tuple[str, ...]) -> ExpertSourceRe
     )
 
 
-def fragment(source_id: str, fragment_id: str, content: str, tags: tuple[str, ...]) -> ExpertEvidenceFragment:
+def fragment(
+    source_id: str,
+    fragment_id: str,
+    content: str,
+    tags: tuple[str, ...],
+) -> ExpertEvidenceFragment:
     return ExpertEvidenceFragment(
         source_id=source_id,
         fragment_id=fragment_id,
@@ -34,14 +43,33 @@ def fragment(source_id: str, fragment_id: str, content: str, tags: tuple[str, ..
 def test_selective_retrieval_returns_provenance_bound_evidence() -> None:
     plan = build_retrieval_plan("distributed state consistency recovery message retry")
     sources = (
-        source("kleppmann-001", "Martin Kleppmann", ("distributed", "state", "consistency", "recovery")),
+        source(
+            "kleppmann-001",
+            "Martin Kleppmann",
+            ("distributed", "state", "consistency", "recovery"),
+        ),
         source("hohpe-001", "Gregor Hohpe", ("message", "retry", "routing")),
         source("fowler-001", "Martin Fowler", ("refactoring", "architecture")),
     )
     fragments = (
-        fragment("kleppmann-001", "k-1", "Authorized local note about state recovery.", ("state", "recovery")),
-        fragment("hohpe-001", "h-1", "Authorized local note about message retry.", ("message", "retry")),
-        fragment("fowler-001", "f-1", "Authorized local note about refactoring.", ("refactoring",)),
+        fragment(
+            "kleppmann-001",
+            "k-1",
+            "Authorized local note about state recovery.",
+            ("state", "recovery"),
+        ),
+        fragment(
+            "hohpe-001",
+            "h-1",
+            "Authorized local note about message retry.",
+            ("message", "retry"),
+        ),
+        fragment(
+            "fowler-001",
+            "f-1",
+            "Authorized local note about refactoring.",
+            ("refactoring",),
+        ),
     )
     result = retrieve_expert_evidence(plan, sources, fragments)
     assert {item.source_id for item in result} == {"kleppmann-001", "hohpe-001"}
@@ -51,7 +79,13 @@ def test_selective_retrieval_returns_provenance_bound_evidence() -> None:
 
 def test_corrupted_fragment_fails_closed() -> None:
     plan = build_retrieval_plan("distributed state consistency")
-    sources = (source("kleppmann-001", "Martin Kleppmann", ("distributed", "state", "consistency")),)
+    sources = (
+        source(
+            "kleppmann-001",
+            "Martin Kleppmann",
+            ("distributed", "state", "consistency"),
+        ),
+    )
     bad = ExpertEvidenceFragment(
         source_id="kleppmann-001",
         fragment_id="k-bad",
