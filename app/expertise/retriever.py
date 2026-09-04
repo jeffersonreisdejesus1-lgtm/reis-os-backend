@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .registry import RetrievalPlan
-from .sources import ExpertEvidenceFragment, ExpertSourceRecord, validate_fragment, validate_source_record
+from .sources import (
+    ExpertEvidenceFragment,
+    ExpertSourceRecord,
+    validate_fragment,
+    validate_source_record,
+)
 
 
 @dataclass(frozen=True)
@@ -39,7 +44,10 @@ def retrieve_expert_evidence(
         source = source_by_id.get(fragment.source_id)
         if source is None:
             raise ValueError("expert_fragment_source_missing")
-        tags = {tag.casefold() for tag in source.retrieval_tags + fragment.retrieval_tags}
+        tags = {
+            tag.casefold()
+            for tag in source.retrieval_tags + fragment.retrieval_tags
+        }
         score = len(query_terms.intersection(tags))
         if score == 0:
             continue
@@ -53,5 +61,11 @@ def retrieve_expert_evidence(
                 applicability_score=score,
             )
         )
-    evidence.sort(key=lambda item: (-item.applicability_score, item.source_id, item.fragment_id))
+    evidence.sort(
+        key=lambda item: (
+            -item.applicability_score,
+            item.source_id,
+            item.fragment_id,
+        )
+    )
     return tuple(evidence)
