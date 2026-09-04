@@ -13,6 +13,7 @@ from .contracts import (
 )
 from .effect_recovery import MaterialEffectFailure, RecoveryManager, ThinEffector
 from .governance import GovernanceEngine
+from .identity import IdentityKernelGuard, IdentityRecheckTrigger
 from .state_trace import StateCore, TraceCore
 
 
@@ -24,6 +25,12 @@ class UniversalKernelRuntime:
         state: StateCore,
         trace: TraceCore,
         recovery: RecoveryManager | None = None,
+        *,
+        identity_guard: IdentityKernelGuard | None = None,
+        run_id: str | None = None,
+        active_ocs: str | None = None,
+        host: str | None = None,
+        session_context: str | None = None,
     ) -> None:
         self._governance = governance
         self._effector = effector
@@ -32,8 +39,45 @@ class UniversalKernelRuntime:
         self._recovery = recovery
         self._seq = count(1)
         self._completed: dict[str, tuple[str, ExecutionResult]] = {}
+        self._identity_guard = identity_guard
+        self._run_id = run_id
+        self._active_ocs = active_ocs
+        self._host = host
+        self._session_context = session_context
+
+        identity_args = (identity_guard, run_id, active_ocs, host, session_context)
+        if any(item is not None for item in identity_args) and not all(
+            item is not None for item in identity_args
+        ):
+            raise ValueError("complete_identity_runtime_configuration_required")
+        if identity_guard is not None:
+            assert run_id is not None
+            assert active_ocs is not None
+            assert host is not None
+            assert session_context is not None
+            if identity_guard.binding_for(run_id) is None:
+                identity_guard.bind_active_identity(
+                    run_id=run_id,
+                    ocs_id=active_ocs,
+                    host=host,
+                    session_context=session_context,
+                )
+            identity_guard.require_valid(
+                run_id=run_id,
+                expected_ocs=active_ocs,
+                trigger=IdentityRecheckTrigger.COLD_START,
+                host=host,
+            )
+
+    @property
+    def identity_guard_enabled(self) -> bool:
+        return self._identity_guard is not None
 
     def execute(self, proposal: ActionProposal) -> ExecutionResult:
+        identity_failure = self._identity_pre_action(proposal)
+        if identity_failure is not None:
+            return identity_failure
+
         if proposal.idempotency_key is not None:
             completed = self._completed.get(proposal.idempotency_key)
             if completed is not None:
@@ -129,6 +173,7 @@ class UniversalKernelRuntime:
                 authority_ref=envelope.authority_ref,
                 lease_id=envelope.lease_id,
             )
+            self._require_identity(proposal.ocs, IdentityRecheckTrigger.PRE_ACTION)
             # Final authoritative lease/reservation check at the material boundary.
             # The lease-manager lock remains held through the adapter mutation so
             # revoke/release cannot race between validation and effect in-process.
@@ -141,6 +186,21 @@ class UniversalKernelRuntime:
                 stage="MATERIAL_EFFECT_READBACK",
                 details={"mutation_id": readback.mutation_id},
             )
+
+            try:
+                self._require_identity(proposal.ocs, IdentityRecheckTrigger.PRE_PERSIST)
+            except ValueError as exc:
+                return ExecutionResult(
+                    True,
+                    True,
+                    False,
+                    str(exc),
+                    readback=readback,
+                    governance_decision=AuthorizationDecision.ALLOW,
+                    trace_id=envelope.trace_id,
+                    residual_effect=True,
+                )
+
             current = self._state.current(proposal.ocs)
             state = StateRecord(
                 state_id=f"state:{proposal.ocs}:{next(self._seq)}",
@@ -182,13 +242,16 @@ class UniversalKernelRuntime:
             )
         except ValueError as exc:
             return ExecutionResult(
-                False,
-                False,
-                True,
+                False if not effected else True,
+                effected,
+                not effected,
                 str(exc),
-                governance_decision=AuthorizationDecision.DENY,
+                readback=readback,
+                governance_decision=(
+                    AuthorizationDecision.DENY if not effected else AuthorizationDecision.ALLOW
+                ),
                 trace_id=envelope.trace_id,
-                residual_effect=False,
+                residual_effect=effected,
             )
         except MaterialEffectFailure as exc:
             effected = True
@@ -236,6 +299,32 @@ class UniversalKernelRuntime:
         )
         self._completed[envelope.idempotency_key] = (envelope.action_id, result)
         return result
+
+    def _identity_pre_action(self, proposal: ActionProposal) -> ExecutionResult | None:
+        try:
+            self._require_identity(proposal.ocs, IdentityRecheckTrigger.PRE_ACTION)
+        except ValueError as exc:
+            return ExecutionResult(
+                False,
+                False,
+                True,
+                str(exc),
+                governance_decision=AuthorizationDecision.DENY,
+                trace_id=proposal.trace_id,
+            )
+        return None
+
+    def _require_identity(self, expected_ocs: str, trigger: IdentityRecheckTrigger) -> None:
+        if self._identity_guard is None:
+            return
+        assert self._run_id is not None
+        assert self._host is not None
+        self._identity_guard.require_valid(
+            run_id=self._run_id,
+            expected_ocs=expected_ocs,
+            trigger=trigger,
+            host=self._host,
+        )
 
     def _trace_governance(
         self,
