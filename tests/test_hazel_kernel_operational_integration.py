@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E501, I001
+
 from hashlib import sha256
 import json
 from pathlib import Path
