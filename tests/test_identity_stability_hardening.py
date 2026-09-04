@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from time import time
 
 import pytest
@@ -276,6 +277,24 @@ def test_identity_log_is_hash_chained_and_cold_start_recoverable(tmp_path) -> No
     assert second_log.chain_is_valid()
 
 
+def test_identity_hold_cannot_be_bypassed_by_cold_start_recovery(tmp_path) -> None:
+    path = tmp_path / "hazel-held-identity.jsonl"
+    log = IdentityAuditLog(path)
+    guard = IdentityKernelGuard(audit_log=log)
+    guard.bind_active_identity(
+        run_id="run:held",
+        ocs_id="NÓESIS",
+        host="ChatGPT",
+        session_context="session:held",
+    )
+    guard.hold("run:held", "identity_conflict")
+
+    recovered_log = IdentityAuditLog(path)
+    recovered_guard = IdentityKernelGuard(audit_log=recovered_log)
+    with pytest.raises(ValueError, match="identity_hold_rebind_required"):
+        recovered_guard.recover_state("run:held")
+
+
 def test_handoff_requires_sender_binding_and_receiver_gets_fresh_identity() -> None:
     sender_guard = IdentityKernelGuard()
     sender_guard.bind_active_identity(
@@ -304,6 +323,7 @@ def test_handoff_requires_sender_binding_and_receiver_gets_fresh_identity() -> N
     receiver_guard = IdentityKernelGuard()
     acceptance = gate.accept(
         receipt,
+        sender_audit_log=sender_guard.audit_log,
         receiver_guard=receiver_guard,
         receiver_run_id="run:receiver",
         receiver_ocs="SOFIA",
@@ -314,6 +334,40 @@ def test_handoff_requires_sender_binding_and_receiver_gets_fresh_identity() -> N
     assert acceptance.receiver_binding.ocs_id != receipt.sender_ocs_id
     assert acceptance.executable_authority_ref is None
     assert acceptance.source_authority_ref == "authority:source-only"
+
+
+def test_forged_handoff_sender_binding_hash_is_rejected() -> None:
+    sender_guard = IdentityKernelGuard()
+    sender_guard.bind_active_identity(
+        run_id="run:sender-forged",
+        ocs_id="NÓESIS",
+        host="ChatGPT",
+        session_context="session:sender-forged",
+    )
+    gate = HandoffIdentityGate()
+    receipt = gate.issue(
+        guard=sender_guard,
+        run_id="run:sender-forged",
+        handoff_id="handoff:forged",
+        sender_ocs="NÓESIS",
+        sender_host="ChatGPT",
+        receiver_ocs="SOFIA",
+        receiver_host_if_known="ChatGPT",
+        object_ref="object:handoff",
+        authorized_next_scope=("software_implementation",),
+        authority_ref="authority:source-only",
+    )
+    forged = replace(receipt, sender_identity_binding_hash="0" * 64)
+    with pytest.raises(ValueError, match="handoff_sender_identity_provenance_mismatch"):
+        gate.accept(
+            forged,
+            sender_audit_log=sender_guard.audit_log,
+            receiver_guard=IdentityKernelGuard(),
+            receiver_run_id="run:receiver-forged",
+            receiver_ocs="SOFIA",
+            receiver_host="ChatGPT",
+            session_context="session:receiver-forged",
+        )
 
 
 def test_handoff_wrong_receiver_or_host_is_invalid() -> None:
@@ -339,6 +393,7 @@ def test_handoff_wrong_receiver_or_host_is_invalid() -> None:
     with pytest.raises(ValueError, match="handoff_receiver_mismatch"):
         HandoffIdentityGate().accept(
             receipt,
+            sender_audit_log=sender_guard.audit_log,
             receiver_guard=IdentityKernelGuard(),
             receiver_run_id="run:wrong",
             receiver_ocs="SOFIA",
@@ -348,6 +403,7 @@ def test_handoff_wrong_receiver_or_host_is_invalid() -> None:
     with pytest.raises(ValueError, match="handoff_receiver_host_mismatch"):
         HandoffIdentityGate().accept(
             receipt,
+            sender_audit_log=sender_guard.audit_log,
             receiver_guard=IdentityKernelGuard(),
             receiver_run_id="run:host-wrong",
             receiver_ocs="ÁGORA",
