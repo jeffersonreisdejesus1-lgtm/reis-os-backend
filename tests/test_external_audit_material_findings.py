@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
+
 from dataclasses import replace
 from time import sleep, time
 
@@ -138,7 +140,7 @@ def test_f_ext_003_fabricated_nominal_assurance_no_longer_authorizes_high_risk()
         )
     )
     assert result.decision.value == "hold"
-    assert result.reason == "authenticated_independent_assurance_required"
+    assert result.reason == "independent_assurance_required"
 
 
 def test_f_ext_003_authenticated_receipt_is_bound_to_object_and_revision() -> None:
@@ -160,7 +162,13 @@ def test_f_ext_003_authenticated_receipt_is_bound_to_object_and_revision() -> No
     )
     assert result.decision.value == "allow"
 
-    wrong_revision = replace(_proposal(risk=RiskLevel.HIGH, evidence=(Evidence("assurance:1", True, "AGORA"),)), policy_snapshot="revision:2")
+    wrong_revision = replace(
+        _proposal(
+            risk=RiskLevel.HIGH,
+            evidence=(Evidence("assurance:1", True, "AGORA"),),
+        ),
+        policy_snapshot="revision:2",
+    )
     held = governance.authorize(wrong_revision)
     assert held.decision.value == "hold"
 
