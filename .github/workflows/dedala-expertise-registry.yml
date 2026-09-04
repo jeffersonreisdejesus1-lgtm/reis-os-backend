@@ -5,6 +5,7 @@ on:
     paths:
       - "app/expertise/**"
       - "tests/test_dedala_expertise_registry.py"
+      - "tests/test_dedala_expertise_retrieval.py"
       - "docs/DEDALA-EXPERTISE-LAYER-REFACTOR-001.md"
       - ".github/workflows/dedala-expertise-registry.yml"
 
@@ -17,4 +18,4 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
-      - run: pytest -q tests/test_dedala_expertise_registry.py
+      - run: pytest -q tests/test_dedala_expertise_registry.py tests/test_dedala_expertise_retrieval.py
