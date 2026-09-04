@@ -170,10 +170,13 @@ def test_current_run_context_allows_identity_bound_operation() -> None:
     assert adapter.mutations == 1
     assert runtime.institutional_run
     assert guard.audit_log.chain_is_valid()
-    assert any(event.event_type == "CONTEXT_SANITATION" for event in guard.audit_log.events)
+    assert any(
+        event.event_type == "CONTEXT_SANITATION"
+        for event in guard.audit_log.events
+    )
 
 
-def test_unbound_runtime_is_explicitly_non_institutional_compatibility_surface() -> None:
+def test_unbound_runtime_is_noninstitutional_compatibility_surface() -> None:
     identities = IdentityConstitutionLoader(())
     capabilities = CapabilityRegistry()
     leases = AuthorityLeaseManager()
