@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
+
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field, replace
 from enum import StrEnum
@@ -9,7 +12,6 @@ from hmac import new as hmac_new
 from json import dumps
 from threading import RLock
 from time import time
-from typing import Iterator
 
 from .contracts import (
     ActionProposal,
@@ -194,7 +196,9 @@ class EvidenceEngine:
                         authenticated_independent = True
                         break
             if not authenticated_independent:
-                deficits.append("authenticated_independent_assurance_required")
+                # Preserve the canonical deficit code while strengthening its semantics:
+                # HIGH-risk assurance must now resolve to an authenticated receipt.
+                deficits.append("independent_assurance_required")
         evidence_ref = proposal.evidence_assessment_ref or f"assessment:{proposal.action_id}"
         return EvidenceAssessment(
             sufficiency=not deficits,
