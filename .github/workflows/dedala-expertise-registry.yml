@@ -1,0 +1,20 @@
+name: Dédala Expertise Registry
+
+on:
+  pull_request:
+    paths:
+      - "app/expertise/**"
+      - "tests/test_dedala_expertise_registry.py"
+      - "docs/DEDALA-EXPERTISE-LAYER-REFACTOR-001.md"
+      - ".github/workflows/dedala-expertise-registry.yml"
+
+jobs:
+  dedala-expertise-registry:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pytest -q tests/test_dedala_expertise_registry.py
