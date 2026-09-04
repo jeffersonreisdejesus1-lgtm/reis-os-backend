@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 EXPERT_SOURCE_CLASS = "RETRIEVABLE_EXTERNAL_TECHNICAL_SOURCE"
-LOCAL_DERIVATION_INITIAL_STATUS = "LOCAL_ARCHITECTURAL_DERIVATION_CANDIDATE"
+LOCAL_DERIVATION_INITIAL_STATUS = (
+    "LOCAL_ARCHITECTURAL_DERIVATION_CANDIDATE"
+)
 AUTHORITY_EFFECT_NONE = "NONE"
 
 
@@ -80,7 +82,13 @@ DEDALA_EXPERTISE_MANIFEST = ExpertiseManifest(
         ExpertLens(
             lens_id="BOUNDARY_DECOMPOSITION_COUPLING",
             source_family="NEWMAN",
-            domains=("boundaries", "decomposition", "coupling", "services", "migration"),
+            domains=(
+                "boundaries",
+                "decomposition",
+                "coupling",
+                "services",
+                "migration",
+            ),
             retrieval_tags=(
                 "boundary",
                 "boundaries",
@@ -95,7 +103,13 @@ DEDALA_EXPERTISE_MANIFEST = ExpertiseManifest(
         ExpertLens(
             lens_id="MESSAGE_INTEGRATION_ROUTING",
             source_family="HOHPE",
-            domains=("messaging", "integration", "events", "routing", "transformation"),
+            domains=(
+                "messaging",
+                "integration",
+                "events",
+                "routing",
+                "transformation",
+            ),
             retrieval_tags=(
                 "message",
                 "messaging",
@@ -127,7 +141,9 @@ def validate_manifest(manifest: ExpertiseManifest) -> None:
         raise ValueError("expert_lens_ids_must_be_unique")
     for lens in manifest.lenses:
         if lens.source_class != EXPERT_SOURCE_CLASS:
-            raise ValueError("expert_source_must_remain_external_technical_source")
+            raise ValueError(
+                "expert_source_must_remain_external_technical_source"
+            )
         if not lens.retrieval_tags:
             raise ValueError("expert_lens_requires_retrieval_tags")
 
@@ -140,7 +156,11 @@ def build_retrieval_plan(
     normalized = problem.casefold()
     scored: list[tuple[int, ExpertLens]] = []
     for lens in manifest.lenses:
-        score = sum(1 for tag in lens.retrieval_tags if tag.casefold() in normalized)
+        score = sum(
+            1
+            for tag in lens.retrieval_tags
+            if tag.casefold() in normalized
+        )
         if score:
             scored.append((score, lens))
     scored.sort(key=lambda item: (-item[0], item[1].lens_id))
