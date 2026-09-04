@@ -34,8 +34,8 @@ def retrieve_expert_evidence(
         return ()
 
     source_by_id = {source.source_id: source for source in sources}
-    for source in sources:
-        validate_source_record(source)
+    for source_record in sources:
+        validate_source_record(source_record)
 
     query_terms = set(plan.problem.casefold().split())
     evidence: list[RetrievedExpertEvidence] = []
