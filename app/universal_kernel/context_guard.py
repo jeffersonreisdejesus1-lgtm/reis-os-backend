@@ -34,7 +34,11 @@ class ContextAssessment:
 class ContextSanitizer:
     """Treat conversation context as input, never as canonical identity state."""
 
-    def assess(self, active_ocs: str, items: tuple[ContextItem, ...]) -> ContextAssessment:
+    def assess(
+        self,
+        active_ocs: str,
+        items: tuple[ContextItem, ...],
+    ) -> ContextAssessment:
         accepted: list[str] = []
         rejected: list[str] = []
         reasons: list[str] = []
