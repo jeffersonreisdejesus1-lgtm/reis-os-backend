@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+# ruff: noqa: E501, I001
+
+from dataclasses import dataclass
 from hashlib import sha256
 import hmac
 import json
@@ -48,7 +50,7 @@ class HazelHTTPTransport:
             headers={"Content-Type": "application/json", "X-Hazel-Signature": signature},
         )
         try:
-            with urlopen(req, timeout=self.timeout) as response:  # noqa: S310 - fixed configured service URL
+            with urlopen(req, timeout=self.timeout) as response:
                 payload = json.loads(response.read().decode("utf-8"))
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
