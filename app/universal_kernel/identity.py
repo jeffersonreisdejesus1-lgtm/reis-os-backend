@@ -96,6 +96,13 @@ class IdentityAuditLog:
         raw = dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
         return sha256(raw.encode("utf-8")).hexdigest()
 
+    @staticmethod
+    def binding_hash(binding: ActiveIdentityBinding) -> str:
+        raw = asdict(binding)
+        raw["status"] = binding.status.value
+        canonical = dumps(raw, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        return sha256(canonical.encode("utf-8")).hexdigest()
+
     def append(
         self,
         event_type: str,
@@ -153,36 +160,48 @@ class IdentityAuditLog:
             predecessor = event.event_hash
         return True
 
-    def recover_last_valid_binding(self, run_id: str) -> ActiveIdentityBinding | None:
+    @staticmethod
+    def _binding_from_event(event: IdentityLogEvent) -> ActiveIdentityBinding:
+        raw = event.binding
+        return ActiveIdentityBinding(
+            run_id=str(raw["run_id"]),
+            ocs_canonical_name=str(raw["ocs_canonical_name"]),
+            ocs_id=str(raw["ocs_id"]),
+            institution=str(raw["institution"]),
+            lineage_ref=str(raw["lineage_ref"]),
+            identity_ref=str(raw["identity_ref"]),
+            constitution_ref=str(raw["constitution_ref"]),
+            csp_ref=str(raw["csp_ref"]),
+            host=str(raw["host"]),
+            session_context=str(raw["session_context"]),
+            state_namespace=str(raw["state_namespace"]),
+            memory_namespace=str(raw["memory_namespace"]),
+            authority_envelope_ref=str(raw["authority_envelope_ref"]),
+            profile_version=str(raw["profile_version"]),
+            bound_at=float(str(raw["bound_at"])),
+            status=IdentityBindingStatus(str(raw["status"])),
+            hold_reason=(None if raw.get("hold_reason") is None else str(raw["hold_reason"])),
+        )
+
+    def recover_current_binding(self, run_id: str) -> ActiveIdentityBinding | None:
+        """Recover only the terminal binding state for a run.
+
+        A later HOLD is authoritative and cannot be bypassed by searching backwards
+        for an older VALID event. Recovery after HOLD requires an explicit REBIND.
+        """
         if not self.chain_is_valid():
             raise RuntimeError("identity_log_integrity_failed")
         for event in reversed(self._events):
             if event.run_id != run_id:
                 continue
-            raw = event.binding
-            status = IdentityBindingStatus(str(raw["status"]))
-            binding = ActiveIdentityBinding(
-                run_id=str(raw["run_id"]),
-                ocs_canonical_name=str(raw["ocs_canonical_name"]),
-                ocs_id=str(raw["ocs_id"]),
-                institution=str(raw["institution"]),
-                lineage_ref=str(raw["lineage_ref"]),
-                identity_ref=str(raw["identity_ref"]),
-                constitution_ref=str(raw["constitution_ref"]),
-                csp_ref=str(raw["csp_ref"]),
-                host=str(raw["host"]),
-                session_context=str(raw["session_context"]),
-                state_namespace=str(raw["state_namespace"]),
-                memory_namespace=str(raw["memory_namespace"]),
-                authority_envelope_ref=str(raw["authority_envelope_ref"]),
-                profile_version=str(raw["profile_version"]),
-                bound_at=float(str(raw["bound_at"])),
-                status=status,
-                hold_reason=(None if raw.get("hold_reason") is None else str(raw["hold_reason"])),
-            )
-            if binding.status is IdentityBindingStatus.VALID:
-                return binding
+            binding = self._binding_from_event(event)
+            if binding.status is IdentityBindingStatus.HOLD:
+                raise ValueError("identity_hold_rebind_required")
+            return binding
         return None
+
+    def recover_last_valid_binding(self, run_id: str) -> ActiveIdentityBinding | None:
+        return self.recover_current_binding(run_id)
 
     def _load(self) -> None:
         assert self._path is not None
@@ -259,7 +278,7 @@ class IdentityKernelGuard:
         return binding
 
     def recover_state(self, run_id: str) -> ActiveIdentityBinding:
-        recovered = self._audit_log.recover_last_valid_binding(run_id)
+        recovered = self._audit_log.recover_current_binding(run_id)
         if recovered is None:
             raise ValueError("identity_recovery_source_missing")
         self._validate_profile_binding(recovered)

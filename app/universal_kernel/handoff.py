@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
-from hashlib import sha256
-from json import dumps
+from dataclasses import dataclass
 
 from .identity import (
     ActiveIdentityBinding,
+    IdentityAuditLog,
     IdentityKernelGuard,
     IdentityRecheckTrigger,
 )
@@ -14,6 +13,7 @@ from .identity import (
 @dataclass(frozen=True)
 class HandoffIdentityReceipt:
     handoff_id: str
+    sender_run_id: str
     sender_ocs_canonical_name: str
     sender_ocs_id: str
     sender_host: str
@@ -39,18 +39,6 @@ class HandoffIdentityAcceptance:
 
 
 class HandoffIdentityGate:
-    @staticmethod
-    def _binding_hash(binding: ActiveIdentityBinding) -> str:
-        raw = asdict(binding)
-        raw["status"] = binding.status.value
-        canonical = dumps(
-            raw,
-            sort_keys=True,
-            separators=(",", ":"),
-            ensure_ascii=False,
-        )
-        return sha256(canonical.encode("utf-8")).hexdigest()
-
     def issue(
         self,
         *,
@@ -75,6 +63,7 @@ class HandoffIdentityGate:
         )
         receipt = HandoffIdentityReceipt(
             handoff_id=handoff_id,
+            sender_run_id=run_id,
             sender_ocs_canonical_name=binding.ocs_canonical_name,
             sender_ocs_id=binding.ocs_id,
             sender_host=binding.host,
@@ -84,7 +73,7 @@ class HandoffIdentityGate:
             object_ref=object_ref,
             authorized_next_scope=authorized_next_scope,
             authority_ref=authority_ref,
-            sender_identity_binding_hash=self._binding_hash(binding),
+            sender_identity_binding_hash=IdentityAuditLog.binding_hash(binding),
         )
         guard.audit_log.append(
             "HANDOFF_IDENTITY_RECEIPT",
@@ -105,6 +94,7 @@ class HandoffIdentityGate:
         self,
         receipt: HandoffIdentityReceipt,
         *,
+        sender_audit_log: IdentityAuditLog,
         receiver_guard: IdentityKernelGuard,
         receiver_run_id: str,
         receiver_ocs: str,
@@ -124,8 +114,21 @@ class HandoffIdentityGate:
             and receiver_host != receipt.receiver_host_if_known
         ):
             raise ValueError("handoff_receiver_host_mismatch")
-        if not receipt.sender_ocs_id or not receipt.sender_identity_binding_hash:
+
+        sender_binding = sender_audit_log.recover_current_binding(receipt.sender_run_id)
+        if sender_binding is None:
             raise ValueError("handoff_sender_identity_binding_required")
+        if sender_binding.ocs_id != receipt.sender_ocs_id:
+            raise ValueError("handoff_sender_identity_mismatch")
+        if sender_binding.ocs_canonical_name != receipt.sender_ocs_canonical_name:
+            raise ValueError("handoff_sender_canonical_name_mismatch")
+        if sender_binding.host != receipt.sender_host:
+            raise ValueError("handoff_sender_host_mismatch")
+        if (
+            IdentityAuditLog.binding_hash(sender_binding)
+            != receipt.sender_identity_binding_hash
+        ):
+            raise ValueError("handoff_sender_identity_provenance_mismatch")
 
         receiver_binding = receiver_guard.bind_active_identity(
             run_id=receiver_run_id,

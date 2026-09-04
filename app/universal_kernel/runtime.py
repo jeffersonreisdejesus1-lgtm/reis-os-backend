@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from itertools import count
 
+from .context_guard import ContextItem, ContextSanitizer
 from .contracts import (
     ActionProposal,
     AuthorizationDecision,
@@ -31,6 +32,8 @@ class UniversalKernelRuntime:
         active_ocs: str | None = None,
         host: str | None = None,
         session_context: str | None = None,
+        context_sanitizer: ContextSanitizer | None = None,
+        context_items: tuple[ContextItem, ...] = (),
     ) -> None:
         self._governance = governance
         self._effector = effector
@@ -44,17 +47,23 @@ class UniversalKernelRuntime:
         self._active_ocs = active_ocs
         self._host = host
         self._session_context = session_context
+        self._context_sanitizer = context_sanitizer
+        self._context_items = context_items
 
         identity_args = (identity_guard, run_id, active_ocs, host, session_context)
         if any(item is not None for item in identity_args) and not all(
             item is not None for item in identity_args
         ):
             raise ValueError("complete_identity_runtime_configuration_required")
+        if context_sanitizer is not None and identity_guard is None:
+            raise ValueError("context_sanitizer_requires_identity_binding")
         if identity_guard is not None:
             assert run_id is not None
             assert active_ocs is not None
             assert host is not None
             assert session_context is not None
+            if self._context_sanitizer is None:
+                self._context_sanitizer = ContextSanitizer()
             if identity_guard.binding_for(run_id) is None:
                 identity_guard.bind_active_identity(
                     run_id=run_id,
@@ -72,6 +81,17 @@ class UniversalKernelRuntime:
     @property
     def identity_guard_enabled(self) -> bool:
         return self._identity_guard is not None
+
+    @property
+    def institutional_run(self) -> bool:
+        """Only identity-bound runs qualify as institutional OCS runs."""
+        return self._identity_guard is not None
+
+    def replace_context(self, items: tuple[ContextItem, ...]) -> None:
+        """Replace transient typed context for the next institutional operation."""
+        if self._identity_guard is None:
+            raise ValueError("institutional_identity_binding_required")
+        self._context_items = items
 
     def execute(self, proposal: ActionProposal) -> ExecutionResult:
         identity_failure = self._identity_pre_action(proposal)
@@ -303,6 +323,7 @@ class UniversalKernelRuntime:
     def _identity_pre_action(self, proposal: ActionProposal) -> ExecutionResult | None:
         try:
             self._require_identity(proposal.ocs, IdentityRecheckTrigger.PRE_ACTION)
+            self._sanitize_context(proposal.ocs)
         except ValueError as exc:
             return ExecutionResult(
                 False,
@@ -313,6 +334,33 @@ class UniversalKernelRuntime:
                 trace_id=proposal.trace_id,
             )
         return None
+
+    def _sanitize_context(self, active_ocs: str) -> None:
+        if self._identity_guard is None:
+            return
+        assert self._run_id is not None
+        assert self._context_sanitizer is not None
+        binding = self._identity_guard.require_valid(
+            run_id=self._run_id,
+            expected_ocs=active_ocs,
+            trigger=IdentityRecheckTrigger.CAUSAL_ATTRIBUTION,
+            host=self._host,
+        )
+        assessment = self._context_sanitizer.assess(active_ocs, self._context_items)
+        self._identity_guard.audit_log.append(
+            "CONTEXT_SANITATION",
+            binding,
+            details={
+                "accepted_refs": assessment.accepted_refs,
+                "rejected_refs": assessment.rejected_refs,
+                "identity_conflict": assessment.identity_conflict,
+                "reasons": assessment.reasons,
+            },
+        )
+        if assessment.identity_conflict:
+            reason = assessment.reasons[0] if assessment.reasons else "identity_context_conflict"
+            self._identity_guard.hold(self._run_id, reason)
+            raise ValueError(reason)
 
     def _require_identity(self, expected_ocs: str, trigger: IdentityRecheckTrigger) -> None:
         if self._identity_guard is None:
