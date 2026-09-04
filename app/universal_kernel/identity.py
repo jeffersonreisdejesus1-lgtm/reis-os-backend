@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
+
 from dataclasses import asdict, dataclass, replace
 from enum import StrEnum
 from hashlib import sha256
@@ -7,7 +9,7 @@ from json import dumps, loads
 from pathlib import Path
 from time import time
 
-from app.profile_bindings.profiles import OCSProfile, PROFILES
+from app.profile_bindings.profiles import PROFILES, OCSProfile
 
 
 INSTITUTION = "REIS OS"
