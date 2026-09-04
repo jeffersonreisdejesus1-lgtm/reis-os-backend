@@ -428,13 +428,20 @@ def test_state_write_has_version_and_predecessor() -> None:
 
 def test_recovery_restores_verified_state() -> None:
     state = StateCore()
-    checkpoint = VerifiedCheckpoint(
-        "cp-1",
-        StateRecord("old", "SOFIA", 1, None, {"safe": True}, True),
+    source = StateRecord("old", "SOFIA", 1, None, {"safe": True}, True)
+    state.write(
+        source,
+        lambda stored: stored == source,
+        actor_ocs_id="SOFIA",
+        target_namespace="state://SOFIA/runtime",
+        state_ref=source.state_id,
+        authority_context="authority:r1-regression",
     )
+    checkpoint = VerifiedCheckpoint("cp-1", source)
     restored = RecoveryManager(state).restore(checkpoint)
     assert restored.verified
     assert restored.payload == {"safe": True}
+    assert restored.predecessor == source.state_id
 
 
 def test_unverified_checkpoint_is_rejected() -> None:

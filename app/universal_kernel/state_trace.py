@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E501, I001
+
 from collections.abc import Callable
 from dataclasses import asdict, replace
 from hashlib import sha256
@@ -42,9 +44,7 @@ def _state_from_json(raw: str) -> StateRecord:
             state_id=str(data["state_id"]),
             ocs=str(data["ocs"]),
             version=int(data["version"]),
-            predecessor=(
-                None if data["predecessor"] is None else str(data["predecessor"])
-            ),
+            predecessor=None if data["predecessor"] is None else str(data["predecessor"]),
             payload=payload,
             verified=bool(data["verified"]),
         )
@@ -145,10 +145,7 @@ class SQLiteStatePersistencePort:
 
     def delete(self, state_id: str) -> None:
         with self._connection() as connection:
-            connection.execute(
-                "DELETE FROM state_records WHERE state_id = ?",
-                (state_id,),
-            )
+            connection.execute("DELETE FROM state_records WHERE state_id = ?", (state_id,))
 
     def corrupt_payload_for_test(
         self,
@@ -300,10 +297,25 @@ class StateCore:
     def restore_verified(self, checkpoint: VerifiedCheckpoint) -> StateRecord:
         if not checkpoint.state.verified:
             raise ValueError("verified_checkpoint_required")
+
+        # A checkpoint is no longer trusted merely because verified=True was supplied.
+        # Its source state must already exist in StateCore (or have been durably reloaded)
+        # and must match byte-canonically. This makes the exposed recovery boundary
+        # provenance-bound rather than nominal-boolean-bound.
+        source = self._records.get(checkpoint.state.state_id)
+        if source is None:
+            raise ValueError("verified_checkpoint_source_missing")
+        if not source.verified:
+            raise ValueError("verified_checkpoint_source_not_verified")
+        if source.ocs.casefold() != checkpoint.state.ocs.casefold():
+            raise ValueError("verified_checkpoint_source_ocs_mismatch")
+        if state_record_hash(source) != state_record_hash(checkpoint.state):
+            raise ValueError("verified_checkpoint_source_mismatch")
+
         current = self.current(checkpoint.state.ocs)
         restored_version = 1 if current is None else current.version + 1
         restored = replace(
-            checkpoint.state,
+            source,
             state_id=f"recovery:{checkpoint.checkpoint_id}:{restored_version}",
             version=restored_version,
             predecessor=current.state_id if current is not None else None,
@@ -315,7 +327,7 @@ class StateCore:
             actor_ocs_id=restored.ocs,
             target_namespace=f"state://{restored.ocs}/recovery",
             state_ref=restored.state_id,
-            authority_context="recovery:verified-checkpoint",
+            authority_context="recovery:verified-checkpoint:provenance-bound",
         )
 
 
