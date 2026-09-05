@@ -54,6 +54,7 @@ def source_record_digest(record: ExpertSourceRecord) -> str:
         "edition_or_date": record.edition_or_date,
         "source_type": record.source_type,
         "locator": record.locator,
+        "content_hash": record.content_hash,
         "ingestion_version": record.ingestion_version,
         "licensing_access_class": record.licensing_access_class,
         "retrieval_tags": list(record.retrieval_tags),
