@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from unicodedata import normalize
 
 from app.ocs_instances.contracts import (
+    BindingMaturity,
     BootstrapAck,
     InstanceBinding,
     InstanceBindingError,
@@ -88,6 +89,7 @@ class WorkInstanceBridge:
             target=InstanceStatus.ACTIVE,
             idempotency_key=ack.idempotency_key,
             event_type="OCS_BOOTSTRAP_ACKNOWLEDGED",
+            maturity=BindingMaturity.OPERATIONALLY_BOUND_L1,
             payload={
                 "generation": ack.generation,
                 "bootstrap_hash": ack.bootstrap_hash,
