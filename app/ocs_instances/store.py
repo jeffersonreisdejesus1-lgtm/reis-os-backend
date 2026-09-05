@@ -113,7 +113,7 @@ class InstanceBindingStore:
                 """,
                 (binding.organization_id, binding.mission_id, binding.ocs_id),
             ).fetchone()
-            if active is not None:
+            if active is not None and binding.predecessor_binding_id is None:
                 raise InstanceBindingError("active_mission_ocs_binding_exists")
             values = self._values(binding)
             connection.execute(
@@ -197,14 +197,22 @@ class InstanceBindingStore:
         checkpoint_version: int | None = None,
         checkpoint_hash: str | None = None,
         hazel_event_hash: str | None = None,
+        maturity: BindingMaturity | None = None,
         payload: dict[str, Any] | None = None,
     ) -> InstanceBinding:
         with self._lock, self._connect() as connection:
             replay = connection.execute(
-                "SELECT binding_id FROM ocs_instance_journal WHERE idempotency_key = ?",
+                "SELECT * FROM ocs_instance_journal WHERE idempotency_key = ?",
                 (idempotency_key,),
             ).fetchone()
-            requested_payload = {} if payload is None else payload
+            requested_payload = {
+                **({} if payload is None else payload),
+                "platform_instance_id": platform_instance_id,
+                "checkpoint_version": checkpoint_version,
+                "checkpoint_hash": checkpoint_hash,
+                "hazel_event_hash": hazel_event_hash,
+                "maturity": None if maturity is None else maturity.value,
+            }
             requested_hash = json.dumps(
                 requested_payload, sort_keys=True, separators=(",", ":")
             )
@@ -246,6 +254,7 @@ class InstanceBindingStore:
                     if checkpoint_hash is None
                     else checkpoint_hash
                 ),
+                maturity=current.maturity if maturity is None else maturity,
                 hazel_event_hash=(
                     current.hazel_event_hash
                     if hazel_event_hash is None
@@ -256,7 +265,7 @@ class InstanceBindingStore:
             cursor = connection.execute(
                 """
                 UPDATE ocs_instance_bindings
-                SET status = ?, version = ?, platform_instance_id = ?,
+                SET status = ?, version = ?, maturity = ?, platform_instance_id = ?,
                     checkpoint_version = ?, checkpoint_hash = ?,
                     hazel_event_hash = ?, updated_at = ?
                 WHERE binding_id = ? AND version = ?
@@ -264,6 +273,7 @@ class InstanceBindingStore:
                 (
                     updated.status.value,
                     updated.version,
+                    updated.maturity.value,
                     updated.platform_instance_id,
                     updated.checkpoint_version,
                     updated.checkpoint_hash,
