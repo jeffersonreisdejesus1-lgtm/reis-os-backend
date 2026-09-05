@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.action_proposals.api.routes import router as action_proposals_router
 from app.auth.api.routes import router as auth_router
 from app.organizations.api.routes import router as organizations_router
 from app.projects.api.routes import router as projects_router
@@ -33,6 +34,7 @@ app.include_router(organizations_router)
 app.include_router(workspaces_router)
 app.include_router(projects_router)
 app.include_router(tasks_router)
+app.include_router(action_proposals_router)
 
 
 @app.get("/health", tags=["system"])

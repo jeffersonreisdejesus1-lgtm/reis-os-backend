@@ -13,6 +13,7 @@ from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.shared.database.base import Base
 from app.shared.database.models import (  # noqa: F401
+    ActionProposalModel,
     AuditEventModel,
     MembershipModel,
     OrganizationModel,
