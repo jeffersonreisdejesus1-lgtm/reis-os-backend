@@ -46,7 +46,7 @@ class WorkInstanceBridge:
             if character.isascii()
         )
         normalized_task = receipt.task_name.casefold()
-        if not normalized_task.startswith(expected_prefix):
+        if not (\n            normalized_task == expected_prefix\n            or normalized_task.startswith(f"{expected_prefix}__")\n        ):
             raise InstanceBindingError("work_task_name_ocs_mismatch")
         return self._store.transition(
             binding_id,
@@ -71,8 +71,7 @@ class WorkInstanceBridge:
             raise InstanceBindingError("platform_instance_binding_mismatch")
         if binding.generation != ack.generation:
             raise InstanceBindingError("instance_generation_mismatch")
-        if binding.bootstrap_hash != ack.bootstrap_hash:
-            raise InstanceBindingError("bootstrap_hash_mismatch")
+        if binding.bootstrap_hash != ack.bootstrap_hash:\n            raise InstanceBindingError("bootstrap_hash_mismatch")\n        if binding.identity_binding_hash != ack.identity_binding_hash:\n            raise InstanceBindingError("identity_binding_hash_mismatch")
         if binding.challenge_hash != canonical_hash(
             {"nonce": ack.challenge_nonce}
         ):
