@@ -4,30 +4,38 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+from test_ocs_instance_binding_ib5_recovery import (
+    build_runtime,
+    reach_checkpoint,
+    request,
+)
 
-from app.ocs_instances.contracts import BootstrapAck, InstanceBindingError, InstanceStatus
+from app.ocs_instances.contracts import (
+    BootstrapAck,
+    InstanceBinding,
+    InstanceBindingError,
+    InstanceStatus,
+)
 from app.ocs_instances.lease_store import AuthenticatedLeaseSnapshotStore
 from app.ocs_instances.recovery import OCSInstanceRecovery
+from app.ocs_instances.service import OCSInstanceBinder
 from app.ocs_instances.store import InstanceBindingStore
 from app.ocs_instances.work_bridge import WorkInstanceBridge, WorkSpawnReceipt
-from test_ocs_instance_binding_ib5_recovery import build_runtime, reach_checkpoint, request
 
 
 def restarted_recovery(
     tmp_path: Path,
-    binder: object,
+    binder: OCSInstanceBinder,
 ) -> tuple[InstanceBindingStore, OCSInstanceRecovery]:
     snapshots = AuthenticatedLeaseSnapshotStore(
         tmp_path / "matrix-leases.json", b"ib5-matrix-lease-key"
     )
-    leases = getattr(binder, "_leases")
-    continuity = getattr(binder, "_continuity")
-    snapshots.save(leases)
+    snapshots.save(binder._leases)
     store = InstanceBindingStore(tmp_path / "instances.sqlite3")
     recovery = OCSInstanceRecovery(
         store=store,
         leases=snapshots.load(),
-        continuity=continuity,
+        continuity=binder._continuity,
     )
     return store, recovery
 
@@ -77,8 +85,8 @@ def test_c2_prepared_successor_resumes_missing_hazel_effect_once(
     )
     original_create = store.create
 
-    def crash_after_successor_create(binding: object) -> object:
-        created = original_create(binding)  # type: ignore[arg-type]
+    def crash_after_successor_create(binding: InstanceBinding) -> InstanceBinding:
+        created = original_create(binding)
         if created.predecessor_binding_id is not None:
             raise RuntimeError("injected_c2_after_successor_prepare")
         return created
@@ -94,9 +102,9 @@ def test_c2_prepared_successor_resumes_missing_hazel_effect_once(
             replacement_idempotency_key="idem:ib5:c2-replacement",
         )
     writes_at_crash = transport.persist_calls
-    successor_id = store.by_idempotency("idem:ib5:c2-prepare")
-    assert successor_id is not None
-    assert successor_id.status is InstanceStatus.PREPARED
+    successor = store.by_idempotency("idem:ib5:c2-prepare")
+    assert successor is not None
+    assert successor.status is InstanceStatus.PREPARED
 
     restarted_store, recovery = restarted_recovery(tmp_path, binder)
     result = recovery.recover_instance("org:reis-os", "mission:ib5", "SOFIA")
