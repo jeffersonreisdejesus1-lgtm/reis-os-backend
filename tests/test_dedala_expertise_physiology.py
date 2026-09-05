@@ -9,7 +9,11 @@ from app.expertise.assurance import (
     evidence_binding,
 )
 from app.expertise.physiology import DedalaExpertisePhysiology
-from app.expertise.sources import ExpertEvidenceFragment, ExpertSourceRecord, sha256_text
+from app.expertise.sources import (
+    ExpertEvidenceFragment,
+    ExpertSourceRecord,
+    sha256_text,
+)
 from app.universal_kernel.contracts import (
     ActionProposal,
     AuthorizationDecision,
@@ -91,7 +95,10 @@ def _proposal(*, ocs: str = "DÉDALA") -> ActionProposal:
     )
 
 
-def _source_material() -> tuple[tuple[ExpertSourceRecord, ...], tuple[ExpertEvidenceFragment, ...]]:
+def _source_material() -> tuple[
+    tuple[ExpertSourceRecord, ...],
+    tuple[ExpertEvidenceFragment, ...],
+]:
     content = "Incremental refactoring preserves architecture boundaries."
     source = ExpertSourceRecord(
         source_id="FOWLER-FIXTURE-001",
@@ -119,10 +126,21 @@ def _source_material() -> tuple[tuple[ExpertSourceRecord, ...], tuple[ExpertEvid
 
 def _physiology(kernel: FakeKernel) -> DedalaExpertisePhysiology:
     sources, fragments = _source_material()
-    return DedalaExpertisePhysiology(kernel=kernel, sources=sources, fragments=fragments)
+    return DedalaExpertisePhysiology(
+        kernel=kernel,
+        sources=sources,
+        fragments=fragments,
+    )
 
 
-def _execute(physiology, proposal, *, falsifier=None, verifier=None, revision=REVISION):
+def _execute(
+    physiology,
+    proposal,
+    *,
+    falsifier=None,
+    verifier=None,
+    revision=REVISION,
+):
     return physiology.execute(
         proposal,
         problem="architecture refactoring boundary",
@@ -174,22 +192,36 @@ def test_wrong_revision_receipts_fail_closed() -> None:
 
 def test_failed_falsification_and_verification_block_kernel() -> None:
     kernel = FakeKernel()
-    result = _execute(_physiology(kernel), _proposal(), falsifier=BoundFalsifier(False))
+    result = _execute(
+        _physiology(kernel),
+        _proposal(),
+        falsifier=BoundFalsifier(False),
+    )
     assert result.reason == "expertise_falsification_failed"
     assert result.material_execution_attempted is False
     assert kernel.calls == []
 
     kernel = FakeKernel()
-    result = _execute(_physiology(kernel), _proposal(), verifier=BoundVerifier(False))
+    result = _execute(
+        _physiology(kernel),
+        _proposal(),
+        verifier=BoundVerifier(False),
+    )
     assert result.reason == "expertise_verification_failed"
     assert result.material_execution_attempted is False
     assert kernel.calls == []
 
 
 def test_non_dedala_and_non_institutional_runs_are_rejected() -> None:
-    with pytest.raises(ValueError, match="dedala_expertise_path_requires_dedala_proposal"):
+    with pytest.raises(
+        ValueError,
+        match="dedala_expertise_path_requires_dedala_proposal",
+    ):
         _execute(_physiology(FakeKernel()), _proposal(ocs="NÓESIS"))
-    with pytest.raises(ValueError, match="institutional_identity_binding_required_for_expertise"):
+    with pytest.raises(
+        ValueError,
+        match="institutional_identity_binding_required_for_expertise",
+    ):
         _execute(_physiology(FakeKernel(institutional_run=False)), _proposal())
 
 
