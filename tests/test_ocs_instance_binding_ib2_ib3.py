@@ -4,6 +4,8 @@ import json
 from hashlib import sha256
 from pathlib import Path
 from time import time
+from typing import Any
+
 import pytest
 
 from app.ocs_instances.contracts import (
@@ -25,17 +27,17 @@ from app.universal_kernel.identity import IdentityAuditLog, IdentityKernelGuard
 
 class FakeHazelTransport:
     def __init__(self) -> None:
-        self.latest: dict[tuple[str, str, str], dict[str, object]] = {}
+        self.latest: dict[tuple[str, str, str], dict[str, Any]] = {}
         self.persist_calls = 0
 
     @staticmethod
-    def _hash(value: dict[str, object]) -> str:
+    def _hash(value: dict[str, Any]) -> str:
         encoded = json.dumps(
             value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
         ).encode()
         return sha256(encoded).hexdigest()
 
-    def persist(self, envelope: dict[str, object]) -> dict[str, object]:
+    def persist(self, envelope: dict[str, Any]) -> dict[str, Any]:
         self.persist_calls += 1
         key = (
             str(envelope["run_id"]),
@@ -61,7 +63,7 @@ class FakeHazelTransport:
         self.latest[key] = receipt
         return receipt
 
-    def recover(self, request: dict[str, object]) -> dict[str, object]:
+    def recover(self, request: dict[str, Any]) -> dict[str, Any]:
         key = (
             str(request["run_id"]),
             str(request["ocs_id"]),
