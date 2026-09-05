@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from app.command.api.dependencies import CommandReadAccess
 from app.command.api.schemas import OCSListResponse, OCSProfileResponse
 from app.command.application import get_ocs_profile, list_ocs_profiles
+from app.command.dossiers import CommandDossierService
 from app.command.event_store import CommandEventStore
 from app.command.read_models import CommandReadModels
 from app.command.realtime import CommandRealtimeFeed, encode_sse
@@ -55,6 +56,30 @@ async def get_ocs(
             status_code=404,
         )
     return profile
+
+
+@router.get("/dossiers")
+async def list_dossiers(
+    command_read_access: CommandReadAccess,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> list[dict[str, Any]]:
+    return CommandDossierService(settings.command_event_store_path).list()
+
+
+@router.get("/dossiers/{ocs_slug}")
+async def get_dossier(
+    ocs_slug: str,
+    command_read_access: CommandReadAccess,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, Any]:
+    dossier = CommandDossierService(settings.command_event_store_path).get(ocs_slug)
+    if dossier is None:
+        raise AppError(
+            "OCS dossier not found.",
+            code="ocs_dossier_not_found",
+            status_code=404,
+        )
+    return dossier
 
 
 @router.get("/operations")
