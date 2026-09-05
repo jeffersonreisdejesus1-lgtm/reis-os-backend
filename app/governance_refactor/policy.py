@@ -44,7 +44,7 @@ class GatePolicyDecision:
 
 
 def evaluate_gate(request: GatePolicyInput) -> GatePolicyDecision:
-    """Evaluate governance gate prerequisites without granting promotion or authority."""
+    """Evaluate gate prerequisites without granting promotion or authority."""
     reasons: list[str] = []
 
     if request.gate is GovernanceGate.G0_EXECUTION:
