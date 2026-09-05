@@ -8,6 +8,7 @@ from app.command.api.schemas import OCSListResponse, OCSProfileResponse
 from app.command.application import get_ocs_profile, list_ocs_profiles
 from app.command.dossiers import CommandDossierService
 from app.command.event_store import CommandEventStore
+from app.command.observability import CommandObservability
 from app.command.read_models import CommandReadModels
 from app.command.realtime import CommandRealtimeFeed, encode_sse
 from app.shared.config.settings import Settings, get_settings
@@ -80,6 +81,14 @@ async def get_dossier(
             status_code=404,
         )
     return dossier
+
+
+@router.get("/observability")
+async def get_observability(
+    command_read_access: CommandReadAccess,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, Any]:
+    return CommandObservability(settings.command_event_store_path).snapshot()
 
 
 @router.get("/operations")
