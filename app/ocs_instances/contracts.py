@@ -12,6 +12,7 @@ class InstanceBindingError(RuntimeError):
 
 
 class BindingMaturity(StrEnum):
+    PREPARED_UNVERIFIED = "prepared_unverified"
     OPERATIONALLY_BOUND_L1 = "operationally_bound_l1"
 
 
@@ -71,7 +72,7 @@ def stable_run_id(
 ) -> str:
     if not all((institution_id, organization_id, mission_id, ocs_id)):
         raise ValueError("institution_organization_mission_and_ocs_required")
-    return f"{institution_id}:{organization_id}:{mission_id}:{ocs_id}"
+    return f"run:{canonical_hash({\n        \"institution_id\": institution_id,\n        \"organization_id\": organization_id,\n        \"mission_id\": mission_id,\n        \"ocs_id\": ocs_id,\n    })}"
 
 
 def canonical_hash(value: dict[str, Any]) -> str:
@@ -92,6 +93,10 @@ class PrepareInstanceRequest:
     scope: tuple[str, ...]
     idempotency_key: str
     correlation_id: str
+    actor: str
+    context_ref: str
+    policy_snapshot: str
+    trace_ref: str
     causation_id: str | None = None
 
 
