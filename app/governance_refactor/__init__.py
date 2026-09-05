@@ -1,3 +1,11 @@
+from app.governance_refactor.capability import (
+    CapabilityDecision,
+    IntegrationCapabilitySnapshot,
+    IntegrationUseDecision,
+    IntegrationUseRequest,
+    evaluate_integration_use,
+    reconcile_receipt,
+)
 from app.governance_refactor.contracts import (
     SCHEMA_VERSION,
     AgentAvailabilityContract,
@@ -14,6 +22,20 @@ from app.governance_refactor.contracts import (
     RefactorEvent,
     SourceLink,
 )
+from app.governance_refactor.metrics import (
+    FOUNDER_TIMEZONE,
+    MetricsValidationError,
+    MissionTimingInput,
+    MissionTimingSnapshot,
+    instrument_mission,
+)
+from app.governance_refactor.policy import (
+    GatePolicyDecision,
+    GatePolicyInput,
+    GovernanceGate,
+    PolicyState,
+    evaluate_gate,
+)
 from app.governance_refactor.projections import (
     CandidateFilter,
     GovernanceCommandViews,
@@ -24,16 +46,28 @@ from app.governance_refactor.scoped_store import ScopedGovernanceStore
 
 __all__ = [
     "SCHEMA_VERSION",
+    "FOUNDER_TIMEZONE",
     "AgentAvailabilityContract",
     "AuxiliaryAgentEvidenceContract",
     "CandidateFilter",
+    "CapabilityDecision",
     "ChatInstitutionalRoutingContract",
     "FounderApprovalDecision",
     "GatePerformanceRecord",
+    "GatePolicyDecision",
+    "GatePolicyInput",
     "GovernanceCommandViews",
+    "GovernanceGate",
     "GovernanceProjectionError",
     "IntegrationCapabilityRecord",
+    "IntegrationCapabilitySnapshot",
+    "IntegrationUseDecision",
+    "IntegrationUseRequest",
+    "MetricsValidationError",
     "MissionMetricsRecord",
+    "MissionTimingInput",
+    "MissionTimingSnapshot",
+    "PolicyState",
     "PromotionReadinessState",
     "QualityApplicabilityMatrix",
     "QualityDomainAssessment",
@@ -41,5 +75,9 @@ __all__ = [
     "RefactorEvent",
     "ScopedGovernanceStore",
     "SourceLink",
+    "evaluate_gate",
+    "evaluate_integration_use",
+    "instrument_mission",
     "migrate_governance_candidate_store",
+    "reconcile_receipt",
 ]
