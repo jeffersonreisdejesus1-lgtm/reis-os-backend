@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict
 from secrets import token_urlsafe
 from time import time
-from typing import Callable
 from uuid import uuid4
 
 from app.ocs_instances.contracts import (
