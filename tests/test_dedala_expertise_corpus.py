@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
+
 from app.expertise.corpus import (
     CORPUS_ACCESS_CLASS,
     DEDALA_EXPERT_FRAGMENTS,
