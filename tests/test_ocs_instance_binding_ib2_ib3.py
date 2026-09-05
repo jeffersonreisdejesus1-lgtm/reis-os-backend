@@ -180,7 +180,9 @@ def test_registry_survives_restart_and_journals_prepare(tmp_path: Path) -> None:
     restarted = InstanceBindingStore(path)
 
     assert restarted.get(binding.binding_id) == binding
-    assert (\n        restarted.latest_generation("org:reis-os", "mission:1", "SOFIA") == 1\n    )
+    assert (
+        restarted.latest_generation("org:reis-os", "mission:1", "SOFIA") == 1
+    )
     journal = restarted.journal(binding.binding_id)
     assert len(journal) == 1
     assert journal[0]["event_type"] == "OCS_INSTANCE_PREPARED"
@@ -308,4 +310,25 @@ def test_work_bridge_requires_matching_name_and_challenge(
 
 
 @pytest.mark.parametrize("ocs_id", tuple(PROFILES))
-def test_all_ten_profiles_bind_identity_namespace_and_authority(\n    tmp_path: Path, ocs_id: str\n) -> None:\n    from app.ocs_instances.contracts import canonical_hash, stable_run_id\n    from dataclasses import asdict\n\n    profile = PROFILES[ocs_id]\n    run_id = stable_run_id("REIS OS", "org:all", "mission:all", ocs_id)\n    guard = IdentityKernelGuard(\n        audit_log=IdentityAuditLog(tmp_path / f"{ocs_id}.jsonl")\n    )\n    binding = guard.bind_active_identity(\n        run_id=run_id,\n        ocs_id=ocs_id,\n        host="ChatGPT Work",\n        session_context="mission:all",\n    )\n    assert binding.ocs_id == profile.ocs_id\n    assert binding.state_namespace == profile.state_namespace\n    assert binding.memory_namespace == profile.memory_namespace\n    assert binding.authority_envelope_ref == profile.authority_envelope_ref\n    assert canonical_hash(asdict(profile))
+def test_all_ten_profiles_bind_identity_namespace_and_authority(
+    tmp_path: Path, ocs_id: str
+) -> None:
+    from app.ocs_instances.contracts import canonical_hash, stable_run_id
+    from dataclasses import asdict
+
+    profile = PROFILES[ocs_id]
+    run_id = stable_run_id("REIS OS", "org:all", "mission:all", ocs_id)
+    guard = IdentityKernelGuard(
+        audit_log=IdentityAuditLog(tmp_path / f"{ocs_id}.jsonl")
+    )
+    binding = guard.bind_active_identity(
+        run_id=run_id,
+        ocs_id=ocs_id,
+        host="ChatGPT Work",
+        session_context="mission:all",
+    )
+    assert binding.ocs_id == profile.ocs_id
+    assert binding.state_namespace == profile.state_namespace
+    assert binding.memory_namespace == profile.memory_namespace
+    assert binding.authority_envelope_ref == profile.authority_envelope_ref
+    assert canonical_hash(asdict(profile))
