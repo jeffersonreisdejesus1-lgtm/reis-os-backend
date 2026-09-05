@@ -1,11 +1,18 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Protocol
 
 from app.universal_kernel.contracts import ActionProposal, ExecutionResult
 
+from .assurance import (
+    FalsificationEvaluator,
+    FalsificationReceipt,
+    VerificationEvaluator,
+    VerificationReceipt,
+    validate_falsification_receipt,
+    validate_verification_receipt,
+)
 from .corpus import (
     DEDALA_EXPERT_FRAGMENTS,
     DEDALA_EXPERT_SOURCES,
@@ -32,14 +39,6 @@ class KernelExecutionPort(Protocol):
     def execute(self, proposal: ActionProposal) -> ExecutionResult: ...
 
 
-Falsifier = Callable[
-    [ArchitecturalDerivationCandidate, tuple[RetrievedExpertEvidence, ...]], bool
-]
-Verifier = Callable[
-    [ArchitecturalDerivationCandidate, tuple[RetrievedExpertEvidence, ...]], bool
-]
-
-
 @dataclass(frozen=True)
 class DedalaPhysiologyOutcome:
     action_id: str
@@ -51,6 +50,8 @@ class DedalaPhysiologyOutcome:
     kernel_result: ExecutionResult | None
     material_execution_attempted: bool
     reason: str
+    falsification_receipt: FalsificationReceipt | None = None
+    verification_receipt: VerificationReceipt | None = None
     identity_effect: str = "NONE"
     authority_effect: str = "NONE"
     canon_effect: str = "NONE"
@@ -60,9 +61,9 @@ class DedalaExpertisePhysiology:
     """Identity-bound Dédala path from expert retrieval to kernel execution.
 
     Expert material can shape a local derivation candidate, but never mutates the
-    action proposal's authority or governance evidence. A verified derivation only
-    makes the derivation persistence-eligible; material execution still crosses the
-    Universal Kernel's independent governance and effector path.
+    action proposal's authority or governance evidence. Falsification and verification
+    are accepted only as typed, revision/evidence/candidate-bound receipts produced by
+    evaluator objects. Boolean callbacks are not an admissible institutional proof.
     """
 
     def __init__(
@@ -91,8 +92,9 @@ class DedalaExpertisePhysiology:
         *,
         problem: str,
         proposition: str,
-        falsifier: Falsifier,
-        verifier: Verifier,
+        assessed_revision: str,
+        falsifier: FalsificationEvaluator,
+        verifier: VerificationEvaluator,
     ) -> DedalaPhysiologyOutcome:
         if proposal.ocs != DEDALA_OCS_ID:
             raise ValueError("dedala_expertise_path_requires_dedala_proposal")
@@ -100,6 +102,12 @@ class DedalaExpertisePhysiology:
             raise ValueError("institutional_identity_binding_required_for_expertise")
         if not problem.strip():
             raise ValueError("expertise_problem_required")
+        if not assessed_revision.strip():
+            raise ValueError("assessed_revision_required")
+        if not hasattr(falsifier, "evaluate"):
+            raise ValueError("typed_falsification_evaluator_required")
+        if not hasattr(verifier, "evaluate"):
+            raise ValueError("typed_verification_evaluator_required")
 
         phases: list[str] = [
             "BOOT",
@@ -136,9 +144,20 @@ class DedalaExpertisePhysiology:
         candidate = draft_architectural_derivation(plan, evidence, proposition)
         phases.append("PLAN")
 
+        falsification_receipt = falsifier.evaluate(
+            candidate,
+            evidence,
+            assessed_revision,
+        )
+        validate_falsification_receipt(
+            falsification_receipt,
+            candidate,
+            evidence,
+            assessed_revision,
+        )
         candidate = record_falsification(
             candidate,
-            survived=falsifier(candidate, evidence),
+            survived=falsification_receipt.survived,
         )
         phases.append("FALSIFY")
         if candidate.falsification_status != "FALSIFICATION_SURVIVED":
@@ -150,11 +169,23 @@ class DedalaExpertisePhysiology:
                 evidence=evidence,
                 candidate=candidate,
                 reason="expertise_falsification_failed",
+                falsification_receipt=falsification_receipt,
             )
 
+        verification_receipt = verifier.evaluate(
+            candidate,
+            evidence,
+            assessed_revision,
+        )
+        validate_verification_receipt(
+            verification_receipt,
+            candidate,
+            evidence,
+            assessed_revision,
+        )
         candidate = record_verification(
             candidate,
-            verified=verifier(candidate, evidence),
+            verified=verification_receipt.verified,
         )
         phases.append("VERIFY")
         if candidate.verification_status != "VERIFIED":
@@ -166,6 +197,8 @@ class DedalaExpertisePhysiology:
                 evidence=evidence,
                 candidate=candidate,
                 reason="expertise_verification_failed",
+                falsification_receipt=falsification_receipt,
+                verification_receipt=verification_receipt,
             )
 
         assert_persistence_eligible(candidate)
@@ -191,6 +224,8 @@ class DedalaExpertisePhysiology:
             kernel_result=kernel_result,
             material_execution_attempted=True,
             reason=kernel_result.reason,
+            falsification_receipt=falsification_receipt,
+            verification_receipt=verification_receipt,
         )
 
     @staticmethod
@@ -203,6 +238,8 @@ class DedalaExpertisePhysiology:
         reason: str,
         evidence: tuple[RetrievedExpertEvidence, ...] = (),
         candidate: ArchitecturalDerivationCandidate | None = None,
+        falsification_receipt: FalsificationReceipt | None = None,
+        verification_receipt: VerificationReceipt | None = None,
     ) -> DedalaPhysiologyOutcome:
         return DedalaPhysiologyOutcome(
             action_id=proposal.action_id,
@@ -214,4 +251,6 @@ class DedalaExpertisePhysiology:
             kernel_result=None,
             material_execution_attempted=False,
             reason=reason,
+            falsification_receipt=falsification_receipt,
+            verification_receipt=verification_receipt,
         )

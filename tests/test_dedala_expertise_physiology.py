@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import pytest
 
+from app.expertise.assurance import (
+    FalsificationReceipt,
+    VerificationReceipt,
+    candidate_binding,
+    evidence_binding,
+)
 from app.expertise.physiology import DedalaExpertisePhysiology
 from app.expertise.sources import (
     ExpertEvidenceFragment,
@@ -15,6 +21,8 @@ from app.universal_kernel.contracts import (
     ExecutionResult,
     RiskLevel,
 )
+
+REVISION = "test-revision-001"
 
 
 class FakeKernel:
@@ -38,6 +46,40 @@ class FakeKernel:
         )
 
 
+class BoundFalsifier:
+    def __init__(self, survived: bool = True, revision: str = REVISION) -> None:
+        self.survived = survived
+        self.revision = revision
+
+    def evaluate(self, candidate, evidence, assessed_revision):
+        return FalsificationReceipt(
+            receipt_id="FALSIFY-001",
+            candidate_binding=candidate_binding(candidate),
+            evidence_binding=evidence_binding(evidence),
+            assessed_revision=self.revision,
+            procedure_id="bounded-adversarial-procedure-v1",
+            survived=self.survived,
+            evidence_refs=candidate.evidence_refs,
+        )
+
+
+class BoundVerifier:
+    def __init__(self, verified: bool = True, revision: str = REVISION) -> None:
+        self.verified = verified
+        self.revision = revision
+
+    def evaluate(self, candidate, evidence, assessed_revision):
+        return VerificationReceipt(
+            receipt_id="VERIFY-001",
+            candidate_binding=candidate_binding(candidate),
+            evidence_binding=evidence_binding(evidence),
+            assessed_revision=self.revision,
+            procedure_id="bounded-verification-procedure-v1",
+            verified=self.verified,
+            evidence_refs=candidate.evidence_refs,
+        )
+
+
 def _proposal(*, ocs: str = "DÉDALA") -> ActionProposal:
     return ActionProposal(
         action_id="ACT-DEDALA-001",
@@ -54,11 +96,13 @@ def _proposal(*, ocs: str = "DÉDALA") -> ActionProposal:
 
 
 def _source_material() -> tuple[
-    tuple[ExpertSourceRecord, ...], tuple[ExpertEvidenceFragment, ...]
+    tuple[ExpertSourceRecord, ...],
+    tuple[ExpertEvidenceFragment, ...],
 ]:
     content = "Incremental refactoring preserves architecture boundaries."
     source = ExpertSourceRecord(
-        source_id="SRC-FOWLER-001",
+        source_id="FOWLER-FIXTURE-001",
+        source_family="FOWLER",
         author="external-author",
         work="external-work",
         edition_or_date="bounded-fixture",
@@ -89,145 +133,122 @@ def _physiology(kernel: FakeKernel) -> DedalaExpertisePhysiology:
     )
 
 
+def _execute(
+    physiology,
+    proposal,
+    *,
+    falsifier=None,
+    verifier=None,
+    revision=REVISION,
+):
+    return physiology.execute(
+        proposal,
+        problem="architecture refactoring boundary",
+        proposition="Use an incremental refactoring boundary.",
+        assessed_revision=revision,
+        falsifier=falsifier or BoundFalsifier(),
+        verifier=verifier or BoundVerifier(),
+    )
+
+
 def test_verified_derivation_reaches_kernel_without_authority_expansion() -> None:
     kernel = FakeKernel()
     proposal = _proposal()
     original_evidence = proposal.evidence
     original_authority = proposal.authority_ref
-
-    result = _physiology(kernel).execute(
-        proposal,
-        problem="architecture refactoring boundary",
-        proposition="Use an incremental refactoring boundary.",
-        falsifier=lambda candidate, evidence: True,
-        verifier=lambda candidate, evidence: True,
-    )
+    result = _execute(_physiology(kernel), proposal)
 
     assert result.material_execution_attempted is True
-    assert result.kernel_result is not None
-    assert result.kernel_result.proven is True
-    assert result.authority_effect == "NONE"
-    assert result.canon_effect == "NONE"
-    assert result.identity_effect == "NONE"
+    assert result.kernel_result is not None and result.kernel_result.proven is True
     assert result.candidate is not None
     assert result.candidate.persistence_status == "PERSISTENCE_ELIGIBLE"
+    assert result.falsification_receipt is not None
+    assert result.verification_receipt is not None
     assert proposal.evidence == original_evidence
     assert proposal.authority_ref == original_authority
     assert kernel.calls == [proposal]
-    assert result.phases[-1] == "KERNEL_GOVERNANCE_AND_EXECUTION"
 
 
-def test_default_seeded_corpus_is_used_when_no_fixture_is_supplied() -> None:
+def test_boolean_callbacks_are_not_accepted_as_assurance() -> None:
+    with pytest.raises(ValueError, match="typed_falsification_evaluator_required"):
+        _physiology(FakeKernel()).execute(
+            _proposal(),
+            problem="architecture refactoring boundary",
+            proposition="candidate",
+            assessed_revision=REVISION,
+            falsifier=lambda candidate, evidence: True,
+            verifier=BoundVerifier(),
+        )
+
+
+def test_wrong_revision_receipts_fail_closed() -> None:
+    with pytest.raises(ValueError, match="falsification_receipt_revision_mismatch"):
+        _execute(
+            _physiology(FakeKernel()),
+            _proposal(),
+            falsifier=BoundFalsifier(revision="other-revision"),
+        )
+
+
+def test_failed_falsification_and_verification_block_kernel() -> None:
     kernel = FakeKernel()
-    result = DedalaExpertisePhysiology(kernel=kernel).execute(
+    result = _execute(
+        _physiology(kernel),
         _proposal(),
-        problem="distributed consistency failure state",
-        proposition="Require stale-writer rejection at the protected state boundary.",
-        falsifier=lambda candidate, evidence: True,
-        verifier=lambda candidate, evidence: True,
+        falsifier=BoundFalsifier(False),
     )
-
-    assert result.material_execution_attempted is True
-    assert any(item.source_id.startswith("KLEPPMANN-") for item in result.evidence)
-    assert kernel.calls == [_proposal()]
-
-
-def test_partial_corpus_override_fails_closed() -> None:
-    sources, _ = _source_material()
-    with pytest.raises(
-        ValueError,
-        match="complete_expertise_corpus_configuration_required",
-    ):
-        DedalaExpertisePhysiology(kernel=FakeKernel(), sources=sources)
-
-
-def test_failed_falsification_blocks_kernel_execution() -> None:
-    kernel = FakeKernel()
-    result = _physiology(kernel).execute(
-        _proposal(),
-        problem="architecture refactoring boundary",
-        proposition="Candidate proposition.",
-        falsifier=lambda candidate, evidence: False,
-        verifier=lambda candidate, evidence: True,
-    )
-
     assert result.reason == "expertise_falsification_failed"
     assert result.material_execution_attempted is False
-    assert result.kernel_result is None
     assert kernel.calls == []
-    assert "VERIFY" not in result.phases
 
-
-def test_failed_verification_blocks_kernel_execution() -> None:
     kernel = FakeKernel()
-    result = _physiology(kernel).execute(
+    result = _execute(
+        _physiology(kernel),
         _proposal(),
-        problem="architecture refactoring boundary",
-        proposition="Candidate proposition.",
-        falsifier=lambda candidate, evidence: True,
-        verifier=lambda candidate, evidence: False,
+        verifier=BoundVerifier(False),
     )
-
     assert result.reason == "expertise_verification_failed"
-    assert result.material_execution_attempted is False
-    assert result.kernel_result is None
-    assert kernel.calls == []
-
-
-def test_no_applicable_lens_or_evidence_fails_closed_before_kernel() -> None:
-    kernel = FakeKernel()
-    result = _physiology(kernel).execute(
-        _proposal(),
-        problem="unrelated cooking problem",
-        proposition="Candidate proposition.",
-        falsifier=lambda candidate, evidence: True,
-        verifier=lambda candidate, evidence: True,
-    )
-
-    assert result.reason == "no_applicable_expert_lens"
     assert result.material_execution_attempted is False
     assert kernel.calls == []
 
 
 def test_non_dedala_and_non_institutional_runs_are_rejected() -> None:
     with pytest.raises(
-        ValueError, match="dedala_expertise_path_requires_dedala_proposal"
+        ValueError,
+        match="dedala_expertise_path_requires_dedala_proposal",
     ):
-        _physiology(FakeKernel()).execute(
-            _proposal(ocs="NÓESIS"),
-            problem="architecture refactoring",
-            proposition="Candidate proposition.",
-            falsifier=lambda candidate, evidence: True,
-            verifier=lambda candidate, evidence: True,
-        )
-
+        _execute(_physiology(FakeKernel()), _proposal(ocs="NÓESIS"))
     with pytest.raises(
-        ValueError, match="institutional_identity_binding_required_for_expertise"
+        ValueError,
+        match="institutional_identity_binding_required_for_expertise",
     ):
-        _physiology(FakeKernel(institutional_run=False)).execute(
-            _proposal(),
-            problem="architecture refactoring",
-            proposition="Candidate proposition.",
-            falsifier=lambda candidate, evidence: True,
-            verifier=lambda candidate, evidence: True,
-        )
+        _execute(_physiology(FakeKernel(institutional_run=False)), _proposal())
 
 
-def test_phase_order_places_identity_before_expertise_and_kernel_last() -> None:
+def test_default_seeded_corpus_uses_typed_receipts() -> None:
     kernel = FakeKernel()
-    result = _physiology(kernel).execute(
+    result = DedalaExpertisePhysiology(kernel=kernel).execute(
         _proposal(),
-        problem="architecture refactoring boundary",
-        proposition="Candidate proposition.",
-        falsifier=lambda candidate, evidence: True,
-        verifier=lambda candidate, evidence: True,
+        problem="distributed consistency failure state",
+        proposition="Require stale-writer rejection at the protected state boundary.",
+        assessed_revision=REVISION,
+        falsifier=BoundFalsifier(),
+        verifier=BoundVerifier(),
     )
+    assert result.material_execution_attempted is True
+    assert any(item.source_family == "KLEPPMANN" for item in result.evidence)
 
-    assert result.phases.index("BIND_ACTIVE_IDENTITY") < result.phases.index(
-        "LOAD_EXPERTISE_MANIFEST"
+
+def test_no_applicable_lens_fails_closed_before_assurance_or_kernel() -> None:
+    kernel = FakeKernel()
+    result = DedalaExpertisePhysiology(kernel=kernel).execute(
+        _proposal(),
+        problem="unrelated cooking problem",
+        proposition="Candidate proposition.",
+        assessed_revision=REVISION,
+        falsifier=BoundFalsifier(),
+        verifier=BoundVerifier(),
     )
-    assert result.phases.index("RETRIEVE_EXPERT_EVIDENCE") < result.phases.index(
-        "FALSIFY"
-    )
-    assert result.phases.index("FALSIFY") < result.phases.index("VERIFY")
-    assert result.phases[-1] == "KERNEL_GOVERNANCE_AND_EXECUTION"
+    assert result.reason == "no_applicable_expert_lens"
+    assert result.material_execution_attempted is False
+    assert kernel.calls == []

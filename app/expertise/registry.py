@@ -3,9 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 EXPERT_SOURCE_CLASS = "RETRIEVABLE_EXTERNAL_TECHNICAL_SOURCE"
-LOCAL_DERIVATION_INITIAL_STATUS = (
-    "LOCAL_ARCHITECTURAL_DERIVATION_CANDIDATE"
-)
+LOCAL_DERIVATION_INITIAL_STATUS = "LOCAL_ARCHITECTURAL_DERIVATION_CANDIDATE"
 AUTHORITY_EFFECT_NONE = "NONE"
 
 
@@ -33,6 +31,7 @@ class RetrievalPlan:
     ocs_id: str
     problem: str
     candidate_lenses: tuple[str, ...]
+    allowed_source_families: tuple[str, ...]
     retrieval_queries: tuple[str, ...]
     source_class: str
     derivation_status: str
@@ -141,9 +140,9 @@ def validate_manifest(manifest: ExpertiseManifest) -> None:
         raise ValueError("expert_lens_ids_must_be_unique")
     for lens in manifest.lenses:
         if lens.source_class != EXPERT_SOURCE_CLASS:
-            raise ValueError(
-                "expert_source_must_remain_external_technical_source"
-            )
+            raise ValueError("expert_source_must_remain_external_technical_source")
+        if not lens.source_family.strip():
+            raise ValueError("expert_lens_requires_source_family")
         if not lens.retrieval_tags:
             raise ValueError("expert_lens_requires_retrieval_tags")
 
@@ -156,16 +155,15 @@ def build_retrieval_plan(
     normalized = problem.casefold()
     scored: list[tuple[int, ExpertLens]] = []
     for lens in manifest.lenses:
-        score = sum(
-            1
-            for tag in lens.retrieval_tags
-            if tag.casefold() in normalized
-        )
+        score = sum(1 for tag in lens.retrieval_tags if tag.casefold() in normalized)
         if score:
             scored.append((score, lens))
     scored.sort(key=lambda item: (-item[0], item[1].lens_id))
     selected = tuple(lens for _, lens in scored)
     candidate_lenses = tuple(lens.lens_id for lens in selected)
+    allowed_source_families = tuple(
+        dict.fromkeys(lens.source_family for lens in selected)
+    )
     retrieval_queries = tuple(
         f"{problem} :: {lens.lens_id} :: {','.join(lens.domains)}"
         for lens in selected
@@ -174,6 +172,7 @@ def build_retrieval_plan(
         ocs_id=manifest.ocs_id,
         problem=problem,
         candidate_lenses=candidate_lenses,
+        allowed_source_families=allowed_source_families,
         retrieval_queries=retrieval_queries,
         source_class=EXPERT_SOURCE_CLASS,
         derivation_status=LOCAL_DERIVATION_INITIAL_STATUS,
