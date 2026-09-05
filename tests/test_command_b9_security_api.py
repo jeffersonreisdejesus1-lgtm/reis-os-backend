@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
@@ -53,7 +53,16 @@ async def test_b9_security_posture_requires_institution_binding(
     client: AsyncClient,
 ) -> None:
     headers = await _owner_headers(client)
-    headers["X-Organization-ID"] = str(uuid4())
+    foreign_organization = await client.post(
+        "/organizations",
+        headers={"Authorization": headers["Authorization"]},
+        json={
+            "name": "Foreign Command B9 Organization",
+            "slug": "foreign-command-b9-organization",
+        },
+    )
+    assert foreign_organization.status_code == 201, foreign_organization.text
+    headers["X-Organization-ID"] = foreign_organization.json()["id"]
 
     response = await client.get("/v1/command/security/posture", headers=headers)
 
