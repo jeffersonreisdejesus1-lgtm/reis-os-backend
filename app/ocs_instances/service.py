@@ -23,7 +23,11 @@ from app.universal_kernel.contracts import (
     ReversibilityClass,
     SideEffectClass,
 )
-from app.universal_kernel.governance import AuthorityLease, AuthorityLeaseManager
+from app.universal_kernel.governance import (
+    AuthorityLease,
+    AuthorityLeaseManager,
+    LeaseState,
+)
 from app.universal_kernel.hazel_continuity import (
     HazelBoundContinuity,
     HazelIntegrationError,
@@ -86,6 +90,7 @@ class OCSInstanceBinder:
             envelope = self._envelope(recovered, profile, lease, nonce)
             if envelope.digest() != recovered.bootstrap_hash:
                 raise InstanceBindingError("bootstrap_recovery_hash_mismatch")
+            self._reconcile_binding_lease(request, lease, recovered)
             if recovered.status is InstanceStatus.PREPARED:
                 recovered = self._ensure_hazel(recovered, request, envelope)
             return recovered, envelope
@@ -176,9 +181,10 @@ class OCSInstanceBinder:
             }
         )
         envelope = self._envelope(binding, profile, lease, nonce)
+        self._reserve_binding_lease(request, lease, binding)
         stored = self._store.create(binding)
+        self._leases.finalize(lease.lease_id)
         durable = self._ensure_hazel(stored, request, envelope)
-        self._consume_binding_lease(request, lease, durable)
         return durable, envelope
 
     def _ensure_hazel(
@@ -226,7 +232,9 @@ class OCSInstanceBinder:
                 authority_ref=binding.authority_ref,
             )
             if recovered.get("event_hash") != persisted.receipt.get("event_hash"):
-                raise InstanceBindingError("hazel_prepare_readback_mismatch")
+                raise InstanceBindingError(
+                    "hazel_prepare_readback_mismatch"
+                ) from None
         if recovered is None or recovered.get("payload") != state:
             raise InstanceBindingError("hazel_prepare_readback_mismatch")
         return self._store.transition(
@@ -248,6 +256,7 @@ class OCSInstanceBinder:
         self,
         binding_id: str,
         *,
+        authority: PrepareInstanceRequest,
         platform_instance_id: str,
         generation: int,
         expected_version: int,
@@ -270,6 +279,33 @@ class OCSInstanceBinder:
             "generation": binding.generation,
             "state": state,
         }
+        request_fingerprint = canonical_hash(checkpoint_payload)
+        replay = self._store.checkpoint_replay(
+            binding_id=binding.binding_id,
+            idempotency_key=idempotency_key,
+            request_fingerprint=request_fingerprint,
+        )
+        if replay is not None:
+            return replay
+        profile = PROFILES[binding.ocs_id]
+        if (
+            authority.organization_id != binding.organization_id
+            or authority.mission_id != binding.mission_id
+            or authority.ocs_id != binding.ocs_id
+        ):
+            raise InstanceBindingError("checkpoint_authority_scope_mismatch")
+        checkpoint_lease = self._validated_lease(
+            authority, profile, action_binding="ocs_instance_checkpoint"
+        )
+        self._reserve_action_lease(
+            authority,
+            checkpoint_lease,
+            binding,
+            action_type="ocs_instance_checkpoint",
+            action_id=f"checkpoint:{binding.binding_id}:{next_state_version}",
+            idempotency_key=idempotency_key,
+        )
+        self._leases.finalize(checkpoint_lease.lease_id)
         recovered = self._continuity.recover_state(
             run_id=binding.run_id,
             expected_ocs=binding.ocs_id,
@@ -318,6 +354,7 @@ class OCSInstanceBinder:
             payload={
                 "state_version": next_state_version,
                 "event_hash": recovered["event_hash"],
+                "request_fingerprint": request_fingerprint,
             },
         )
 
@@ -350,6 +387,7 @@ class OCSInstanceBinder:
             envelope = self._envelope(replayed, profile, lease, nonce)
             if envelope.digest() != replayed.bootstrap_hash:
                 raise InstanceBindingError("bootstrap_recovery_hash_mismatch")
+            self._reconcile_binding_lease(request, lease, replayed)
             return replayed, envelope
         if previous.status is not InstanceStatus.CHECKPOINTED:
             raise InstanceBindingError("verified_checkpoint_required_for_replacement")
@@ -368,6 +406,13 @@ class OCSInstanceBinder:
             or previous.profile_hash != canonical_hash(asdict(profile))
         ):
             raise InstanceBindingError("replacement_profile_drift")
+        previous_lease = self._leases.lease_for(previous.lease_id)
+        if (
+            request.context_ref != previous_lease.context_ref
+            or request.policy_snapshot != previous_lease.policy_snapshot
+            or request.trace_ref != previous_lease.trace_ref
+        ):
+            raise InstanceBindingError("replacement_authority_context_drift")
         lease = self._validated_lease(request, profile)
         prior_state = self._continuity.recover_state(
             run_id=previous.run_id,
@@ -407,7 +452,9 @@ class OCSInstanceBinder:
             bootstrap_hash=unsigned.digest(),
         )
         envelope = self._envelope(next_binding, profile, lease, nonce)
+        self._reserve_binding_lease(request, lease, next_binding)
         next_binding = self._store.create(next_binding)
+        self._leases.finalize(lease.lease_id)
         next_version = previous.checkpoint_version + 1
         replacement_state = {
             "binding_id": next_binding.binding_id,
@@ -460,7 +507,6 @@ class OCSInstanceBinder:
             checkpoint_hash=str(recovered["payload_hash"]),
             hazel_event_hash=str(recovered["event_hash"]),
         )
-        self._consume_binding_lease(request, lease, durable)
         return durable, envelope
 
     @staticmethod
@@ -474,19 +520,38 @@ class OCSInstanceBinder:
         if binding.generation != generation:
             raise InstanceBindingError("instance_generation_fenced")
 
-    def _consume_binding_lease(
+    def _reserve_binding_lease(
         self,
         request: PrepareInstanceRequest,
         lease: AuthorityLease,
         binding: InstanceBinding,
     ) -> None:
-        envelope = AuthorizedActionEnvelope(
+        self._reserve_action_lease(
+            request,
+            lease,
+            binding,
+            action_type="ocs_instance_binding",
             action_id=f"bind:{binding.binding_id}",
+            idempotency_key=request.idempotency_key,
+        )
+
+    def _reserve_action_lease(
+        self,
+        request: PrepareInstanceRequest,
+        lease: AuthorityLease,
+        binding: InstanceBinding,
+        *,
+        action_type: str,
+        action_id: str,
+        idempotency_key: str,
+    ) -> None:
+        envelope = AuthorizedActionEnvelope(
+            action_id=action_id,
             actor=request.actor,
             ocs=request.ocs_id,
             capability=request.capability,
-            operation="bind_instance",
-            action_type="ocs_instance_binding",
+            operation=action_type,
+            action_type=action_type,
             issued_at=binding.created_at,
             payload={"binding_id": binding.binding_id},
             lease_id=lease.lease_id,
@@ -499,8 +564,8 @@ class OCSInstanceBinder:
             valid_scope=True,
             authority_ref=lease.authority_ref,
             policy_snapshot=request.policy_snapshot,
-            idempotency_key=request.idempotency_key,
-            expected_effect="bind_one_physical_instance_generation",
+            idempotency_key=idempotency_key,
+            expected_effect=action_type,
             side_effect_class=SideEffectClass.BOUNDED,
             reversibility_class=ReversibilityClass.REVERSIBLE,
             recovery_ref=PROFILES[request.ocs_id].recovery_policy,
@@ -512,10 +577,25 @@ class OCSInstanceBinder:
         ok, reason, use_index = self._leases.reserve_use(envelope)
         if not ok or use_index is None:
             raise InstanceBindingError(reason)
-        self._leases.finalize(lease.lease_id)
+
+    def _reconcile_binding_lease(
+        self,
+        request: PrepareInstanceRequest,
+        lease: AuthorityLease,
+        binding: InstanceBinding,
+    ) -> None:
+        current = self._leases.lease_for(lease.lease_id)
+        if current.state is LeaseState.RELEASED:
+            return
+        self._reserve_binding_lease(request, current, binding)
+        self._leases.finalize(current.lease_id)
 
     def _validated_lease(
-        self, request: PrepareInstanceRequest, profile: OCSProfile
+        self,
+        request: PrepareInstanceRequest,
+        profile: OCSProfile,
+        *,
+        action_binding: str = "ocs_instance_binding",
     ) -> AuthorityLease:
         valid, reason = self._leases.validate(
             request.lease_id, request.ocs_id, request.capability
@@ -535,8 +615,8 @@ class OCSInstanceBinder:
             raise ValueError("lease_tenant_mismatch")
         if lease.object_ref_or_selector != request.mission_id:
             raise ValueError("mission_specific_lease_required")
-        if lease.action_binding != "ocs_instance_binding":
-            raise ValueError("instance_binding_action_lease_required")
+        if lease.action_binding != action_binding:
+            raise ValueError(f"{action_binding}_action_lease_required")
         if not set(request.scope).issubset(set(lease.scope)):
             raise ValueError("lease_scope_mismatch")
         if lease.authority_ref != profile.authority_envelope_ref:
