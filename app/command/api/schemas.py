@@ -5,13 +5,8 @@ from enum import StrEnum
 from pydantic import BaseModel, Field
 
 
-class FreshnessClass(StrEnum):
-    STATIC_VERSIONED = "static_versioned"
-    LIVE_STREAM = "live_stream"
-    NEAR_REAL_TIME = "near_real_time"
-    LAST_KNOWN_STATE = "last_known_state"
-    STALE = "stale"
-    UNAVAILABLE = "unavailable"
+class SnapshotClass(StrEnum):
+    STATIC_PROFILE_DECLARATION = "static_profile_declaration"
 
 
 class EvidenceState(StrEnum):
@@ -21,14 +16,26 @@ class EvidenceState(StrEnum):
     ASSURED = "assured"
 
 
+class NamespaceSemantics(StrEnum):
+    DISTINCT_DECLARATIONS = "distinct_declarations"
+
+
 class SourceMetadata(BaseModel):
-    source_ref: str
+    content_source_ref: str
     profile_version: str
-    freshness: FreshnessClass
+    snapshot_class: SnapshotClass
     evidence_state: EvidenceState
+    kernel_interface_ref: str
+
+
+class NamespaceDeclarations(BaseModel):
+    state: str
+    memory: str
+    semantics: NamespaceSemantics
 
 
 class OCSProfileResponse(BaseModel):
+    slug: str
     ocs_id: str
     identity: str
     specialty: str
@@ -36,8 +43,7 @@ class OCSProfileResponse(BaseModel):
     allowed_action_classes: list[str]
     denied_action_classes: list[str]
     authority_envelope_ref: str
-    state_namespace: str
-    memory_namespace: str
+    namespaces: NamespaceDeclarations
     handoff_policy: str
     recovery_policy: str
     source: SourceMetadata
