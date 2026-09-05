@@ -18,6 +18,11 @@ from app.ocs_instances.contracts import (
 )
 from app.ocs_instances.store import InstanceBindingStore
 from app.profile_bindings.profiles import PROFILES, OCSProfile
+from app.universal_kernel.contracts import (
+    AuthorizedActionEnvelope,
+    ReversibilityClass,
+    SideEffectClass,
+)
 from app.universal_kernel.governance import AuthorityLease, AuthorityLeaseManager
 from app.universal_kernel.hazel_continuity import (
     HazelBoundContinuity,
@@ -66,7 +71,6 @@ class OCSInstanceBinder:
         profile = PROFILES.get(request.ocs_id)
         if profile is None:
             raise ValueError("unknown_ocs_identity")
-        lease = self._validated_lease(request, profile)
         request_hash = canonical_hash(
             {
                 "institution_id": INSTITUTION_ID,
@@ -75,6 +79,7 @@ class OCSInstanceBinder:
         )
         recovered = self._store.by_idempotency(request.idempotency_key)
         if recovered is not None:
+            lease = self._leases.lease_for(recovered.lease_id)
             if recovered.request_hash != request_hash:
                 raise InstanceBindingError("instance_idempotency_conflict")
             nonce = self._nonce(request_hash)
@@ -85,6 +90,7 @@ class OCSInstanceBinder:
                 recovered = self._ensure_hazel(recovered, request, envelope)
             return recovered, envelope
 
+        lease = self._validated_lease(request, profile)
         run_id = stable_run_id(
             INSTITUTION_ID,
             request.organization_id,
@@ -97,7 +103,15 @@ class OCSInstanceBinder:
                 run_id=run_id,
                 ocs_id=request.ocs_id,
                 host=request.host,
-                session_context=request.mission_id,
+                session_context=f"context:{canonical_hash({
+                    'institution_id': INSTITUTION_ID,
+                    'organization_id': request.organization_id,
+                    'mission_id': request.mission_id,
+                    'ocs_id': request.ocs_id,
+                    'context_ref': request.context_ref,
+                    'policy_snapshot': request.policy_snapshot,
+                    'trace_ref': request.trace_ref,
+                })}",
             )
         active = self._identity_guard.require_valid(
             run_id=run_id,
@@ -128,7 +142,7 @@ class OCSInstanceBinder:
             profile_hash=profile_hash,
             identity_binding_hash=identity_binding_hash,
             request_hash=request_hash,
-            maturity=BindingMaturity.OPERATIONALLY_BOUND_L1,
+            maturity=BindingMaturity.PREPARED_UNVERIFIED,
             host=request.host,
             capability=request.capability,
             lease_id=request.lease_id,
@@ -163,7 +177,9 @@ class OCSInstanceBinder:
         )
         envelope = self._envelope(binding, profile, lease, nonce)
         stored = self._store.create(binding)
-        return self._ensure_hazel(stored, request, envelope), envelope
+        durable = self._ensure_hazel(stored, request, envelope)
+        self._consume_binding_lease(request, lease, durable)
+        return durable, envelope
 
     def _ensure_hazel(
         self,
@@ -316,21 +332,13 @@ class OCSInstanceBinder:
             host=previous.host,
             authority_ref=previous.authority_ref,
         )
-        replaced = self._store.transition(
-            previous.binding_id,
-            expected_version=expected_version,
-            target=InstanceStatus.REPLACED,
-            idempotency_key=replacement_idempotency_key,
-            event_type="OCS_INSTANCE_REPLACED",
-            payload={"next_generation": previous.generation + 1},
-        )
         request_hash = canonical_hash(
             {"institution_id": INSTITUTION_ID, **asdict(request)}
         )
         now = self._clock()
         nonce = self._nonce(request_hash)
         provisional = replace(
-            replaced,
+            previous,
             binding_id=f"binding:{request_hash[:32]}",
             capability=request.capability,
             lease_id=request.lease_id,
@@ -386,20 +394,17 @@ class OCSInstanceBinder:
         )
         if recovered.get("event_hash") != persisted.receipt.get("event_hash"):
             raise InstanceBindingError("replacement_readback_mismatch")
-        durable = self._store.transition(
-            next_binding.binding_id,
-            expected_version=1,
-            target=InstanceStatus.PERSISTED,
-            idempotency_key=f"{request.idempotency_key}:hazel",
-            event_type="OCS_REPLACEMENT_PERSISTED",
+        _, durable = self._store.commit_replacement(
+            predecessor_id=previous.binding_id,
+            predecessor_expected_version=expected_version,
+            successor_id=next_binding.binding_id,
+            successor_expected_version=1,
+            idempotency_key=replacement_idempotency_key,
             checkpoint_version=next_version,
             checkpoint_hash=str(recovered["payload_hash"]),
             hazel_event_hash=str(recovered["event_hash"]),
-            payload={
-                "predecessor_binding_id": previous.binding_id,
-                "state_version": next_version,
-            },
         )
+        self._consume_binding_lease(request, lease, durable)
         return durable, envelope
 
     @staticmethod
@@ -413,6 +418,46 @@ class OCSInstanceBinder:
         if binding.generation != generation:
             raise InstanceBindingError("instance_generation_fenced")
 
+    def _consume_binding_lease(
+        self,
+        request: PrepareInstanceRequest,
+        lease: AuthorityLease,
+        binding: InstanceBinding,
+    ) -> None:
+        envelope = AuthorizedActionEnvelope(
+            action_id=f"bind:{binding.binding_id}",
+            actor=request.actor,
+            ocs=request.ocs_id,
+            capability=request.capability,
+            operation="bind_instance",
+            action_type="ocs_instance_binding",
+            issued_at=binding.created_at,
+            payload={"binding_id": binding.binding_id},
+            lease_id=lease.lease_id,
+            evidence_refs=(),
+            csp_ref=PROFILES[request.ocs_id].csp_ref,
+            object_ref=request.mission_id,
+            tenant=request.organization_id,
+            context_ref=request.context_ref,
+            scope=request.scope,
+            valid_scope=True,
+            authority_ref=lease.authority_ref,
+            policy_snapshot=request.policy_snapshot,
+            idempotency_key=request.idempotency_key,
+            expected_effect="bind_one_physical_instance_generation",
+            side_effect_class=SideEffectClass.BOUNDED,
+            reversibility_class=ReversibilityClass.REVERSIBLE,
+            recovery_ref=PROFILES[request.ocs_id].recovery_policy,
+            expires_at=lease.expires_at,
+            evidence_assessment_ref=f"assessment:{binding.binding_id}",
+            max_uses=lease.max_uses,
+            trace_id=request.trace_ref,
+        )
+        ok, reason, use_index = self._leases.reserve_use(envelope)
+        if not ok or use_index is None:
+            raise InstanceBindingError(reason)
+        self._leases.finalize(lease.lease_id)
+
     def _validated_lease(
         self, request: PrepareInstanceRequest, profile: OCSProfile
     ) -> AuthorityLease:
@@ -422,6 +467,14 @@ class OCSInstanceBinder:
         if not valid:
             raise ValueError(reason)
         lease = self._leases.lease_for(request.lease_id)
+        if lease.actor != request.actor:
+            raise ValueError("lease_actor_mismatch")
+        if lease.context_ref != request.context_ref:
+            raise ValueError("lease_context_mismatch")
+        if lease.policy_snapshot != request.policy_snapshot:
+            raise ValueError("lease_policy_snapshot_mismatch")
+        if lease.trace_ref != request.trace_ref:
+            raise ValueError("lease_trace_binding_mismatch")
         if lease.tenant != request.organization_id:
             raise ValueError("lease_tenant_mismatch")
         if lease.object_ref_or_selector != request.mission_id:
@@ -508,6 +561,10 @@ class OCSInstanceBinder:
             request.host,
             request.idempotency_key,
             request.correlation_id,
+            request.actor,
+            request.context_ref,
+            request.policy_snapshot,
+            request.trace_ref,
         )
         if not all(required) or not request.scope:
             raise ValueError("instance_prepare_fields_required")
