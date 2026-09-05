@@ -1,12 +1,19 @@
 from typing import Any
+from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
 from app.command import application as command_application
+from app.command.api.dependencies import (
+    get_command_institution_organization_id,
+)
+from app.main import app
 from app.memberships.domain.enums import MembershipRole
 from app.memberships.infrastructure.models import MembershipModel
+from app.shared.config.settings import Settings
+from app.shared.errors.exceptions import AppError
 from tests.conftest import TestSessionLocal
 
 pytestmark = pytest.mark.integration
@@ -25,17 +32,36 @@ async def register(client: AsyncClient) -> dict[str, Any]:
     return response.json()
 
 
+async def create_organization(
+    client: AsyncClient,
+    *,
+    token: str,
+    name: str,
+    slug: str,
+) -> dict[str, Any]:
+    response = await client.post(
+        "/organizations",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"name": name, "slug": slug},
+    )
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
 async def command_context(
     client: AsyncClient,
 ) -> tuple[dict[str, str], dict[str, Any]]:
     user = await register(client)
-    response = await client.post(
-        "/organizations",
-        headers={"Authorization": f"Bearer {user['access_token']}"},
-        json={"name": "REIS OS Command", "slug": "reis-os-command"},
+    organization = await create_organization(
+        client,
+        token=user["access_token"],
+        name="REIS OS Command",
+        slug="reis-os-command",
     )
-    assert response.status_code == 201, response.text
-    organization = response.json()
+    institution_id = UUID(organization["id"])
+    app.dependency_overrides[get_command_institution_organization_id] = (
+        lambda: institution_id
+    )
     headers = {
         "Authorization": f"Bearer {user['access_token']}",
         "X-Organization-ID": organization["id"],
@@ -163,13 +189,48 @@ async def test_command_routes_require_organization_context(
     assert response.json()["error"]["code"] == "organization_context_required"
 
 
+def test_command_institution_configuration_fails_closed() -> None:
+    settings = Settings(command_institution_organization_id=None)
+    with pytest.raises(AppError) as error:
+        get_command_institution_organization_id(settings)
+    assert error.value.code == "command_institution_not_configured"
+    assert error.value.status_code == 503
+
+
 @pytest.mark.asyncio
-async def test_command_read_boundary_denies_viewer_membership(
+async def test_owner_of_self_created_non_institutional_org_is_denied(
+    client: AsyncClient,
+) -> None:
+    _, user = await command_context(client)
+    other = await create_organization(
+        client,
+        token=user["access_token"],
+        name="Self-created Organization",
+        slug="self-created-organization",
+    )
+    response = await client.get(
+        "/v1/command/ocs",
+        headers={
+            "Authorization": f"Bearer {user['access_token']}",
+            "X-Organization-ID": other["id"],
+        },
+    )
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "command_organization_forbidden"
+
+
+@pytest.mark.asyncio
+async def test_command_read_boundary_denies_exact_viewer_membership(
     client: AsyncClient,
 ) -> None:
     headers, _ = await command_context(client)
+    institution_id = UUID(headers["X-Organization-ID"])
     async with TestSessionLocal() as session:
-        membership = await session.scalar(select(MembershipModel))
+        membership = await session.scalar(
+            select(MembershipModel).where(
+                MembershipModel.organization_id == institution_id,
+            )
+        )
         assert membership is not None
         membership.role = MembershipRole.VIEWER
         await session.commit()
