@@ -63,7 +63,11 @@ def evaluate_integration_use(
     if request.promote:
         reasons.append("capability_cannot_promote")
     return IntegrationUseDecision(
-        decision=CapabilityDecision.HOLD if reasons else CapabilityDecision.ALLOW_ATTEMPT,
+        decision=(
+            CapabilityDecision.HOLD
+            if reasons
+            else CapabilityDecision.ALLOW_ATTEMPT
+        ),
         reasons=tuple(reasons),
     )
 
