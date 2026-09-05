@@ -60,6 +60,44 @@ jobs:
       - name: Mypy
         run: mypy app
 
+      - name: Freshness reliability invariants
+        run: |
+          pytest \
+            tests/test_command_contracts.py \
+            tests/test_command_projection.py \
+            tests/test_command_attention.py \
+            --junitxml=artifacts/freshness-reliability.xml
+
+      - name: Provider read boundary
+        run: |
+          pytest tests/test_command_read_adapters.py \
+            --junitxml=artifacts/provider-boundary.xml
+
+      - name: PA6 deterministic E2E
+        run: |
+          pytest tests/test_command_pa6_remediation.py \
+            --junitxml=artifacts/pa6-e2e.xml
+
+      - name: GitHub real-provider E2E evidence
+        env:
+          COMMAND_LIVE_GITHUB_EVIDENCE: "1"
+          COMMAND_GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          pytest tests/test_command_provider_runtime_live.py \
+            --junitxml=artifacts/github-live-provider.xml
+
+      - name: Notion real-provider E2E evidence
+        env:
+          COMMAND_NOTION_TOKEN: ${{ secrets.COMMAND_NOTION_TOKEN }}
+          COMMAND_NOTION_EVIDENCE_PAGE_ID: "3cad31bc-7b67-8177-9aef-c4eb3c4ddfd7"
+        run: |
+          if [ -z "${COMMAND_NOTION_TOKEN}" ]; then
+            echo "COMMAND_NOTION_TOKEN is not available to this runtime" >&2
+            exit 42
+          fi
+          pytest tests/test_command_provider_runtime_notion_live.py \
+            --junitxml=artifacts/notion-live-provider.xml
+
       - name: Testes unitários
         run: |
           pytest -m "not integration" \
@@ -100,7 +138,9 @@ jobs:
         if: always()
         run: |
           {
-            echo "commit=${GITHUB_SHA}"
+            echo "workflow_head_sha=${GITHUB_SHA}"
+            echo "pr_head_sha=${{ github.event.pull_request.head.sha || '' }}"
+            echo "tested_checkout_sha=$(git rev-parse HEAD)"
             echo "run_id=${GITHUB_RUN_ID}"
             echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
             echo "python=$(python --version 2>&1)"
