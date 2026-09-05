@@ -208,7 +208,7 @@ class OCSInstanceBinder:
             )
             if recovered.get("payload") != state:
                 raise InstanceBindingError("hazel_prepare_recovery_conflict")
-        except (KeyError, HazelIntegrationError, ValueError):
+        except (KeyError, HazelIntegrationError):
             persisted = self._continuity.persist_state(
                 run_id=binding.run_id,
                 expected_ocs=binding.ocs_id,
@@ -264,28 +264,47 @@ class OCSInstanceBinder:
             binding, platform_instance_id, generation
         )
         next_state_version = binding.checkpoint_version + 1
-        persisted = self._continuity.persist_state(
-            run_id=binding.run_id,
-            expected_ocs=binding.ocs_id,
-            host=binding.host,
-            authority_ref=binding.authority_ref,
-            state_version=next_state_version,
-            predecessor_hash=binding.hazel_event_hash,
-            state={
-                "binding_id": binding.binding_id,
-                "mission_id": binding.mission_id,
-                "generation": binding.generation,
-                "state": state,
-            },
-            trace_id=f"trace:{binding.binding_id}:checkpoint:{next_state_version}",
-        )
+        checkpoint_payload = {
+            "binding_id": binding.binding_id,
+            "mission_id": binding.mission_id,
+            "generation": binding.generation,
+            "state": state,
+        }
         recovered = self._continuity.recover_state(
             run_id=binding.run_id,
             expected_ocs=binding.ocs_id,
             host=binding.host,
             authority_ref=binding.authority_ref,
         )
-        if recovered.get("event_hash") != persisted.receipt.get("event_hash"):
+        recovered_version = recovered.get("state_version")
+        if recovered_version == next_state_version:
+            if recovered.get("payload") != checkpoint_payload:
+                raise InstanceBindingError("checkpoint_recovery_conflict")
+            persisted_event_hash = recovered.get("event_hash")
+        elif recovered_version == binding.checkpoint_version:
+            persisted = self._continuity.persist_state(
+                run_id=binding.run_id,
+                expected_ocs=binding.ocs_id,
+                host=binding.host,
+                authority_ref=binding.authority_ref,
+                state_version=next_state_version,
+                predecessor_hash=binding.hazel_event_hash,
+                state=checkpoint_payload,
+                trace_id=(
+                    f"trace:{binding.binding_id}:checkpoint:"
+                    f"{next_state_version}"
+                ),
+            )
+            persisted_event_hash = persisted.receipt.get("event_hash")
+        else:
+            raise InstanceBindingError("checkpoint_state_version_conflict")
+        recovered = self._continuity.recover_state(
+            run_id=binding.run_id,
+            expected_ocs=binding.ocs_id,
+            host=binding.host,
+            authority_ref=binding.authority_ref,
+        )
+        if recovered.get("event_hash") != persisted_event_hash:
             raise InstanceBindingError("checkpoint_readback_mismatch")
         return self._store.transition(
             binding.binding_id,
