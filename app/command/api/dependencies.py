@@ -36,11 +36,24 @@ CommandInstitutionOrganizationId = Annotated[
 ]
 
 
-async def require_command_read_access(
+async def _active_command_role(
+    *,
     current_user: CurrentUser,
-    organization_id: CurrentOrganizationId,
-    institution_organization_id: CommandInstitutionOrganizationId,
-    session: Annotated[AsyncSession, Depends(get_db_session)],
+    organization_id: UUID,
+    session: AsyncSession,
+) -> MembershipRole | None:
+    return await session.scalar(
+        select(MembershipModel.role).where(
+            MembershipModel.organization_id == organization_id,
+            MembershipModel.user_id == current_user.id,
+            MembershipModel.status == MembershipStatus.ACTIVE,
+        )
+    )
+
+
+def _require_institution_binding(
+    organization_id: UUID,
+    institution_organization_id: UUID,
 ) -> None:
     if organization_id != institution_organization_id:
         raise AppError(
@@ -49,12 +62,18 @@ async def require_command_read_access(
             status_code=403,
         )
 
-    role = await session.scalar(
-        select(MembershipModel.role).where(
-            MembershipModel.organization_id == institution_organization_id,
-            MembershipModel.user_id == current_user.id,
-            MembershipModel.status == MembershipStatus.ACTIVE,
-        )
+
+async def require_command_read_access(
+    current_user: CurrentUser,
+    organization_id: CurrentOrganizationId,
+    institution_organization_id: CommandInstitutionOrganizationId,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> None:
+    _require_institution_binding(organization_id, institution_organization_id)
+    role = await _active_command_role(
+        current_user=current_user,
+        organization_id=institution_organization_id,
+        session=session,
     )
     if role not in COMMAND_READ_ROLES:
         raise AppError(
@@ -64,4 +83,25 @@ async def require_command_read_access(
         )
 
 
+async def require_command_founder_access(
+    current_user: CurrentUser,
+    organization_id: CurrentOrganizationId,
+    institution_organization_id: CommandInstitutionOrganizationId,
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+) -> None:
+    _require_institution_binding(organization_id, institution_organization_id)
+    role = await _active_command_role(
+        current_user=current_user,
+        organization_id=institution_organization_id,
+        session=session,
+    )
+    if role is not MembershipRole.OWNER:
+        raise AppError(
+            "Founder-sensitive Command access requires owner membership.",
+            code="command_founder_access_forbidden",
+            status_code=403,
+        )
+
+
 CommandReadAccess = Annotated[None, Depends(require_command_read_access)]
+CommandFounderAccess = Annotated[None, Depends(require_command_founder_access)]
