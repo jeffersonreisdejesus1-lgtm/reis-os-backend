@@ -514,6 +514,7 @@ class OCSInstanceBinder:
             replacement_saga = None
             lease = self._validated_lease(request, profile)
         else:
+            assert replacement_saga is not None
             if (
                 replacement_saga["binding_id"] != previous.binding_id
                 or replacement_saga["request_fingerprint"]
