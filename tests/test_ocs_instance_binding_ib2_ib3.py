@@ -4,8 +4,6 @@ import json
 from hashlib import sha256
 from pathlib import Path
 from time import time
-from typing import Any
-
 import pytest
 
 from app.ocs_instances.contracts import (
