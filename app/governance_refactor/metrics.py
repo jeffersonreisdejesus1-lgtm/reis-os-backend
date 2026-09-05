@@ -58,7 +58,7 @@ class MetricsValidationError(ValueError):
 def instrument_mission(
     input_data: MissionTimingInput,
 ) -> tuple[MissionMetricsRecord, MissionTimingSnapshot]:
-    """Build evidence-oriented timing records; never emits a verdict or authority claim."""
+    """Build evidence-oriented timing records without verdict or authority."""
     _aware(input_data.started_at, input_data.completed_at, input_data.observed_at)
     counters = (
         input_data.retries,
