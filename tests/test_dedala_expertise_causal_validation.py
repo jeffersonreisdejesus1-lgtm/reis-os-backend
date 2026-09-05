@@ -52,7 +52,10 @@ class CaseFalsifier:
     def evaluate(self, candidate, evidence, assessed_revision):
         survived = (
             self.case.expected_lens in candidate.candidate_lenses
-            and any(item.source_family == self.case.expected_source_family for item in evidence)
+            and any(
+                item.source_family == self.case.expected_source_family
+                for item in evidence
+            )
         )
         return FalsificationReceipt(
             receipt_id=f"FALSIFY-{self.case.case_id}",
