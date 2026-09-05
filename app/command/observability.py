@@ -72,9 +72,15 @@ class CommandObservability:
             ).as_dict()
 
         event_views = tuple(self._view(event) for event in events)
-        requests = tuple(view for view in event_views if self._kind(view) == "request")
-        decisions = tuple(view for view in event_views if self._kind(view) == "decision")
-        receipts = tuple(view for view in event_views if self._kind(view) == "receipt")
+        requests = tuple(
+            view for view in event_views if self._kind(view) == "request"
+        )
+        decisions = tuple(
+            view for view in event_views if self._kind(view) == "decision"
+        )
+        receipts = tuple(
+            view for view in event_views if self._kind(view) == "receipt"
+        )
         errors = tuple(view for view in event_views if self._kind(view) == "error")
         latencies = [
             float(event.payload["latency_ms"])
@@ -133,7 +139,10 @@ class CommandObservability:
 
     @staticmethod
     def _unique(values: Any) -> tuple[str, ...]:
-        return tuple(dict.fromkeys(value for value in values if isinstance(value, str) and value))
+        present = (
+            value for value in values if isinstance(value, str) and value
+        )
+        return tuple(dict.fromkeys(present))
 
     @staticmethod
     def _latency(values: list[float]) -> dict[str, float | None]:
