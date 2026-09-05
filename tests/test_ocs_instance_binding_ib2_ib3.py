@@ -507,14 +507,15 @@ def test_ten_ocs_complete_bootstrap_ack_checkpoint_recovery(
         )
     )
     transport = FakeHazelTransport()
+    continuity = HazelBoundContinuity(
+        guard=identity,
+        transport=transport,
+    )
     binder = OCSInstanceBinder(
         store=store,
         identity_guard=identity,
         leases=leases,
-        continuity=HazelBoundContinuity(
-            guard=identity,
-            transport=transport,
-        ),
+        continuity=continuity,
         binding_secret=b"ten-profile-binding-secret",
     )
     request = PrepareInstanceRequest(
@@ -565,7 +566,7 @@ def test_ten_ocs_complete_bootstrap_ack_checkpoint_recovery(
         state={"ocs_id": ocs_id, "phase": "checkpoint"},
         idempotency_key=f"idem:{ocs_id}:checkpoint",
     )
-    recovered = binder._continuity.recover_state(
+    recovered = continuity.recover_state(
         run_id=checkpoint.run_id,
         expected_ocs=ocs_id,
         host="ChatGPT Work",
