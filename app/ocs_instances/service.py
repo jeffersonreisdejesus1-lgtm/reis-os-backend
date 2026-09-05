@@ -17,7 +17,7 @@ from app.ocs_instances.contracts import (
     stable_run_id,
 )
 from app.ocs_instances.store import InstanceBindingStore
-from app.profile_bindings.profiles import OCSProfile, PROFILES
+from app.profile_bindings.profiles import PROFILES, OCSProfile
 from app.universal_kernel.governance import AuthorityLease, AuthorityLeaseManager
 from app.universal_kernel.hazel_continuity import (
     HazelBoundContinuity,
