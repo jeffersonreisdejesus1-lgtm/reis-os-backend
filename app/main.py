@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.api.routes import router as auth_router
 from app.command.api.instance_routes import router as command_instance_router
 from app.command.api.routes import router as command_router
+from app.governance_refactor.api import router as governance_refactor_router
 from app.organizations.api.routes import router as organizations_router
 from app.projects.api.routes import router as projects_router
 from app.shared.config.settings import get_settings
@@ -37,6 +38,7 @@ app.include_router(projects_router)
 app.include_router(tasks_router)
 app.include_router(command_router)
 app.include_router(command_instance_router)
+app.include_router(governance_refactor_router)
 
 
 @app.get("/health", tags=["system"])
