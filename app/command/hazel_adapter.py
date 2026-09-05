@@ -74,7 +74,11 @@ class CommandHazelAdapter:
         decision: KernelDecisionReadback,
         request: AuthorizedPersistRequest,
     ) -> HazelPersistReadback:
-        if decision.decision is not AuthorizationDecision.ALLOW or not decision.envelope_issued:
+        authorized = (
+            decision.decision is AuthorizationDecision.ALLOW
+            and decision.envelope_issued
+        )
+        if not authorized:
             return HazelPersistReadback(
                 run_id=request.run_id,
                 decision=decision.decision,
@@ -137,7 +141,11 @@ class CommandHazelAdapter:
         ocs: str,
         host: str,
     ) -> dict[str, Any]:
-        if decision.decision is not AuthorizationDecision.ALLOW or not decision.envelope_issued:
+        authorized = (
+            decision.decision is AuthorizationDecision.ALLOW
+            and decision.envelope_issued
+        )
+        if not authorized:
             raise HazelIntegrationError("kernel_authorization_required")
         return self._hazel.recover_state(
             run_id=run_id,
@@ -178,7 +186,11 @@ class CommandHazelAdapter:
         if current.get("event_hash") != request.predecessor_hash:
             raise HazelIntegrationError("command_hazel_predecessor_drift")
         current_version = current.get("state_version")
-        if not isinstance(current_version, int) or current_version + 1 != request.state_version:
+        version_drift = (
+            not isinstance(current_version, int)
+            or current_version + 1 != request.state_version
+        )
+        if version_drift:
             raise HazelIntegrationError("command_hazel_version_drift")
 
     @staticmethod
