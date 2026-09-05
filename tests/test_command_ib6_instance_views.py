@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import replace
 from pathlib import Path
 from time import time
@@ -293,20 +294,23 @@ def test_keyset_cursor_is_snapshot_stable_and_scope_bound(tmp_path: Path) -> Non
             mission_id=f"mission:cursor:{index}",
         )
         store.create(item)
-        with store._connect() as connection:
-            connection.execute(
-                "UPDATE ocs_instance_bindings SET updated_at=? WHERE binding_id=?",
-                (100.0 + index, item.binding_id),
-            )
     views = CommandInstanceViews(database)
+    snapshot_clock = time()
     first = views.list_instances(
         organization_id="org:reis-os",
         filters=InstanceFilter(),
         cursor=None,
         limit=2,
-        now=200.0,
+        now=snapshot_clock,
     )
     assert first["next_cursor"] is not None
+    first_ids = {item["binding_id"] for item in first["items"]}
+    unseen_id = ({"binding:0", "binding:1", "binding:2"} - first_ids).pop()
+    with store._connect() as connection:
+        connection.execute(
+            "UPDATE ocs_instance_bindings SET updated_at=? WHERE binding_id=?",
+            (time() + 1000, unseen_id),
+        )
     store.create(
         binding(
             binding_id="binding:new",
@@ -323,6 +327,7 @@ def test_keyset_cursor_is_snapshot_stable_and_scope_bound(tmp_path: Path) -> Non
     )
     seen = [item["binding_id"] for item in first["items"] + second["items"]]
     assert len(seen) == len(set(seen)) == 3
+    assert "binding:new" not in seen
     with pytest.raises(ValueError, match="command_instance_cursor_scope_mismatch"):
         views.list_instances(
             organization_id="org:foreign",
@@ -387,3 +392,136 @@ def test_sse_cursor_resumes_without_duplicate_and_exposes_fallback(
             cursor="invalid",
             limit=25,
         )
+
+
+def test_fencing_has_no_current_worker_during_stranded_replacement(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "instances.sqlite3"
+    store = InstanceBindingStore(database)
+    store.create(binding())
+    persisted = store.transition(
+        "binding:1",
+        expected_version=1,
+        target=InstanceStatus.PERSISTED,
+        idempotency_key="idem:fence:persist",
+        event_type="OCS_INSTANCE_PERSISTED",
+    )
+    bound = store.transition(
+        "binding:1",
+        expected_version=persisted.version,
+        target=InstanceStatus.BOUND,
+        idempotency_key="idem:fence:bound",
+        event_type="OCS_PLATFORM_INSTANCE_ATTACHED",
+        platform_instance_id="work:iris:fence",
+    )
+    active = store.transition(
+        "binding:1",
+        expected_version=bound.version,
+        target=InstanceStatus.ACTIVE,
+        idempotency_key="idem:fence:active",
+        event_type="OCS_BOOTSTRAP_ACKNOWLEDGED",
+    )
+    checkpointed = store.transition(
+        "binding:1",
+        expected_version=active.version,
+        target=InstanceStatus.CHECKPOINTED,
+        idempotency_key="idem:fence:checkpoint",
+        event_type="OCS_INSTANCE_CHECKPOINTED",
+        checkpoint_version=1,
+        checkpoint_hash="checkpoint",
+        hazel_event_hash="hazel",
+    )
+    store.begin_action_saga(
+        idempotency_key="idem:fence:replacement",
+        binding_id=checkpointed.binding_id,
+        operation="ocs_instance_replacement",
+        request_fingerprint="fingerprint:fence",
+        payload={"lease_id": "lease:fence"},
+    )
+    item = CommandInstanceViews(database).get(
+        checkpointed.binding_id,
+        organization_id="org:reis-os",
+        now=time(),
+    )
+    assert item["fencing"]["latest_registry_generation"] == 1
+    assert item["fencing"]["current_worker_generation"] is None
+    assert item["fencing"]["is_current_worker"] is None
+    assert item["fencing"]["ambiguous"] is True
+
+
+def test_multiple_nonterminal_generations_fail_worker_current_closed(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "instances.sqlite3"
+    store = InstanceBindingStore(database)
+    predecessor = binding(status=InstanceStatus.PREPARED)
+    store.create(predecessor)
+    with store._connect() as connection:
+        connection.execute(
+            """
+            UPDATE ocs_instance_bindings
+            SET status='checkpointed', version=5, checkpoint_version=1,
+                checkpoint_hash='checkpoint', hazel_event_hash='hazel',
+                platform_instance_id='work:iris:1'
+            WHERE binding_id=?
+            """,
+            (predecessor.binding_id,),
+        )
+    successor = replace(
+        binding(
+            binding_id="binding:2",
+            generation=2,
+            predecessor_binding_id=predecessor.binding_id,
+        ),
+        platform_instance_id=None,
+    )
+    store.create(successor)
+    item = CommandInstanceViews(database).get(
+        predecessor.binding_id,
+        organization_id="org:reis-os",
+        now=time(),
+    )
+    assert item["fencing"]["latest_registry_generation"] == 2
+    assert item["fencing"]["nonterminal_generation_count"] == 2
+    assert item["fencing"]["current_worker_generation"] is None
+    assert item["fencing"]["ambiguous"] is True
+
+
+def test_old_sse_event_is_stale_while_batch_remains_available(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "instances.sqlite3"
+    store = InstanceBindingStore(database)
+    store.create(binding())
+    with store._connect() as connection:
+        connection.execute("UPDATE ocs_instance_journal SET occurred_at=100.0")
+    feed = CommandInstanceViews(database).journal_feed(
+        organization_id="org:reis-os",
+        cursor=0,
+        limit=10,
+        now=1000.0,
+    )
+    assert feed["freshness"] == "stale"
+    assert feed["batch_availability"] == "available"
+
+
+def test_partial_registry_schema_is_degraded_without_mutation(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "partial.sqlite3"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "CREATE TABLE ocs_instance_bindings (binding_id TEXT PRIMARY KEY)"
+        )
+    before = database.stat().st_size
+    result = CommandInstanceViews(database).list_instances(
+        organization_id="org:reis-os",
+        filters=InstanceFilter(),
+        cursor=None,
+        limit=25,
+    )
+    assert result["source"]["health"] == "degraded"
+    assert result["snapshot"]["freshness"] == "unknown"
+    assert result["total"] is None
+    assert database.stat().st_size == before

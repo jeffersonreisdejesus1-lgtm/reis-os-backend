@@ -52,7 +52,7 @@ class PageCursor:
     organization_id: str
     filter_hash: str
     snapshot_at: float
-    last_updated_at: float | None = None
+    last_created_at: float | None = None
     last_binding_id: str | None = None
 
 
@@ -92,10 +92,10 @@ class CommandInstanceViews:
         candidates = [
             item
             for item in all_items
-            if page.last_updated_at is None
-            or float(item["updated_at"]) < page.last_updated_at
+            if page.last_created_at is None
+            or float(item["created_at"]) < page.last_created_at
             or (
-                float(item["updated_at"]) == page.last_updated_at
+                float(item["created_at"]) == page.last_created_at
                 and str(item["binding_id"]) > str(page.last_binding_id)
             )
         ]
@@ -108,7 +108,7 @@ class CommandInstanceViews:
                     organization_id=organization_id,
                     filter_hash=filters.digest(),
                     snapshot_at=page.snapshot_at,
-                    last_updated_at=float(last["updated_at"]),
+                    last_created_at=float(last["created_at"]),
                     last_binding_id=str(last["binding_id"]),
                 )
             )
@@ -236,7 +236,12 @@ class CommandInstanceViews:
         return result
 
     def journal_feed(
-        self, *, organization_id: str, cursor: int, limit: int
+        self,
+        *,
+        organization_id: str,
+        cursor: int,
+        limit: int,
+        now: float | None = None,
     ) -> dict[str, Any]:
         if cursor < 0:
             raise ValueError("command_instance_cursor_invalid")
@@ -269,12 +274,21 @@ class CommandInstanceViews:
             (organization_id, limit, cursor),
         )
         events = [self._journal_row(row) for row in rows]
+        clock = datetime.now(UTC).timestamp() if now is None else now
+        freshness_values = {
+            self._freshness(float(event["occurred_at"]), clock=clock, health=health)
+            for event in events
+        }
+        freshness = ViewFreshness.UNKNOWN
+        if ViewFreshness.STALE in freshness_values:
+            freshness = ViewFreshness.STALE
+        elif freshness_values == {ViewFreshness.CURRENT}:
+            freshness = ViewFreshness.CURRENT
         return {
             "events": events,
             "next_cursor": cursor + len(events),
-            "freshness": (
-                ViewFreshness.CURRENT.value if events else ViewFreshness.UNKNOWN.value
-            ),
+            "freshness": freshness.value,
+            "batch_availability": "available",
             "source": self._source(health),
         }
 
@@ -287,7 +301,7 @@ class CommandInstanceViews:
         clock: float,
         health: str,
     ) -> list[dict[str, Any]]:
-        clauses = ["organization_id=?", "updated_at<=?"]
+        clauses = ["organization_id=?", "created_at<=?"]
         values: list[Any] = [organization_id, snapshot_at]
         for column, value in (
             ("mission_id", filters.mission_id),
@@ -300,7 +314,7 @@ class CommandInstanceViews:
         rows = self._read(
             "SELECT * FROM ocs_instance_bindings WHERE "
             + " AND ".join(clauses)
-            + " ORDER BY updated_at DESC, binding_id ASC",
+            + " ORDER BY created_at DESC, binding_id ASC",
             tuple(values),
         )
         items = [
@@ -395,26 +409,87 @@ class CommandInstanceViews:
         )
         maximum = max((int(row["generation"]) for row in rows), default=None)
         active = sum(row["status"] == InstanceStatus.ACTIVE.value for row in rows)
-        ambiguous = active > 1 or maximum is None
-        current: bool | None = None
-        if not ambiguous:
-            current = binding.generation == maximum and binding.status not in {
-                InstanceStatus.REPLACED,
-                InstanceStatus.REVOKED,
-            }
+        nonterminal = {
+            InstanceStatus.PREPARED.value,
+            InstanceStatus.PERSISTED.value,
+            InstanceStatus.BOUND.value,
+            InstanceStatus.ACTIVE.value,
+            InstanceStatus.CHECKPOINTED.value,
+        }
+        nonterminal_count = sum(row["status"] in nonterminal for row in rows)
+        worker_states = {
+            InstanceStatus.BOUND.value,
+            InstanceStatus.ACTIVE.value,
+            InstanceStatus.CHECKPOINTED.value,
+        }
+        worker_rows = [
+            row
+            for row in rows
+            if row["status"] in worker_states
+            and self._generation_has_platform(binding, int(row["generation"]))
+        ]
+        pending = self._lineage_has_pending_replacement(binding)
+        ambiguous = (
+            maximum is None
+            or active > 1
+            or nonterminal_count > 1
+            or len(worker_rows) != 1
+            or pending
+        )
+        worker_generation = None if ambiguous else int(worker_rows[0]["generation"])
+        is_current_worker: bool | None = None
+        if worker_generation is not None:
+            is_current_worker = binding.generation == worker_generation
         return {
             "generation": binding.generation,
-            "maximum_generation": maximum,
+            "latest_registry_generation": maximum,
+            "current_worker_generation": worker_generation,
             "active_generation_count": active,
+            "nonterminal_generation_count": nonterminal_count,
             "platform_instance_id": binding.platform_instance_id,
-            "current": current,
+            "is_current_worker": is_current_worker,
             "ambiguous": ambiguous,
-            "basis": "max_generation_plus_active_uniqueness",
+            "basis": (
+                "worker requires one nonterminal bound generation, platform receipt, "
+                "and no pending replacement"
+            ),
             "evidence_refs": [
                 f"lineage:{binding.run_id}",
                 f"binding:{binding.binding_id}",
             ],
         }
+
+    def _generation_has_platform(
+        self, binding: InstanceBinding, generation: int
+    ) -> bool:
+        rows = self._read(
+            """
+            SELECT platform_instance_id FROM ocs_instance_bindings
+            WHERE organization_id=? AND mission_id=? AND ocs_id=?
+              AND generation=?
+            """,
+            (
+                binding.organization_id,
+                binding.mission_id,
+                binding.ocs_id,
+                generation,
+            ),
+        )
+        return bool(rows and rows[0]["platform_instance_id"])
+
+    def _lineage_has_pending_replacement(self, binding: InstanceBinding) -> bool:
+        rows = self._read(
+            """
+            SELECT s.state FROM ocs_action_sagas s
+            JOIN ocs_instance_bindings b ON b.binding_id=s.binding_id
+            WHERE b.organization_id=? AND b.mission_id=? AND b.ocs_id=?
+              AND s.operation='ocs_instance_replacement'
+              AND s.state!='LEASE_FINALIZED'
+            LIMIT 1
+            """,
+            (binding.organization_id, binding.mission_id, binding.ocs_id),
+        )
+        return bool(rows)
 
     def _recovery_proof(
         self,
@@ -505,17 +580,43 @@ class CommandInstanceViews:
     def _source_health(self) -> str:
         if not self._path.exists():
             return "unavailable"
+        required = {
+            "ocs_instance_bindings": {
+                "binding_id",
+                "organization_id",
+                "mission_id",
+                "ocs_id",
+                "generation",
+                "platform_instance_id",
+                "status",
+                "created_at",
+                "updated_at",
+            },
+            "ocs_instance_journal": {
+                "position",
+                "event_id",
+                "binding_id",
+                "event_type",
+                "occurred_at",
+            },
+            "ocs_action_sagas": {
+                "binding_id",
+                "operation",
+                "state",
+                "updated_at",
+            },
+        }
         try:
-            rows = self._read(
-                """
-                SELECT name FROM sqlite_master
-                WHERE type='table' AND name='ocs_instance_bindings'
-                """,
-                (),
-            )
+            for table, expected_columns in required.items():
+                columns = {
+                    str(row["name"])
+                    for row in self._read(f"PRAGMA table_info({table})", ())
+                }
+                if not expected_columns.issubset(columns):
+                    return "degraded"
         except sqlite3.Error:
             return "degraded"
-        return "available" if rows else "degraded"
+        return "available"
 
     def _read(self, query: str, values: tuple[Any, ...]) -> list[sqlite3.Row]:
         if not self._path.exists():
@@ -637,6 +738,8 @@ class CommandInstanceViews:
             "snapshot": {
                 "generated_at": datetime.now(UTC).isoformat(),
                 "snapshot_at": None,
+                "boundary_kind": "unavailable",
+                "content_immutable": False,
                 "total": None,
                 "freshness": ViewFreshness.UNKNOWN.value,
                 "source_health": health,
@@ -657,6 +760,8 @@ class CommandInstanceViews:
         return {
             "generated_at": datetime.now(UTC).isoformat(),
             "snapshot_at": snapshot_at,
+            "boundary_kind": "membership_created_at",
+            "content_immutable": False,
             "total": total,
             "freshness": freshness,
             "source_health": health,
@@ -686,7 +791,7 @@ class CommandInstanceViews:
             result.organization_id != organization_id
             or result.filter_hash != filter_hash
             or result.snapshot_at > clock
-            or result.last_updated_at is None
+            or result.last_created_at is None
             or result.last_binding_id is None
         ):
             raise ValueError("command_instance_cursor_scope_mismatch")
