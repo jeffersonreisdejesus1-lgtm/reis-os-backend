@@ -1,11 +1,14 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 
 from app.command.api.dependencies import CommandReadAccess
 from app.command.api.schemas import OCSListResponse, OCSProfileResponse
 from app.command.application import get_ocs_profile, list_ocs_profiles
+from app.command.event_store import CommandEventStore
 from app.command.read_models import CommandReadModels
+from app.command.realtime import CommandRealtimeFeed, encode_sse
 from app.shared.config.settings import Settings, get_settings
 from app.shared.errors.exceptions import AppError
 
@@ -76,6 +79,33 @@ async def list_events(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> list[dict[str, Any]]:
     return _require_material(_read_models(settings).events(), "events")
+
+
+@router.get("/realtime")
+async def stream_realtime(
+    command_read_access: CommandReadAccess,
+    settings: Annotated[Settings, Depends(get_settings)],
+    cursor: Annotated[int, Query(ge=0)] = 0,
+) -> StreamingResponse:
+    store = CommandEventStore(settings.command_event_store_path)
+    try:
+        batch = CommandRealtimeFeed(store).read(cursor=cursor)
+    except ValueError as exc:
+        raise AppError(
+            "Command realtime cursor is invalid for the current projection.",
+            code=str(exc),
+            status_code=409,
+        ) from exc
+    return StreamingResponse(
+        encode_sse(batch),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Command-Cursor": str(batch.next_cursor),
+            "X-Command-Freshness": batch.freshness.value,
+            "X-Command-Connection": "connected",
+        },
+    )
 
 
 @router.get("/evidence")
