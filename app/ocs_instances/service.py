@@ -279,13 +279,40 @@ class OCSInstanceBinder:
             "generation": binding.generation,
             "state": state,
         }
-        request_fingerprint = canonical_hash(checkpoint_payload)
+        request_fingerprint = canonical_hash(
+            {"checkpoint": checkpoint_payload, "authority": asdict(authority)}
+        )
         replay = self._store.checkpoint_replay(
             binding_id=binding.binding_id,
             idempotency_key=idempotency_key,
             request_fingerprint=request_fingerprint,
         )
         if replay is not None:
+            saga = self._store.action_saga(idempotency_key)
+            saga_state = str(saga["state"])
+            if saga_state == "EFFECT_APPLIED":
+                saga = self._store.advance_action_saga(
+                    idempotency_key,
+                    expected_state="EFFECT_APPLIED",
+                    target_state="READBACK_VERIFIED",
+                )
+                saga_state = str(saga["state"])
+            if saga_state == "READBACK_VERIFIED":
+                saga = self._store.advance_action_saga(
+                    idempotency_key,
+                    expected_state="READBACK_VERIFIED",
+                    target_state="LOCAL_COMMITTED",
+                )
+                saga_state = str(saga["state"])
+            if saga_state == "LOCAL_COMMITTED":
+                replay_lease = self._leases.lease_for(authority.lease_id)
+                if replay_lease.state is not LeaseState.RELEASED:
+                    self._leases.finalize(replay_lease.lease_id)
+                self._store.advance_action_saga(
+                    idempotency_key,
+                    expected_state="LOCAL_COMMITTED",
+                    target_state="LEASE_FINALIZED",
+                )
             return replay
         profile = PROFILES[binding.ocs_id]
         if (
@@ -294,18 +321,34 @@ class OCSInstanceBinder:
             or authority.ocs_id != binding.ocs_id
         ):
             raise InstanceBindingError("checkpoint_authority_scope_mismatch")
-        checkpoint_lease = self._validated_lease(
-            authority, profile, action_binding="ocs_instance_checkpoint"
-        )
-        self._reserve_action_lease(
-            authority,
-            checkpoint_lease,
-            binding,
-            action_type="ocs_instance_checkpoint",
-            action_id=f"checkpoint:{binding.binding_id}:{next_state_version}",
-            idempotency_key=idempotency_key,
-        )
-        self._leases.finalize(checkpoint_lease.lease_id)
+        try:
+            saga = self._store.action_saga(idempotency_key)
+        except InstanceBindingError:
+            checkpoint_lease = self._validated_lease(
+                authority, profile, action_binding="ocs_instance_checkpoint"
+            )
+            self._reserve_action_lease(
+                authority,
+                checkpoint_lease,
+                binding,
+                action_type="ocs_instance_checkpoint",
+                action_id=f"checkpoint:{binding.binding_id}:{next_state_version}",
+                idempotency_key=idempotency_key,
+            )
+            saga = self._store.begin_action_saga(
+                idempotency_key=idempotency_key,
+                binding_id=binding.binding_id,
+                operation="ocs_instance_checkpoint",
+                request_fingerprint=request_fingerprint,
+                payload={"lease_id": checkpoint_lease.lease_id},
+            )
+        else:
+            if (
+                saga["binding_id"] != binding.binding_id
+                or saga["request_fingerprint"] != request_fingerprint
+            ):
+                raise InstanceBindingError("instance_idempotency_conflict")
+            checkpoint_lease = self._leases.lease_for(authority.lease_id)
         recovered = self._continuity.recover_state(
             run_id=binding.run_id,
             expected_ocs=binding.ocs_id,
@@ -334,6 +377,12 @@ class OCSInstanceBinder:
             persisted_event_hash = persisted.receipt.get("event_hash")
         else:
             raise InstanceBindingError("checkpoint_state_version_conflict")
+        if saga["state"] == "LEASE_RESERVED":
+            saga = self._store.advance_action_saga(
+                idempotency_key,
+                expected_state="LEASE_RESERVED",
+                target_state="EFFECT_APPLIED",
+            )
         recovered = self._continuity.recover_state(
             run_id=binding.run_id,
             expected_ocs=binding.ocs_id,
@@ -342,7 +391,13 @@ class OCSInstanceBinder:
         )
         if recovered.get("event_hash") != persisted_event_hash:
             raise InstanceBindingError("checkpoint_readback_mismatch")
-        return self._store.transition(
+        if saga["state"] == "EFFECT_APPLIED":
+            saga = self._store.advance_action_saga(
+                idempotency_key,
+                expected_state="EFFECT_APPLIED",
+                target_state="READBACK_VERIFIED",
+            )
+        committed = self._store.transition(
             binding.binding_id,
             expected_version=expected_version,
             target=InstanceStatus.CHECKPOINTED,
@@ -357,6 +412,21 @@ class OCSInstanceBinder:
                 "request_fingerprint": request_fingerprint,
             },
         )
+        if saga["state"] == "READBACK_VERIFIED":
+            saga = self._store.advance_action_saga(
+                idempotency_key,
+                expected_state="READBACK_VERIFIED",
+                target_state="LOCAL_COMMITTED",
+            )
+        if saga["state"] == "LOCAL_COMMITTED":
+            if checkpoint_lease.state is not LeaseState.RELEASED:
+                self._leases.finalize(checkpoint_lease.lease_id)
+            self._store.advance_action_saga(
+                idempotency_key,
+                expected_state="LOCAL_COMMITTED",
+                target_state="LEASE_FINALIZED",
+            )
+        return committed
 
     def replace_instance(
         self,
@@ -388,6 +458,19 @@ class OCSInstanceBinder:
             if envelope.digest() != replayed.bootstrap_hash:
                 raise InstanceBindingError("bootstrap_recovery_hash_mismatch")
             self._reconcile_binding_lease(request, lease, replayed)
+            try:
+                replay_saga = self._store.action_saga(
+                    replacement_idempotency_key
+                )
+            except InstanceBindingError:
+                pass
+            else:
+                if replay_saga["state"] == "LOCAL_COMMITTED":
+                    self._store.advance_action_saga(
+                        replacement_idempotency_key,
+                        expected_state="LOCAL_COMMITTED",
+                        target_state="LEASE_FINALIZED",
+                    )
             return replayed, envelope
         if previous.status is not InstanceStatus.CHECKPOINTED:
             raise InstanceBindingError("verified_checkpoint_required_for_replacement")
@@ -400,6 +483,8 @@ class OCSInstanceBinder:
             or request.ocs_id != previous.ocs_id
         ):
             raise InstanceBindingError("replacement_identity_scope_mismatch")
+        if request.causation_id != previous.hazel_event_hash:
+            raise InstanceBindingError("replacement_causation_mismatch")
         profile = PROFILES[request.ocs_id]
         if (
             previous.profile_version != profile.version
@@ -413,7 +498,29 @@ class OCSInstanceBinder:
             or request.trace_ref != previous_lease.trace_ref
         ):
             raise InstanceBindingError("replacement_authority_context_drift")
-        lease = self._validated_lease(request, profile)
+        replacement_fingerprint = canonical_hash(
+            {
+                "request_hash": request_hash,
+                "predecessor": previous.binding_id,
+                "checkpoint_hash": previous.checkpoint_hash,
+                "checkpoint_version": previous.checkpoint_version,
+            }
+        )
+        try:
+            replacement_saga = self._store.action_saga(
+                replacement_idempotency_key
+            )
+        except InstanceBindingError:
+            replacement_saga = None
+            lease = self._validated_lease(request, profile)
+        else:
+            if (
+                replacement_saga["binding_id"] != previous.binding_id
+                or replacement_saga["request_fingerprint"]
+                != replacement_fingerprint
+            ):
+                raise InstanceBindingError("replacement_idempotency_conflict")
+            lease = self._leases.lease_for(request.lease_id)
         prior_state = self._continuity.recover_state(
             run_id=previous.run_id,
             expected_ocs=previous.ocs_id,
@@ -452,9 +559,16 @@ class OCSInstanceBinder:
             bootstrap_hash=unsigned.digest(),
         )
         envelope = self._envelope(next_binding, profile, lease, nonce)
-        self._reserve_binding_lease(request, lease, next_binding)
+        if replacement_saga is None:
+            self._reserve_binding_lease(request, lease, next_binding)
+            replacement_saga = self._store.begin_action_saga(
+                idempotency_key=replacement_idempotency_key,
+                binding_id=previous.binding_id,
+                operation="ocs_instance_replacement",
+                request_fingerprint=replacement_fingerprint,
+                payload={"lease_id": lease.lease_id},
+            )
         next_binding = self._store.create(next_binding)
-        self._leases.finalize(lease.lease_id)
         next_version = previous.checkpoint_version + 1
         replacement_state = {
             "binding_id": next_binding.binding_id,
@@ -489,6 +603,12 @@ class OCSInstanceBinder:
             persisted_event_hash = persisted.receipt.get("event_hash")
         else:
             raise InstanceBindingError("replacement_state_version_conflict")
+        if replacement_saga["state"] == "LEASE_RESERVED":
+            replacement_saga = self._store.advance_action_saga(
+                replacement_idempotency_key,
+                expected_state="LEASE_RESERVED",
+                target_state="EFFECT_APPLIED",
+            )
         recovered = self._continuity.recover_state(
             run_id=next_binding.run_id,
             expected_ocs=next_binding.ocs_id,
@@ -497,6 +617,12 @@ class OCSInstanceBinder:
         )
         if recovered.get("event_hash") != persisted_event_hash:
             raise InstanceBindingError("replacement_readback_mismatch")
+        if replacement_saga["state"] == "EFFECT_APPLIED":
+            replacement_saga = self._store.advance_action_saga(
+                replacement_idempotency_key,
+                expected_state="EFFECT_APPLIED",
+                target_state="READBACK_VERIFIED",
+            )
         _, durable = self._store.commit_replacement(
             predecessor_id=previous.binding_id,
             predecessor_expected_version=expected_version,
@@ -507,6 +633,20 @@ class OCSInstanceBinder:
             checkpoint_hash=str(recovered["payload_hash"]),
             hazel_event_hash=str(recovered["event_hash"]),
         )
+        if replacement_saga["state"] == "READBACK_VERIFIED":
+            replacement_saga = self._store.advance_action_saga(
+                replacement_idempotency_key,
+                expected_state="READBACK_VERIFIED",
+                target_state="LOCAL_COMMITTED",
+            )
+        if replacement_saga["state"] == "LOCAL_COMMITTED":
+            if lease.state is not LeaseState.RELEASED:
+                self._leases.finalize(lease.lease_id)
+            self._store.advance_action_saga(
+                replacement_idempotency_key,
+                expected_state="LOCAL_COMMITTED",
+                target_state="LEASE_FINALIZED",
+            )
         return durable, envelope
 
     @staticmethod
