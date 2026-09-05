@@ -177,6 +177,9 @@ class InstanceBootstrapEnvelope:
     challenge_nonce: str
     issued_at: float
     expires_at: float
+    binding_lease_consumed: bool = True
+    execution_authority_granted: bool = False
+    per_action_lease_required: bool = True
 
     def unsigned_payload(self) -> dict[str, Any]:
         return asdict(self)
