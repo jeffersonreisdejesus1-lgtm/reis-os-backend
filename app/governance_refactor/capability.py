@@ -79,7 +79,10 @@ def evaluate_integration_use(
     if snapshot.expires_at is not None:
         if snapshot.expires_at.tzinfo is None:
             reasons.append("expires_at_not_timezone_aware")
-        elif evaluation_time.tzinfo is not None and snapshot.expires_at <= evaluation_time:
+        elif (
+            evaluation_time.tzinfo is not None
+            and snapshot.expires_at <= evaluation_time
+        ):
             reasons.append("capability_snapshot_expired")
 
     if not snapshot.capability_version.strip():
