@@ -105,7 +105,11 @@ class CommandEventStore:
                         event.idempotency_key,
                         event.freshness.value,
                         json.dumps(event.evidence_refs, sort_keys=True),
-                        json.dumps(event.payload, sort_keys=True, separators=(",", ":")),
+                        json.dumps(
+                            event.payload,
+                            sort_keys=True,
+                            separators=(",", ":"),
+                        ),
                     ),
                 )
             except sqlite3.IntegrityError as exc:
