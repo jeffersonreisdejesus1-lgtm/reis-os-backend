@@ -101,6 +101,13 @@ def test_four_representative_families_have_bounded_routing_consumption() -> None
     receipts = evaluate_representative_suite()
     assert len(receipts) == 4
     assert all(receipt.causal_consumption_proven for receipt in receipts)
+    assert all(
+        receipt.reason == "bounded_routing_and_evidence_attachment_causality_proven"
+        for receipt in receipts
+    )
+    assert all(
+        receipt.semantic_derivation_causality_proven is False for receipt in receipts
+    )
     families = {
         source_id.split("-", 1)[0]
         for receipt in receipts
@@ -114,7 +121,8 @@ def test_wrong_expected_family_fails_closed_instead_of_claiming_causality() -> N
     mismatched = replace(case, expected_source_family="KLEPPMANN")
     receipt = evaluate_representative_case(mismatched)
     assert receipt.causal_consumption_proven is False
-    assert receipt.reason == "expected_source_family_not_retrieved"
+    assert receipt.reason == "expected_source_family_not_authorized_by_lens"
+    assert receipt.semantic_derivation_causality_proven is False
 
 
 def test_representative_cases_reach_kernel_with_bound_receipts() -> None:
