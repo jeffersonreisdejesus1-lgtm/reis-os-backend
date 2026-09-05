@@ -161,7 +161,9 @@ def build_retrieval_plan(
     scored.sort(key=lambda item: (-item[0], item[1].lens_id))
     selected = tuple(lens for _, lens in scored)
     candidate_lenses = tuple(lens.lens_id for lens in selected)
-    allowed_source_families = tuple(dict.fromkeys(lens.source_family for lens in selected))
+    allowed_source_families = tuple(
+        dict.fromkeys(lens.source_family for lens in selected)
+    )
     retrieval_queries = tuple(
         f"{problem} :: {lens.lens_id} :: {','.join(lens.domains)}"
         for lens in selected
