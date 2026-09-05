@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -107,35 +108,13 @@ def test_sequence_gap_is_explicit_hold(tmp_path: Path) -> None:
 
 def test_invalid_schema_fields_are_rejected(tmp_path: Path) -> None:
     store = CommandEventStore(tmp_path / "command-events.sqlite3")
-    invalid = event()
-    invalid = CommandEvent(
-        **{**invalid.__dict__, "event_type": ""}  # type: ignore[attr-defined]
-    )
+    invalid = replace(event(), event_type="")
     with pytest.raises(EventValidationError, match="required_field_missing"):
         store.append(invalid)
 
 
 def test_unknown_source_is_rejected(tmp_path: Path) -> None:
-    base = event()
-    unknown = CommandEvent(
-        event_id=base.event_id,
-        event_type=base.event_type,
-        schema_version=base.schema_version,
-        occurred_at=base.occurred_at,
-        source="unknown",
-        source_version=base.source_version,
-        institution_id=base.institution_id,
-        ocs_id=base.ocs_id,
-        project_id=base.project_id,
-        run_id=base.run_id,
-        causation_id=base.causation_id,
-        correlation_id=base.correlation_id,
-        sequence=base.sequence,
-        idempotency_key=base.idempotency_key,
-        freshness=base.freshness,
-        evidence_refs=base.evidence_refs,
-        payload=base.payload,
-    )
+    unknown = replace(event(), source="unknown")
     with pytest.raises(EventValidationError, match="source_unknown"):
         CommandEventStore(tmp_path / "events.sqlite3").append(unknown)
 
