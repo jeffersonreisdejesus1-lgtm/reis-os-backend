@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any
 
 from app.ocs_instances.contracts import (
@@ -53,10 +53,7 @@ class OCSInstanceRecovery:
         self._require_single_active_generation(organization_id, mission_id, ocs_id)
 
         saga_state: str | None = None
-        if (
-            binding.predecessor_binding_id is not None
-            and binding.status is InstanceStatus.PREPARED
-        ):
+        if binding.predecessor_binding_id is not None:
             binding, saga_state = self._reconcile_replacement(binding)
 
         recovered = self._recover_hazel(binding)
@@ -92,17 +89,18 @@ class OCSInstanceRecovery:
             authority_ref=successor.authority_ref,
         )
         next_version = predecessor.checkpoint_version + 1
-        replacement_state = {
-            "binding_id": successor.binding_id,
-            "mission_id": successor.mission_id,
-            "generation": successor.generation,
-            "recovered_from": predecessor.binding_id,
-            "recovered_payload": recovered["payload"],
-            "bootstrap_hash": successor.bootstrap_hash,
-        }
-
         recovered_version = int(recovered["state_version"])
         if recovered_version == predecessor.checkpoint_version:
+            if successor.status is not InstanceStatus.PREPARED:
+                raise InstanceBindingError("replacement_hazel_effect_missing")
+            replacement_state = {
+                "binding_id": successor.binding_id,
+                "mission_id": successor.mission_id,
+                "generation": successor.generation,
+                "recovered_from": predecessor.binding_id,
+                "recovered_payload": recovered["payload"],
+                "bootstrap_hash": successor.bootstrap_hash,
+            }
             persisted = self._continuity.persist_state(
                 run_id=successor.run_id,
                 expected_ocs=successor.ocs_id,
@@ -115,17 +113,6 @@ class OCSInstanceRecovery:
             )
             persisted_hash = persisted.receipt.get("event_hash")
         elif recovered_version == next_version:
-            expected_payload = dict(replacement_state)
-            current_payload = recovered.get("payload")
-            if not isinstance(current_payload, dict):
-                raise InstanceBindingError("replacement_recovery_payload_invalid")
-            # Once the replacement effect exists, the nested recovered payload is
-            # already embedded in Hazel and must be preserved exactly.
-            expected_payload["recovered_payload"] = current_payload.get(
-                "recovered_payload"
-            )
-            if current_payload != expected_payload:
-                raise InstanceBindingError("replacement_recovery_conflict")
             persisted_hash = recovered.get("event_hash")
         else:
             raise InstanceBindingError("replacement_state_version_conflict")
@@ -218,13 +205,8 @@ class OCSInstanceRecovery:
             raise InstanceBindingError("recovery_unknown_ocs_identity")
         if binding.profile_version != profile.version:
             raise InstanceBindingError("recovery_profile_version_drift")
-        if binding.profile_hash != canonical_hash(profile.__dict__):
-            # canonical profile hashing in the binder uses dataclass asdict; __dict__
-            # contains the same declared data for these frozen profile records.
-            from dataclasses import asdict
-
-            if binding.profile_hash != canonical_hash(asdict(profile)):
-                raise InstanceBindingError("recovery_profile_hash_drift")
+        if binding.profile_hash != canonical_hash(asdict(profile)):
+            raise InstanceBindingError("recovery_profile_hash_drift")
         if binding.authority_ref != profile.authority_envelope_ref:
             raise InstanceBindingError("recovery_authority_ref_drift")
         if binding.state_namespace != profile.state_namespace:
