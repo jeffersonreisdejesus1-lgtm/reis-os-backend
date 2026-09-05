@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Protocol
 
 from app.command.kernel_adapter import KernelDecisionReadback
@@ -88,12 +88,7 @@ class CommandHazelAdapter:
         self._validate_binding(decision, request)
         previous = self._idempotency.get(request.idempotency_key)
         if previous is not None:
-            return HazelPersistReadback(
-                **{
-                    **previous.__dict__,
-                    "idempotent_replay": True,
-                }
-            )
+            return replace(previous, mutation_count=0, idempotent_replay=True)
         self._validate_predecessor(decision, request)
         state = dict(request.state)
         state["command_causality"] = {
