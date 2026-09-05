@@ -88,7 +88,7 @@ def _capability() -> IntegrationCapabilitySnapshot:
     )
 
 
-def test_r6_capability_requires_connection_action_authority_target_and_source_role() -> None:
+def test_r6_capability_prerequisites() -> None:
     allowed = evaluate_integration_use(
         _capability(),
         IntegrationUseRequest(
@@ -119,7 +119,7 @@ def test_r6_capability_requires_connection_action_authority_target_and_source_ro
     assert "authority_ref_required" in denied.reasons
 
 
-def test_r6_write_does_not_imply_promotion_and_receipt_requires_reconciliation() -> None:
+def test_r6_write_and_reconciliation_boundaries() -> None:
     promotion = evaluate_integration_use(
         _capability(),
         IntegrationUseRequest(
