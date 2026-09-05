@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -32,7 +32,7 @@ def event(
         event_id=event_id,
         event_type="command.operation.updated",
         schema_version="1.0",
-        occurred_at=datetime(2026, 9, 5, 4, 0, tzinfo=timezone.utc),
+        occurred_at=datetime(2026, 9, 5, 4, 0, tzinfo=UTC),
         source="reis-os-backend",
         source_version="ef926b0",
         institution_id="REIS-OS",
