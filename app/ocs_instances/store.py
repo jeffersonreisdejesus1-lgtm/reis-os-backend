@@ -107,7 +107,9 @@ class InstanceBindingStore:
                 """
                 SELECT binding_id FROM ocs_instance_bindings
                 WHERE organization_id = ? AND mission_id = ? AND ocs_id = ?
-                  AND status IN (\n                    'prepared', 'persisted', 'bound', 'active', 'checkpointed'\n                  )
+                  AND status IN (
+                    'prepared', 'persisted', 'bound', 'active', 'checkpointed'
+                  )
                 """,
                 (binding.organization_id, binding.mission_id, binding.ocs_id),
             ).fetchone()
