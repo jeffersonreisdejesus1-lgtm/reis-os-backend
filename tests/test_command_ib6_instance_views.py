@@ -19,7 +19,7 @@ def binding(
     *,
     binding_id: str = "binding:1",
     generation: int = 1,
-    status: InstanceStatus = InstanceStatus.PERSISTED,
+    status: InstanceStatus = InstanceStatus.PREPARED,
     predecessor_binding_id: str | None = None,
 ) -> InstanceBinding:
     now = time()
