@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from conftest import TestSessionLocal
 from httpx import AsyncClient
 from sqlalchemy import update
 
@@ -26,7 +27,6 @@ from app.main import app
 from app.memberships.domain.enums import MembershipRole
 from app.memberships.infrastructure.models import MembershipModel
 from app.shared.config.settings import Settings, get_settings
-from conftest import TestSessionLocal
 
 pytestmark = pytest.mark.integration
 NOW = datetime(2026, 9, 5, 22, 0, tzinfo=UTC)
