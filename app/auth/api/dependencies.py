@@ -1,30 +1,44 @@
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.shared.config.settings import get_settings
 from app.shared.database.session import get_db_session
 from app.shared.errors.exceptions import AppError
-from app.shared.security.tokens import decode_access_token
+from app.shared.security.tokens import decode_session_identity
 from app.users.infrastructure.models import UserModel
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
+    request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
     session: Annotated[AsyncSession, Depends(get_db_session)],
 ) -> UserModel:
-    if credentials is None:
+    settings = get_settings()
+    token = credentials.credentials if credentials is not None else None
+    if token is None:
+        token = request.cookies.get(settings.session_cookie_name)
+    if token is None:
         raise AppError("Authentication required.", code="unauthorized", status_code=401)
-    user_id = decode_access_token(credentials.credentials)
+
+    identity = decode_session_identity(token)
     user = await session.scalar(
-        select(UserModel).where(UserModel.id == user_id, UserModel.is_active.is_(True))
+        select(UserModel).where(
+            UserModel.id == identity.user_id,
+            UserModel.is_active.is_(True),
+        )
     )
-    if user is None:
-        raise AppError("User not found.", code="unauthorized", status_code=401)
+    if user is None or user.session_version != identity.session_version:
+        raise AppError(
+            "Session expired or revoked.",
+            code="session_revoked",
+            status_code=401,
+        )
     return user
 
 
