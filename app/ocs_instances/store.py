@@ -144,6 +144,11 @@ class InstanceBindingStore:
                     or binding.mission_id != predecessor.mission_id
                     or binding.ocs_id != predecessor.ocs_id
                     or binding.run_id != predecessor.run_id
+                    or binding.profile_version != predecessor.profile_version
+                    or binding.profile_hash != predecessor.profile_hash
+                    or binding.authority_ref != predecessor.authority_ref
+                    or binding.state_namespace != predecessor.state_namespace
+                    or binding.memory_namespace != predecessor.memory_namespace
                     or binding.generation != predecessor.generation + 1
                 ):
                     raise InstanceBindingError("replacement_lineage_mismatch")
@@ -382,6 +387,11 @@ class InstanceBindingStore:
                 or successor.mission_id != predecessor.mission_id
                 or successor.ocs_id != predecessor.ocs_id
                 or successor.run_id != predecessor.run_id
+                or successor.profile_version != predecessor.profile_version
+                or successor.profile_hash != predecessor.profile_hash
+                or successor.authority_ref != predecessor.authority_ref
+                or successor.state_namespace != predecessor.state_namespace
+                or successor.memory_namespace != predecessor.memory_namespace
                 or successor.generation != predecessor.generation + 1
             ):
                 raise InstanceBindingError("replacement_lineage_mismatch")
