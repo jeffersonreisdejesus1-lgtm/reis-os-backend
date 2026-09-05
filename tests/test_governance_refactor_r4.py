@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
 
 import pytest
 
+from app.governance_refactor.contracts import (
+    Completeness,
+    MissionMetricsRecord,
+)
 from app.governance_refactor.projections import (
     CandidateFilter,
     GovernanceCommandViews,
@@ -19,15 +22,36 @@ from app.governance_refactor.scoped_store import ScopedGovernanceStore
 NOW = datetime(2026, 9, 5, 22, 0, tzinfo=UTC)
 
 
-@dataclass(frozen=True)
-class MissionMetricsRecord:
-    record_id: str
-    mission_id: str
-    ocs_id: str
-    observed_at: datetime
-    source_refs: tuple[str, ...]
-    provenance_refs: tuple[str, ...]
-    schema_version: str = "governance-candidate-v0.1"
+def _metric(
+    record_id: str,
+    *,
+    source_refs: tuple[str, ...] = ("source:1",),
+) -> MissionMetricsRecord:
+    return MissionMetricsRecord(
+        record_id=record_id,
+        mission_id="mission-1",
+        ocs_id="SOFIA",
+        product_id=None,
+        gate_id=None,
+        started_at=NOW - timedelta(minutes=5),
+        completed_at=NOW,
+        active_execution_seconds=240,
+        waiting_seconds=60,
+        founder_wait_seconds=0,
+        external_wait_seconds=60,
+        retries=0,
+        failures=0,
+        refactors=0,
+        founder_interventions=0,
+        autonomous_completion=True,
+        source_refs=source_refs,
+        source_links=(),
+        provenance_refs=("proof:1",),
+        measurement_method="test_fixture",
+        measurement_version="r4-r7",
+        observed_at=NOW,
+        completeness=Completeness.COMPLETE,
+    )
 
 
 def _schema(path: Path) -> None:
@@ -80,24 +104,40 @@ def _insert(
         connection.execute(
             "INSERT INTO governance_candidate_records VALUES(NULL,?,?,?,?,?,?,?,?)",
             (
-                "MissionMetricsRecord", record_id, "governance-candidate-v0.1",
-                encoded, digest, '["source:1"]', '["proof:1"]', NOW.isoformat(),
+                "MissionMetricsRecord",
+                record_id,
+                "governance-candidate-v0.1",
+                encoded,
+                digest,
+                '["source:1"]',
+                '["proof:1"]',
+                NOW.isoformat(),
             ),
         )
         connection.execute(
             "INSERT INTO governance_candidate_events VALUES(NULL,?,?,?,?,?,?,?,?,?,?)",
             (
-                "event-" + record_id, "MissionMetricsRecord", record_id,
-                "governance-candidate-v0.1", "CANDIDATE_RECORD_APPENDED",
-                digest, encoded, '["source:1"]', '["proof:1"]', NOW.isoformat(),
+                "event-" + record_id,
+                "MissionMetricsRecord",
+                record_id,
+                "governance-candidate-v0.1",
+                "CANDIDATE_RECORD_APPENDED",
+                digest,
+                encoded,
+                '["source:1"]',
+                '["proof:1"]',
+                NOW.isoformat(),
             ),
         )
         if organization_id is not None:
             connection.execute(
                 "INSERT INTO governance_candidate_scopes VALUES(?,?,?,?,?)",
                 (
-                    organization_id, "MissionMetricsRecord", record_id,
-                    "governance-candidate-v0.1", NOW.isoformat(),
+                    organization_id,
+                    "MissionMetricsRecord",
+                    record_id,
+                    "governance-candidate-v0.1",
+                    NOW.isoformat(),
                 ),
             )
 
@@ -119,19 +159,27 @@ def test_r4_tenant_scope_and_legacy_records_fail_closed(tmp_path: Path) -> None:
     _insert(path, record_id="legacy-unscoped", organization_id=None)
     view = GovernanceCommandViews(path)
     own = view.list_candidates(
-        organization_id="org-a", filters=CandidateFilter(), cursor=0, limit=25,
+        organization_id="org-a",
+        filters=CandidateFilter(),
+        cursor=0,
+        limit=25,
         now=NOW,
     )
     foreign = view.list_candidates(
-        organization_id="org-b", filters=CandidateFilter(), cursor=0, limit=25,
+        organization_id="org-b",
+        filters=CandidateFilter(),
+        cursor=0,
+        limit=25,
         now=NOW,
     )
     assert [item["record_id"] for item in own["items"]] == ["owned-a"]
     assert foreign["items"] == []
     with pytest.raises(GovernanceProjectionError, match="candidate_record_not_found"):
         view.get_candidate(
-            organization_id="org-b", record_type="MissionMetricsRecord",
-            record_id="owned-a", now=NOW,
+            organization_id="org-b",
+            record_type="MissionMetricsRecord",
+            record_id="owned-a",
+            now=NOW,
         )
 
 
@@ -141,7 +189,10 @@ def test_r4_hash_readback_fails_closed(tmp_path: Path) -> None:
     _insert(path, record_id="corrupt", organization_id="org-a", corrupt=True)
     with pytest.raises(GovernanceProjectionError, match="hash_mismatch"):
         GovernanceCommandViews(path).list_candidates(
-            organization_id="org-a", filters=CandidateFilter(), cursor=0, limit=25,
+            organization_id="org-a",
+            filters=CandidateFilter(),
+            cursor=0,
+            limit=25,
             now=NOW,
         )
 
@@ -167,15 +218,20 @@ def test_r4_allowlist_cursor_filter_freshness_and_summary(tmp_path: Path) -> Non
     assert page["items"][0]["freshness"] == "stale"
     assert page["next_cursor"] == page["items"][0]["position"]
     second = view.list_candidates(
-        organization_id="org-a", filters=CandidateFilter(),
-        cursor=page["next_cursor"], limit=1, now=NOW,
+        organization_id="org-a",
+        filters=CandidateFilter(),
+        cursor=page["next_cursor"],
+        limit=1,
+        now=NOW,
     )
     assert second["items"][0]["freshness"] == "current"
     assert view.summary(organization_id="org-a")["total"] == 2
     with pytest.raises(GovernanceProjectionError, match="record_type_not_allowed"):
         view.list_candidates(
-            organization_id="org-a", filters=CandidateFilter("NotAType"),
-            cursor=0, limit=25,
+            organization_id="org-a",
+            filters=CandidateFilter("NotAType"),
+            cursor=0,
+            limit=25,
         )
 
 
@@ -196,9 +252,7 @@ def test_r4_atomic_writer_restart_readback_idempotency_and_conflicts(
 ) -> None:
     path = tmp_path / "writer.sqlite3"
     _schema(path)
-    record = MissionMetricsRecord(
-        "writer-1", "mission-1", "SOFIA", NOW, ("source:1",), ("proof:1",)
-    )
+    record = _metric("writer-1")
     first = ScopedGovernanceStore(path).append(
         record, organization_id="org-a", occurred_at=NOW
     )
@@ -217,9 +271,7 @@ def test_r4_atomic_writer_restart_readback_idempotency_and_conflicts(
         ScopedGovernanceStore(path).append(
             record, organization_id="org-b", occurred_at=NOW
         )
-    changed = MissionMetricsRecord(
-        "writer-1", "mission-1", "SOFIA", NOW, ("source:2",), ("proof:1",)
-    )
+    changed = _metric("writer-1", source_refs=("source:2",))
     with pytest.raises(GovernanceProjectionError, match="append_conflict"):
         ScopedGovernanceStore(path).append(
             changed, organization_id="org-a", occurred_at=NOW
