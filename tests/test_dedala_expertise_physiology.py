@@ -134,7 +134,10 @@ def test_default_seeded_corpus_is_used_when_no_fixture_is_supplied() -> None:
 
 def test_partial_corpus_override_fails_closed() -> None:
     sources, _ = _source_material()
-    with pytest.raises(ValueError, match="complete_expertise_corpus_configuration_required"):
+    with pytest.raises(
+        ValueError,
+        match="complete_expertise_corpus_configuration_required",
+    ):
         DedalaExpertisePhysiology(kernel=FakeKernel(), sources=sources)
 
 
