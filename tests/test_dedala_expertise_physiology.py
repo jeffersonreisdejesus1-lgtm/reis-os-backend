@@ -117,6 +117,30 @@ def test_verified_derivation_reaches_kernel_without_authority_expansion() -> Non
     assert result.phases[-1] == "KERNEL_GOVERNANCE_AND_EXECUTION"
 
 
+def test_default_seeded_corpus_is_used_when_no_fixture_is_supplied() -> None:
+    kernel = FakeKernel()
+    result = DedalaExpertisePhysiology(kernel=kernel).execute(
+        _proposal(),
+        problem="distributed consistency failure state",
+        proposition="Require stale-writer rejection at the protected state boundary.",
+        falsifier=lambda candidate, evidence: True,
+        verifier=lambda candidate, evidence: True,
+    )
+
+    assert result.material_execution_attempted is True
+    assert any(item.source_id.startswith("KLEPPMANN-") for item in result.evidence)
+    assert kernel.calls == [_proposal()]
+
+
+def test_partial_corpus_override_fails_closed() -> None:
+    sources, _ = _source_material()
+    with pytest.raises(
+        ValueError,
+        match="complete_expertise_corpus_configuration_required",
+    ):
+        DedalaExpertisePhysiology(kernel=FakeKernel(), sources=sources)
+
+
 def test_failed_falsification_blocks_kernel_execution() -> None:
     kernel = FakeKernel()
     result = _physiology(kernel).execute(

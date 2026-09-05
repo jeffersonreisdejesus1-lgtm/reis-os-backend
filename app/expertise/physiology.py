@@ -6,6 +6,11 @@ from typing import Protocol
 
 from app.universal_kernel.contracts import ActionProposal, ExecutionResult
 
+from .corpus import (
+    DEDALA_EXPERT_FRAGMENTS,
+    DEDALA_EXPERT_SOURCES,
+    validate_seed_corpus,
+)
 from .derivation import (
     ArchitecturalDerivationCandidate,
     assert_persistence_eligible,
@@ -64,9 +69,18 @@ class DedalaExpertisePhysiology:
         self,
         *,
         kernel: KernelExecutionPort,
-        sources: tuple[ExpertSourceRecord, ...],
-        fragments: tuple[ExpertEvidenceFragment, ...],
+        sources: tuple[ExpertSourceRecord, ...] | None = None,
+        fragments: tuple[ExpertEvidenceFragment, ...] | None = None,
     ) -> None:
+        if (sources is None) != (fragments is None):
+            raise ValueError("complete_expertise_corpus_configuration_required")
+        if sources is None and fragments is None:
+            validate_seed_corpus()
+            sources = DEDALA_EXPERT_SOURCES
+            fragments = DEDALA_EXPERT_FRAGMENTS
+
+        assert sources is not None
+        assert fragments is not None
         self._kernel = kernel
         self._sources = sources
         self._fragments = fragments

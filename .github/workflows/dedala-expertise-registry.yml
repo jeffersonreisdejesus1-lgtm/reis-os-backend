@@ -8,6 +8,7 @@ on:
       - "tests/test_dedala_expertise_retrieval.py"
       - "tests/test_dedala_expertise_derivation.py"
       - "tests/test_dedala_expertise_physiology.py"
+      - "tests/test_dedala_expertise_corpus.py"
       - "docs/DEDALA-EXPERTISE-LAYER-REFACTOR-001.md"
       - ".github/workflows/dedala-expertise-registry.yml"
 
@@ -26,3 +27,4 @@ jobs:
           tests/test_dedala_expertise_retrieval.py
           tests/test_dedala_expertise_derivation.py
           tests/test_dedala_expertise_physiology.py
+          tests/test_dedala_expertise_corpus.py
