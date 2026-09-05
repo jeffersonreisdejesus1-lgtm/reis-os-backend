@@ -4,13 +4,18 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from starlette.concurrency import run_in_threadpool
 
-from app.command.api.dependencies import CommandReadAccess
+from app.command.api.dependencies import (
+    CommandInstitutionOrganizationId,
+    CommandReadAccess,
+)
 from app.command.instance_views import (
     CommandInstanceViews,
     InstanceFilter,
     encode_instance_sse,
 )
+from app.ocs_instances.contracts import InstanceBindingError
 from app.shared.config.settings import Settings, get_settings
 from app.shared.errors.exceptions import AppError
 
@@ -46,6 +51,7 @@ def _projection_error(exc: ValueError) -> AppError:
 @router.get("/instances")
 async def list_instances(
     command_read_access: CommandReadAccess,
+    institution_organization_id: CommandInstitutionOrganizationId,
     settings: Annotated[Settings, Depends(get_settings)],
     mission_id: str | None = None,
     ocs_id: str | None = None,
@@ -55,7 +61,9 @@ async def list_instances(
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> dict[str, Any]:
     try:
-        return _views(settings).list_instances(
+        return await run_in_threadpool(
+            _views(settings).list_instances,
+            organization_id=str(institution_organization_id),
             filters=_filters(mission_id, ocs_id, canonical_status, operational_phase),
             cursor=cursor,
             limit=limit,
@@ -67,12 +75,18 @@ async def list_instances(
 @router.get("/instances/realtime")
 async def stream_instances(
     command_read_access: CommandReadAccess,
+    institution_organization_id: CommandInstitutionOrganizationId,
     settings: Annotated[Settings, Depends(get_settings)],
     cursor: Annotated[int, Query(ge=0)] = 0,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
 ) -> StreamingResponse:
     try:
-        batch = _views(settings).journal_feed(cursor=cursor, limit=limit)
+        batch = await run_in_threadpool(
+            _views(settings).journal_feed,
+            organization_id=str(institution_organization_id),
+            cursor=cursor,
+            limit=limit,
+        )
     except ValueError as exc:
         raise _projection_error(exc) from exc
     return StreamingResponse(
@@ -91,32 +105,69 @@ async def stream_instances(
 async def get_instance(
     binding_id: str,
     command_read_access: CommandReadAccess,
+    institution_organization_id: CommandInstitutionOrganizationId,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, Any]:
-    return _views(settings).get(binding_id)
+    try:
+        return await run_in_threadpool(
+            _views(settings).get,
+            binding_id,
+            organization_id=str(institution_organization_id),
+        )
+    except InstanceBindingError as exc:
+        raise AppError(
+            "Command instance was not found in the authorized organization.",
+            code="command_instance_not_found",
+            status_code=404,
+        ) from exc
 
 
 @router.get("/instances/{binding_id}/lineage")
 async def get_instance_lineage(
     binding_id: str,
     command_read_access: CommandReadAccess,
+    institution_organization_id: CommandInstitutionOrganizationId,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, Any]:
-    return _views(settings).lineage(binding_id)
+    try:
+        return await run_in_threadpool(
+            _views(settings).lineage,
+            binding_id,
+            organization_id=str(institution_organization_id),
+        )
+    except InstanceBindingError as exc:
+        raise AppError(
+            "Command instance lineage was not found.",
+            code="command_instance_not_found",
+            status_code=404,
+        ) from exc
 
 
 @router.get("/instances/{binding_id}/comparison")
 async def compare_instance_recovery(
     binding_id: str,
     command_read_access: CommandReadAccess,
+    institution_organization_id: CommandInstitutionOrganizationId,
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, Any]:
-    return _views(settings).comparison(binding_id)
+    try:
+        return await run_in_threadpool(
+            _views(settings).comparison,
+            binding_id,
+            organization_id=str(institution_organization_id),
+        )
+    except InstanceBindingError as exc:
+        raise AppError(
+            "Command recovery comparison was not found.",
+            code="command_instance_not_found",
+            status_code=404,
+        ) from exc
 
 
 @router.get("/recovery-center")
 async def get_recovery_center(
     command_read_access: CommandReadAccess,
+    institution_organization_id: CommandInstitutionOrganizationId,
     settings: Annotated[Settings, Depends(get_settings)],
     mission_id: str | None = None,
     ocs_id: str | None = None,
@@ -126,7 +177,9 @@ async def get_recovery_center(
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> dict[str, Any]:
     try:
-        return _views(settings).recovery_center(
+        return await run_in_threadpool(
+            _views(settings).recovery_center,
+            organization_id=str(institution_organization_id),
             filters=_filters(mission_id, ocs_id, canonical_status, operational_phase),
             cursor=cursor,
             limit=limit,

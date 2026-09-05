@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import json
-from dataclasses import asdict, dataclass
+import sqlite3
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from app.ocs_instances.contracts import InstanceBinding, InstanceStatus
-from app.ocs_instances.store import InstanceBindingStore
+from app.ocs_instances.contracts import (
+    BindingMaturity,
+    InstanceBinding,
+    InstanceBindingError,
+    InstanceStatus,
+)
 
-DERIVATION_VERSION = "ib6-v1"
+DERIVATION_VERSION = "ib6-v2"
 CANONICAL_STATUSES = frozenset(item.value for item in InstanceStatus)
 
 
@@ -34,79 +40,140 @@ class InstanceFilter:
     ocs_id: str | None = None
     canonical_status: str | None = None
     operational_phase: str | None = None
+    recovery_only: bool = False
+
+    def digest(self) -> str:
+        value = json.dumps(asdict(self), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(value.encode()).hexdigest()
+
+
+@dataclass(frozen=True, slots=True)
+class PageCursor:
+    organization_id: str
+    filter_hash: str
+    snapshot_at: float
+    last_updated_at: float | None = None
+    last_binding_id: str | None = None
 
 
 class CommandInstanceViews:
-    """Read-only Command projections over the durable instance registry."""
+    """Organization-scoped, non-mutating projection over the instance registry."""
 
     def __init__(self, database_path: str | Path) -> None:
-        self._path = str(database_path)
-        self._store = InstanceBindingStore(database_path)
+        self._path = Path(database_path)
 
     def list_instances(
         self,
         *,
+        organization_id: str,
         filters: InstanceFilter,
         cursor: str | None,
         limit: int,
         now: float | None = None,
     ) -> dict[str, Any]:
-        offset = self._decode_cursor(cursor)
-        bindings = self._bindings(filters)
-        projected = [self._project(item, now=now) for item in bindings]
-        if filters.operational_phase is not None:
-            projected = [
-                item
-                for item in projected
-                if filters.operational_phase in item["operational_phases"]
-            ]
-        selected = projected[offset : offset + limit]
-        next_offset = offset + len(selected)
-        next_cursor = (
-            self._encode_cursor(next_offset) if next_offset < len(projected) else None
+        self._validate_scope(organization_id, filters)
+        clock = datetime.now(UTC).timestamp() if now is None else now
+        page = self._decode_cursor(
+            cursor,
+            organization_id=organization_id,
+            filter_hash=filters.digest(),
+            clock=clock,
         )
+        health = self._source_health()
+        if health != "available":
+            return self._empty_page(health)
+        all_items = self._filtered_items(
+            organization_id=organization_id,
+            filters=filters,
+            snapshot_at=page.snapshot_at,
+            clock=clock,
+            health=health,
+        )
+        candidates = [
+            item
+            for item in all_items
+            if page.last_updated_at is None
+            or float(item["updated_at"]) < page.last_updated_at
+            or (
+                float(item["updated_at"]) == page.last_updated_at
+                and str(item["binding_id"]) > str(page.last_binding_id)
+            )
+        ]
+        selected = candidates[:limit]
+        next_cursor = None
+        if len(candidates) > limit and selected:
+            last = selected[-1]
+            next_cursor = self._encode_cursor(
+                PageCursor(
+                    organization_id=organization_id,
+                    filter_hash=filters.digest(),
+                    snapshot_at=page.snapshot_at,
+                    last_updated_at=float(last["updated_at"]),
+                    last_binding_id=str(last["binding_id"]),
+                )
+            )
         return {
             "items": selected,
             "count": len(selected),
+            "total": len(all_items),
             "next_cursor": next_cursor,
-            "snapshot": self._snapshot(projected),
-            "source": self._source(),
+            "snapshot": self._snapshot(
+                selected,
+                total=len(all_items),
+                snapshot_at=page.snapshot_at,
+                health=health,
+            ),
+            "source": self._source(health),
         }
 
-    def get(self, binding_id: str, *, now: float | None = None) -> dict[str, Any]:
-        binding = self._store.get(binding_id)
-        result = self._project(binding, now=now)
-        result["journal"] = self._journal(binding_id)
-        result["lineage"] = self.lineage(binding_id, now=now)
+    def get(
+        self,
+        binding_id: str,
+        *,
+        organization_id: str,
+        now: float | None = None,
+    ) -> dict[str, Any]:
+        binding = self._get_scoped(binding_id, organization_id)
+        result = self._project(binding, clock=now, health=self._source_health())
+        result["journal"] = self._journal(binding_id, organization_id)
+        result["lineage"] = self.lineage(
+            binding_id, organization_id=organization_id, now=now
+        )
         return result
 
-    def lineage(self, binding_id: str, *, now: float | None = None) -> dict[str, Any]:
-        target = self._store.get(binding_id)
-        with self._store._connect() as connection:
-            rows = connection.execute(
-                """
-                SELECT * FROM ocs_instance_bindings
-                WHERE organization_id = ? AND mission_id = ? AND ocs_id = ?
-                ORDER BY generation ASC
-                """,
-                (target.organization_id, target.mission_id, target.ocs_id),
-            ).fetchall()
-        generations = [self._project(self._store._row(row), now=now) for row in rows]
+    def lineage(
+        self,
+        binding_id: str,
+        *,
+        organization_id: str,
+        now: float | None = None,
+    ) -> dict[str, Any]:
+        target = self._get_scoped(binding_id, organization_id)
+        rows = self._read(
+            """
+            SELECT * FROM ocs_instance_bindings
+            WHERE organization_id=? AND mission_id=? AND ocs_id=?
+            ORDER BY generation ASC
+            """,
+            (organization_id, target.mission_id, target.ocs_id),
+        )
+        health = self._source_health()
+        items = [
+            self._project(self._row(row), clock=now, health=health) for row in rows
+        ]
         return {
             "run_id": target.run_id,
             "ocs_id": target.ocs_id,
-            "current_generation": max(item["generation"] for item in generations),
-            "generations": generations,
-            "source": self._source(),
+            "current_generation": max(
+                (item["generation"] for item in items), default=None
+            ),
+            "generations": items,
+            "source": self._source(health),
         }
 
-    def comparison(self, binding_id: str) -> dict[str, Any]:
-        current = self._store.get(binding_id)
-        predecessor = (
-            None
-            if current.predecessor_binding_id is None
-            else self._store.get(current.predecessor_binding_id)
-        )
+    def comparison(self, binding_id: str, *, organization_id: str) -> dict[str, Any]:
+        current = self._get_scoped(binding_id, organization_id)
+        predecessor = self._predecessor(current)
         fields = (
             "profile_hash",
             "identity_binding_hash",
@@ -130,53 +197,35 @@ class CommandInstanceViews:
             }
             for field in fields
         ]
-        verified = predecessor is not None and all(
-            item["equal"]
-            for item in comparisons
-            if item["field"]
-            in {
-                "profile_hash",
-                "identity_binding_hash",
-                "authority_ref",
-                "state_namespace",
-                "memory_namespace",
-            }
-        )
+        proof = self._recovery_proof(current, predecessor)
         return {
             "binding_id": binding_id,
             "predecessor_binding_id": current.predecessor_binding_id,
             "comparisons": comparisons,
-            "claim_state": "verified" if verified else "observed",
-            "verified": verified,
+            "recovery_proof": proof,
+            "claim_state": "verified" if proof["complete"] else "observed",
+            "verified": proof["complete"],
             "evidence_refs": self._evidence_refs(current),
             "boundary": "verified_is_not_assured",
-            "source": self._source(),
+            "source": self._source(self._source_health()),
         }
 
     def recovery_center(
         self,
         *,
+        organization_id: str,
         filters: InstanceFilter,
         cursor: str | None,
         limit: int,
         now: float | None = None,
     ) -> dict[str, Any]:
         result = self.list_instances(
-            filters=filters, cursor=cursor, limit=limit, now=now
+            organization_id=organization_id,
+            filters=replace(filters, recovery_only=True),
+            cursor=cursor,
+            limit=limit,
+            now=now,
         )
-        attention = {
-            InstanceStatus.HOLD.value,
-            InstanceStatus.REVOKED.value,
-            InstanceStatus.REPLACED.value,
-        }
-        result["items"] = [
-            item
-            for item in result["items"]
-            if item["canonical_status"] in attention
-            or OperationalPhase.REPLACEMENT_PENDING.value in item["operational_phases"]
-            or item["freshness"] != ViewFreshness.CURRENT.value
-        ]
-        result["count"] = len(result["items"])
         result["epistemic_boundary"] = {
             "requested_is_executed": False,
             "executed_is_verified": False,
@@ -186,132 +235,356 @@ class CommandInstanceViews:
         }
         return result
 
-    def journal_feed(self, *, cursor: int, limit: int) -> dict[str, Any]:
+    def journal_feed(
+        self, *, organization_id: str, cursor: int, limit: int
+    ) -> dict[str, Any]:
         if cursor < 0:
             raise ValueError("command_instance_cursor_invalid")
-        with self._store._connect() as connection:
-            total_row = connection.execute(
-                "SELECT COUNT(*) AS count FROM ocs_instance_journal"
-            ).fetchone()
-            total = 0 if total_row is None else int(total_row["count"])
-            if cursor > total:
-                raise ValueError("command_instance_cursor_ahead")
-            rows = connection.execute(
-                """
-                SELECT * FROM ocs_instance_journal
-                ORDER BY position ASC LIMIT ? OFFSET ?
-                """,
-                (limit, cursor),
-            ).fetchall()
+        health = self._source_health()
+        if health != "available":
+            return {
+                "events": [],
+                "next_cursor": cursor,
+                "freshness": ViewFreshness.UNKNOWN.value,
+                "source": self._source(health),
+            }
+        count = self._read(
+            """
+            SELECT COUNT(*) AS count FROM ocs_instance_journal j
+            JOIN ocs_instance_bindings b ON b.binding_id=j.binding_id
+            WHERE b.organization_id=?
+            """,
+            (organization_id,),
+        )
+        total = int(count[0]["count"])
+        if cursor > total:
+            raise ValueError("command_instance_cursor_ahead")
+        rows = self._read(
+            """
+            SELECT j.* FROM ocs_instance_journal j
+            JOIN ocs_instance_bindings b ON b.binding_id=j.binding_id
+            WHERE b.organization_id=?
+            ORDER BY j.position ASC LIMIT ? OFFSET ?
+            """,
+            (organization_id, limit, cursor),
+        )
         events = [self._journal_row(row) for row in rows]
         return {
             "events": events,
             "next_cursor": cursor + len(events),
-            "freshness": self._event_freshness(events),
-            "source": self._source(),
+            "freshness": (
+                ViewFreshness.CURRENT.value if events else ViewFreshness.UNKNOWN.value
+            ),
+            "source": self._source(health),
         }
 
-    def _bindings(self, filters: InstanceFilter) -> list[InstanceBinding]:
-        if (
-            filters.canonical_status is not None
-            and filters.canonical_status not in CANONICAL_STATUSES
-        ):
-            raise ValueError("command_instance_status_invalid")
-        if filters.operational_phase is not None and filters.operational_phase not in {
-            item.value for item in OperationalPhase
-        }:
-            raise ValueError("command_instance_phase_invalid")
-        clauses: list[str] = []
-        values: list[str] = []
+    def _filtered_items(
+        self,
+        *,
+        organization_id: str,
+        filters: InstanceFilter,
+        snapshot_at: float,
+        clock: float,
+        health: str,
+    ) -> list[dict[str, Any]]:
+        clauses = ["organization_id=?", "updated_at<=?"]
+        values: list[Any] = [organization_id, snapshot_at]
         for column, value in (
             ("mission_id", filters.mission_id),
             ("ocs_id", filters.ocs_id),
             ("status", filters.canonical_status),
         ):
             if value is not None:
-                clauses.append(f"{column} = ?")
+                clauses.append(f"{column}=?")
                 values.append(value)
-        where = "" if not clauses else "WHERE " + " AND ".join(clauses)
-        with self._store._connect() as connection:
-            rows = connection.execute(
-                f"SELECT * FROM ocs_instance_bindings {where} "
-                "ORDER BY updated_at DESC, binding_id ASC",
-                tuple(values),
-            ).fetchall()
-        return [self._store._row(row) for row in rows]
+        rows = self._read(
+            "SELECT * FROM ocs_instance_bindings WHERE "
+            + " AND ".join(clauses)
+            + " ORDER BY updated_at DESC, binding_id ASC",
+            tuple(values),
+        )
+        items = [
+            self._project(self._row(row), clock=clock, health=health) for row in rows
+        ]
+        if filters.operational_phase is not None:
+            items = [
+                item
+                for item in items
+                if filters.operational_phase in item["operational_phases"]
+            ]
+        if filters.recovery_only:
+            attention = {
+                InstanceStatus.HOLD.value,
+                InstanceStatus.REVOKED.value,
+                InstanceStatus.REPLACED.value,
+            }
+            items = [
+                item
+                for item in items
+                if item["canonical_status"] in attention
+                or OperationalPhase.REPLACEMENT_PENDING.value
+                in item["operational_phases"]
+                or OperationalPhase.RECOVERED.value in item["operational_phases"]
+                or item["freshness"] != ViewFreshness.CURRENT.value
+            ]
+        return items
 
     def _project(
-        self, binding: InstanceBinding, *, now: float | None
+        self, binding: InstanceBinding, *, clock: float | None, health: str
     ) -> dict[str, Any]:
+        effective_clock = datetime.now(UTC).timestamp() if clock is None else clock
         phases = self._phases(binding)
-        evidence_refs = self._evidence_refs(binding)
-        freshness = self._freshness(binding.updated_at, now=now)
+        refs = self._evidence_refs(binding)
         return {
             **asdict(binding),
             "maturity": binding.maturity.value,
             "canonical_status": binding.status.value,
             "status": binding.status.value,
-            "operational_phases": [item.value for item in phases],
+            "operational_phases": [phase.value for phase in phases],
             "phase_derivations": [
                 {
-                    "phase": item.value,
-                    "basis": self._phase_basis(item),
-                    "source_refs": evidence_refs,
+                    "phase": phase.value,
+                    "basis": self._phase_basis(phase),
+                    "source_refs": refs,
                     "derived_at": datetime.now(UTC).isoformat(),
                     "derivation_version": DERIVATION_VERSION,
                 }
-                for item in phases
+                for phase in phases
             ],
-            "freshness": freshness.value,
+            "freshness": self._freshness(
+                binding.updated_at, clock=effective_clock, health=health
+            ).value,
             "source_version": str(binding.version),
-            "evidence_refs": evidence_refs,
-            "fencing": {
-                "generation": binding.generation,
-                "platform_instance_id": binding.platform_instance_id,
-                "current": binding.status
-                not in {InstanceStatus.REPLACED, InstanceStatus.REVOKED},
-                "basis": "canonical_status_and_generation",
-            },
-            "epistemic_state": self._epistemic_state(binding),
+            "evidence_refs": refs,
+            "fencing": self._fencing(binding),
+            "epistemic_state": (
+                "verified"
+                if OperationalPhase.RECOVERED in phases
+                else "requested"
+                if binding.status in {InstanceStatus.PREPARED, InstanceStatus.PERSISTED}
+                else "executed"
+                if binding.status in {InstanceStatus.BOUND, InstanceStatus.ACTIVE}
+                else "observed"
+            ),
         }
 
     def _phases(self, binding: InstanceBinding) -> tuple[OperationalPhase, ...]:
         phases: list[OperationalPhase] = []
+        events = {row["event_type"] for row in self._journal_rows(binding.binding_id)}
         if (
             binding.status is InstanceStatus.PERSISTED
             and binding.platform_instance_id is None
         ):
             phases.append(OperationalPhase.AWAITING_PLATFORM_INSTANCE)
-        if (
-            binding.status
-            in {
-                InstanceStatus.ACTIVE,
-                InstanceStatus.CHECKPOINTED,
-                InstanceStatus.CLOSED,
-            }
-            and binding.platform_instance_id is not None
-        ):
+        if "OCS_BOOTSTRAP_ACKNOWLEDGED" in events:
             phases.append(OperationalPhase.BOOTSTRAP_ACKNOWLEDGED)
-        if self._replacement_is_pending(binding.binding_id):
+        saga = self._replacement_saga(binding.binding_id)
+        if saga is not None and saga["state"] != "LEASE_FINALIZED":
             phases.append(OperationalPhase.REPLACEMENT_PENDING)
-        if (
-            binding.predecessor_binding_id is not None
-            and binding.checkpoint_version > 0
-        ):
+        if self._recovery_proof(binding, self._predecessor(binding))["complete"]:
             phases.append(OperationalPhase.RECOVERED)
         return tuple(phases)
 
-    def _replacement_is_pending(self, binding_id: str) -> bool:
-        with self._store._connect() as connection:
-            row = connection.execute(
+    def _fencing(self, binding: InstanceBinding) -> dict[str, Any]:
+        rows = self._read(
+            """
+            SELECT generation,status FROM ocs_instance_bindings
+            WHERE organization_id=? AND mission_id=? AND ocs_id=?
+            """,
+            (binding.organization_id, binding.mission_id, binding.ocs_id),
+        )
+        maximum = max((int(row["generation"]) for row in rows), default=None)
+        active = sum(row["status"] == InstanceStatus.ACTIVE.value for row in rows)
+        ambiguous = active > 1 or maximum is None
+        current: bool | None = None
+        if not ambiguous:
+            current = binding.generation == maximum and binding.status not in {
+                InstanceStatus.REPLACED,
+                InstanceStatus.REVOKED,
+            }
+        return {
+            "generation": binding.generation,
+            "maximum_generation": maximum,
+            "active_generation_count": active,
+            "platform_instance_id": binding.platform_instance_id,
+            "current": current,
+            "ambiguous": ambiguous,
+            "basis": "max_generation_plus_active_uniqueness",
+            "evidence_refs": [
+                f"lineage:{binding.run_id}",
+                f"binding:{binding.binding_id}",
+            ],
+        }
+
+    def _recovery_proof(
+        self,
+        current: InstanceBinding,
+        predecessor: InstanceBinding | None,
+    ) -> dict[str, Any]:
+        saga = (
+            None
+            if predecessor is None
+            else self._replacement_saga(predecessor.binding_id)
+        )
+        events = {row["event_type"] for row in self._journal_rows(current.binding_id)}
+        checks = {
+            "predecessor_present": predecessor is not None,
+            "generation_contiguous": predecessor is not None
+            and current.generation == predecessor.generation + 1,
+            "checkpoint_version_contiguous": predecessor is not None
+            and current.checkpoint_version == predecessor.checkpoint_version + 1,
+            "checkpoint_hash_present": bool(current.checkpoint_hash),
+            "hazel_event_hash_present": bool(current.hazel_event_hash),
+            "identity_preserved": predecessor is not None
+            and all(
+                getattr(current, field) == getattr(predecessor, field)
+                for field in (
+                    "profile_hash",
+                    "identity_binding_hash",
+                    "authority_ref",
+                    "state_namespace",
+                    "memory_namespace",
+                )
+            ),
+            "readback_verified_event": "OCS_REPLACEMENT_PERSISTED" in events,
+            "replacement_saga_finalized": saga is not None
+            and saga["state"] == "LEASE_FINALIZED",
+        }
+        return {
+            "complete": all(checks.values()),
+            "checks": checks,
+            "basis": "IB5 durable replacement saga plus registry readback commit",
+        }
+
+    def _predecessor(self, binding: InstanceBinding) -> InstanceBinding | None:
+        if binding.predecessor_binding_id is None:
+            return None
+        try:
+            return self._get_scoped(
+                binding.predecessor_binding_id, binding.organization_id
+            )
+        except InstanceBindingError:
+            return None
+
+    def _replacement_saga(self, binding_id: str) -> dict[str, Any] | None:
+        rows = self._read(
+            """
+            SELECT * FROM ocs_action_sagas
+            WHERE binding_id=? AND operation='ocs_instance_replacement'
+            ORDER BY updated_at DESC LIMIT 1
+            """,
+            (binding_id,),
+        )
+        return None if not rows else dict(rows[0])
+
+    def _get_scoped(self, binding_id: str, organization_id: str) -> InstanceBinding:
+        rows = self._read(
+            """
+            SELECT * FROM ocs_instance_bindings
+            WHERE binding_id=? AND organization_id=?
+            """,
+            (binding_id, organization_id),
+        )
+        if not rows:
+            raise InstanceBindingError("instance_binding_not_found")
+        return self._row(rows[0])
+
+    def _journal(self, binding_id: str, organization_id: str) -> list[dict[str, Any]]:
+        self._get_scoped(binding_id, organization_id)
+        return [self._journal_row(row) for row in self._journal_rows(binding_id)]
+
+    def _journal_rows(self, binding_id: str) -> list[sqlite3.Row]:
+        return self._read(
+            """
+            SELECT * FROM ocs_instance_journal
+            WHERE binding_id=? ORDER BY position
+            """,
+            (binding_id,),
+        )
+
+    def _source_health(self) -> str:
+        if not self._path.exists():
+            return "unavailable"
+        try:
+            rows = self._read(
                 """
-                SELECT state FROM ocs_action_sagas
-                WHERE binding_id = ? AND operation = 'ocs_instance_replacement'
-                ORDER BY updated_at DESC LIMIT 1
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name='ocs_instance_bindings'
                 """,
-                (binding_id,),
-            ).fetchone()
-        return row is not None and str(row["state"]) != "LEASE_FINALIZED"
+                (),
+            )
+        except sqlite3.Error:
+            return "degraded"
+        return "available" if rows else "degraded"
+
+    def _read(self, query: str, values: tuple[Any, ...]) -> list[sqlite3.Row]:
+        if not self._path.exists():
+            return []
+        uri = f"file:{self._path.resolve()}?mode=ro"
+        with sqlite3.connect(uri, uri=True) as connection:
+            connection.row_factory = sqlite3.Row
+            return list(connection.execute(query, values).fetchall())
+
+    @staticmethod
+    def _row(row: sqlite3.Row) -> InstanceBinding:
+        return InstanceBinding(
+            binding_id=str(row["binding_id"]),
+            mission_id=str(row["mission_id"]),
+            run_id=str(row["run_id"]),
+            organization_id=str(row["organization_id"]),
+            ocs_id=str(row["ocs_id"]),
+            profile_version=str(row["profile_version"]),
+            profile_hash=str(row["profile_hash"]),
+            identity_binding_hash=str(row["identity_binding_hash"]),
+            request_hash=str(row["request_hash"]),
+            maturity=BindingMaturity(str(row["maturity"])),
+            host=str(row["host"]),
+            capability=str(row["capability"]),
+            lease_id=str(row["lease_id"]),
+            authority_ref=str(row["authority_ref"]),
+            scope=tuple(str(item) for item in json.loads(row["scope_json"])),
+            state_namespace=str(row["state_namespace"]),
+            memory_namespace=str(row["memory_namespace"]),
+            generation=int(row["generation"]),
+            platform_instance_id=row["platform_instance_id"],
+            challenge_hash=str(row["challenge_hash"]),
+            bootstrap_hash=str(row["bootstrap_hash"]),
+            status=InstanceStatus(str(row["status"])),
+            version=int(row["version"]),
+            predecessor_binding_id=row["predecessor_binding_id"],
+            checkpoint_version=int(row["checkpoint_version"]),
+            checkpoint_hash=row["checkpoint_hash"],
+            hazel_event_hash=row["hazel_event_hash"],
+            idempotency_key=str(row["idempotency_key"]),
+            correlation_id=str(row["correlation_id"]),
+            causation_id=row["causation_id"],
+            created_at=float(row["created_at"]),
+            updated_at=float(row["updated_at"]),
+        )
+
+    @staticmethod
+    def _journal_row(row: sqlite3.Row) -> dict[str, Any]:
+        item = dict(row)
+        item["payload"] = json.loads(str(item.pop("payload_json")))
+        item["source_version"] = str(item["binding_version"])
+        item["evidence_refs"] = [f"journal-event:{item['event_id']}"]
+        return item
+
+    @staticmethod
+    def _validate_scope(organization_id: str, filters: InstanceFilter) -> None:
+        if not organization_id:
+            raise ValueError("command_instance_organization_required")
+        if (
+            filters.canonical_status is not None
+            and filters.canonical_status not in CANONICAL_STATUSES
+        ):
+            raise ValueError("command_instance_status_invalid")
+        valid_phases = {item.value for item in OperationalPhase}
+        if (
+            filters.operational_phase is not None
+            and filters.operational_phase not in valid_phases
+        ):
+            raise ValueError("command_instance_phase_invalid")
 
     @staticmethod
     def _phase_basis(phase: OperationalPhase) -> str:
@@ -320,34 +593,24 @@ class CommandInstanceViews:
                 "status=persisted AND platform_instance_id IS NULL"
             ),
             OperationalPhase.BOOTSTRAP_ACKNOWLEDGED: (
-                "status IN active,checkpointed,closed AND "
-                "platform_instance_id IS NOT NULL"
+                "journal contains OCS_BOOTSTRAP_ACKNOWLEDGED"
             ),
             OperationalPhase.REPLACEMENT_PENDING: (
                 "replacement saga exists AND state!=LEASE_FINALIZED"
             ),
-            OperationalPhase.RECOVERED: (
-                "predecessor_binding_id IS NOT NULL AND checkpoint_version>0"
-            ),
+            OperationalPhase.RECOVERED: "complete IB5 replacement/readback proof",
         }[phase]
 
     @staticmethod
-    def _freshness(updated_at: float, *, now: float | None) -> ViewFreshness:
-        current = datetime.now(UTC).timestamp() if now is None else now
-        age = current - updated_at
+    def _freshness(
+        updated_at: float, *, clock: float | None, health: str
+    ) -> ViewFreshness:
+        if health != "available" or clock is None:
+            return ViewFreshness.UNKNOWN
+        age = clock - updated_at
         if age < 0:
             return ViewFreshness.UNKNOWN
         return ViewFreshness.CURRENT if age <= 300 else ViewFreshness.STALE
-
-    @staticmethod
-    def _epistemic_state(binding: InstanceBinding) -> str:
-        if binding.status in {InstanceStatus.PREPARED, InstanceStatus.PERSISTED}:
-            return "requested"
-        if binding.status in {InstanceStatus.BOUND, InstanceStatus.ACTIVE}:
-            return "executed"
-        if binding.status is InstanceStatus.CHECKPOINTED:
-            return "verified"
-        return "observed"
 
     @staticmethod
     def _evidence_refs(binding: InstanceBinding) -> list[str]:
@@ -356,82 +619,95 @@ class CommandInstanceViews:
             refs.append(f"hazel:event:{binding.hazel_event_hash}")
         return refs
 
-    def _journal(self, binding_id: str) -> list[dict[str, Any]]:
-        return [self._journal_row(row) for row in self._store.journal(binding_id)]
-
     @staticmethod
-    def _journal_row(row: Any) -> dict[str, Any]:
-        item = dict(row)
-        item["payload"] = json.loads(str(item.pop("payload_json")))
-        item["source_version"] = str(item["binding_version"])
-        item["evidence_refs"] = [f"journal-event:{item['event_id']}"]
-        return item
-
-    @staticmethod
-    def _event_freshness(events: list[dict[str, Any]]) -> str:
-        if not events:
-            return ViewFreshness.UNKNOWN.value
-        return ViewFreshness.CURRENT.value
-
-    @staticmethod
-    def _snapshot(items: list[dict[str, Any]]) -> dict[str, Any]:
-        return {
-            "generated_at": datetime.now(UTC).isoformat(),
-            "total": len(items),
-            "source_version": max(
-                (int(item["source_version"]) for item in items), default=0
-            ),
-            "freshness": (
-                ViewFreshness.UNKNOWN.value
-                if not items
-                else ViewFreshness.STALE.value
-                if any(item["freshness"] == ViewFreshness.STALE.value for item in items)
-                else ViewFreshness.CURRENT.value
-            ),
-        }
-
-    @staticmethod
-    def _source() -> dict[str, str]:
+    def _source(health: str) -> dict[str, str]:
         return {
             "name": "ocs_instance_registry",
-            "projection_version": "ib6-v1",
+            "projection_version": DERIVATION_VERSION,
+            "health": health,
             "claim_boundary": "verified_is_not_assured",
         }
 
-    @staticmethod
-    def _encode_cursor(offset: int) -> str:
-        return base64.urlsafe_b64encode(f"ib6:{offset}".encode()).decode()
+    def _empty_page(self, health: str) -> dict[str, Any]:
+        return {
+            "items": [],
+            "count": 0,
+            "total": None,
+            "next_cursor": None,
+            "snapshot": {
+                "generated_at": datetime.now(UTC).isoformat(),
+                "snapshot_at": None,
+                "total": None,
+                "freshness": ViewFreshness.UNKNOWN.value,
+                "source_health": health,
+            },
+            "source": self._source(health),
+        }
 
     @staticmethod
-    def _decode_cursor(cursor: str | None) -> int:
+    def _snapshot(
+        items: list[dict[str, Any]], *, total: int, snapshot_at: float, health: str
+    ) -> dict[str, Any]:
+        freshness = ViewFreshness.UNKNOWN.value
+        values = {item["freshness"] for item in items}
+        if ViewFreshness.STALE.value in values:
+            freshness = ViewFreshness.STALE.value
+        elif values == {ViewFreshness.CURRENT.value}:
+            freshness = ViewFreshness.CURRENT.value
+        return {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "snapshot_at": snapshot_at,
+            "total": total,
+            "freshness": freshness,
+            "source_health": health,
+        }
+
+    @staticmethod
+    def _encode_cursor(cursor: PageCursor) -> str:
+        payload = json.dumps(asdict(cursor), sort_keys=True, separators=(",", ":"))
+        return base64.urlsafe_b64encode(payload.encode()).decode()
+
+    @staticmethod
+    def _decode_cursor(
+        cursor: str | None,
+        *,
+        organization_id: str,
+        filter_hash: str,
+        clock: float,
+    ) -> PageCursor:
         if cursor is None:
-            return 0
+            return PageCursor(organization_id, filter_hash, clock)
         try:
-            decoded = base64.urlsafe_b64decode(cursor.encode()).decode()
-            prefix, raw = decoded.split(":", maxsplit=1)
-            offset = int(raw)
-        except (ValueError, UnicodeDecodeError) as exc:
+            payload = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
+            result = PageCursor(**payload)
+        except (ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise ValueError("command_instance_cursor_invalid") from exc
-        if prefix != "ib6" or offset < 0:
-            raise ValueError("command_instance_cursor_invalid")
-        return offset
+        if (
+            result.organization_id != organization_id
+            or result.filter_hash != filter_hash
+            or result.snapshot_at > clock
+            or result.last_updated_at is None
+            or result.last_binding_id is None
+        ):
+            raise ValueError("command_instance_cursor_scope_mismatch")
+        return result
 
 
 def encode_instance_sse(batch: dict[str, Any]) -> list[str]:
     messages = []
     for event in batch["events"]:
         payload = json.dumps(event, sort_keys=True, separators=(",", ":"))
-        message = (
+        messages.append(
             f"id: {event['position']}\n"
             f"event: {event['event_type']}\n"
             f"data: {payload}\n\n"
         )
-        messages.append(message)
     control = json.dumps(
         {
             "next_cursor": batch["next_cursor"],
             "freshness": batch["freshness"],
             "fallback": "/v1/command/instances",
+            "source": batch["source"],
         },
         sort_keys=True,
     )
