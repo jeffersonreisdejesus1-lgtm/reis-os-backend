@@ -318,7 +318,8 @@ class CommandInstanceViews:
                 "status=persisted AND platform_instance_id IS NULL"
             ),
             OperationalPhase.BOOTSTRAP_ACKNOWLEDGED: (
-                "status IN active,checkpointed,closed AND platform_instance_id IS NOT NULL"
+                "status IN active,checkpointed,closed AND "
+                "platform_instance_id IS NOT NULL"
             ),
             OperationalPhase.REPLACEMENT_PENDING: (
                 "replacement saga exists AND state!=LEASE_FINALIZED"
@@ -418,9 +419,12 @@ def encode_instance_sse(batch: dict[str, Any]) -> list[str]:
     messages = []
     for event in batch["events"]:
         payload = json.dumps(event, sort_keys=True, separators=(",", ":"))
-        messages.append(
-            f"id: {event['position']}\nevent: {event['event_type']}\ndata: {payload}\n\n"
+        message = (
+            f"id: {event['position']}\n"
+            f"event: {event['event_type']}\n"
+            f"data: {payload}\n\n"
         )
+        messages.append(message)
     control = json.dumps(
         {
             "next_cursor": batch["next_cursor"],

@@ -5,14 +5,14 @@ from pathlib import Path
 from time import time
 
 import pytest
+
+from app.command.instance_views import CommandInstanceViews, InstanceFilter
 from app.ocs_instances.contracts import (
     BindingMaturity,
     InstanceBinding,
     InstanceStatus,
 )
 from app.ocs_instances.store import InstanceBindingStore
-
-from app.command.instance_views import CommandInstanceViews, InstanceFilter
 
 
 def binding(

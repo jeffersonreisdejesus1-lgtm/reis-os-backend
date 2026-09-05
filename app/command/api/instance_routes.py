@@ -2,17 +2,17 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from app.command.api.dependencies import CommandReadAccess
-from app.shared.config.settings import Settings, get_settings
-from app.shared.errors.exceptions import AppError
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
+from app.command.api.dependencies import CommandReadAccess
 from app.command.instance_views import (
     CommandInstanceViews,
     InstanceFilter,
     encode_instance_sse,
 )
+from app.shared.config.settings import Settings, get_settings
+from app.shared.errors.exceptions import AppError
 
 router = APIRouter(prefix="/v1/command", tags=["command-instances"])
 
