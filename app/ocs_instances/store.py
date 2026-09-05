@@ -295,6 +295,119 @@ class InstanceBindingStore:
             )
         return updated
 
+    def commit_replacement(
+        self,
+        *,
+        predecessor_id: str,
+        predecessor_expected_version: int,
+        successor_id: str,
+        successor_expected_version: int,
+        idempotency_key: str,
+        checkpoint_version: int,
+        checkpoint_hash: str,
+        hazel_event_hash: str,
+    ) -> tuple[InstanceBinding, InstanceBinding]:
+        with self._lock, self._connect() as connection:
+            replay = connection.execute(
+                "SELECT * FROM ocs_instance_journal WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+            if replay is not None:
+                if replay["binding_id"] != predecessor_id:
+                    raise InstanceBindingError("instance_idempotency_conflict")
+                return self.get(predecessor_id), self.get(successor_id)
+            predecessor_row = connection.execute(
+                "SELECT * FROM ocs_instance_bindings WHERE binding_id = ?",
+                (predecessor_id,),
+            ).fetchone()
+            successor_row = connection.execute(
+                "SELECT * FROM ocs_instance_bindings WHERE binding_id = ?",
+                (successor_id,),
+            ).fetchone()
+            if predecessor_row is None or successor_row is None:
+                raise InstanceBindingError("replacement_binding_not_found")
+            predecessor = self._row(predecessor_row)
+            successor = self._row(successor_row)
+            if (
+                predecessor.version != predecessor_expected_version
+                or successor.version != successor_expected_version
+            ):
+                raise InstanceBindingError("instance_version_conflict")
+            if predecessor.status is not InstanceStatus.CHECKPOINTED:
+                raise InstanceBindingError("verified_checkpoint_required_for_replacement")
+            if successor.status is not InstanceStatus.PREPARED:
+                raise InstanceBindingError("replacement_successor_not_prepared")
+            now = time()
+            replaced = replace(
+                predecessor,
+                status=InstanceStatus.REPLACED,
+                version=predecessor.version + 1,
+                updated_at=now,
+            )
+            persisted = replace(
+                successor,
+                status=InstanceStatus.PERSISTED,
+                version=successor.version + 1,
+                checkpoint_version=checkpoint_version,
+                checkpoint_hash=checkpoint_hash,
+                hazel_event_hash=hazel_event_hash,
+                updated_at=now,
+            )
+            first = connection.execute(
+                """
+                UPDATE ocs_instance_bindings
+                SET status = ?, version = ?, updated_at = ?
+                WHERE binding_id = ? AND version = ?
+                """,
+                (
+                    replaced.status.value,
+                    replaced.version,
+                    now,
+                    predecessor_id,
+                    predecessor_expected_version,
+                ),
+            )
+            second = connection.execute(
+                """
+                UPDATE ocs_instance_bindings
+                SET status = ?, version = ?, checkpoint_version = ?,
+                    checkpoint_hash = ?, hazel_event_hash = ?, updated_at = ?
+                WHERE binding_id = ? AND version = ?
+                """,
+                (
+                    persisted.status.value,
+                    persisted.version,
+                    persisted.checkpoint_version,
+                    persisted.checkpoint_hash,
+                    persisted.hazel_event_hash,
+                    now,
+                    successor_id,
+                    successor_expected_version,
+                ),
+            )
+            if first.rowcount != 1 or second.rowcount != 1:
+                raise InstanceBindingError("instance_version_conflict")
+            self._append_event(
+                connection,
+                binding=replaced,
+                event_type="OCS_INSTANCE_REPLACED",
+                from_status=predecessor.status,
+                idempotency_key=idempotency_key,
+                payload={"successor_binding_id": successor_id},
+            )
+            self._append_event(
+                connection,
+                binding=persisted,
+                event_type="OCS_REPLACEMENT_PERSISTED",
+                from_status=successor.status,
+                idempotency_key=f"{idempotency_key}:successor",
+                payload={
+                    "predecessor_binding_id": predecessor_id,
+                    "state_version": checkpoint_version,
+                },
+            )
+        return replaced, persisted
+
     def journal(self, binding_id: str) -> tuple[dict[str, Any], ...]:
         with self._connect() as connection:
             rows = connection.execute(
