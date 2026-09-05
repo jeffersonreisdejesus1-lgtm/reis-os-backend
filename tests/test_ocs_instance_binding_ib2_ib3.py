@@ -4,6 +4,7 @@ import json
 from hashlib import sha256
 from pathlib import Path
 from time import time
+from typing import Any
 
 import pytest
 
@@ -42,7 +43,7 @@ class FakeHazelTransport:
             str(envelope["ocs_id"]),
             str(envelope["state_namespace"]),
         )
-        payload = dict(envelope["payload"])  # type: ignore[arg-type]
+        payload = dict(envelope["payload"])
         payload_hash = self._hash(payload)
         event_hash = self._hash(
             {
@@ -233,7 +234,6 @@ def test_binder_reuses_profile_identity_lease_and_hazel(
     assert binding.state_namespace == PROFILES["SOFIA"].state_namespace
     assert binding.memory_namespace == PROFILES["SOFIA"].memory_namespace
     assert envelope.tool_permissions == ()
-    assert envelope.bootstrap_hash if hasattr(envelope, "bootstrap_hash") else True
     assert binding.bootstrap_hash == envelope.digest()
     assert store.get(binding.binding_id) == binding
     assert transport.persist_calls == 1
@@ -241,8 +241,9 @@ def test_binder_reuses_profile_identity_lease_and_hazel(
 
 def test_binder_rejects_non_mission_lease(tmp_path: Path) -> None:
     binder, _, _ = build_binder(tmp_path)
-    request = prepare_request()
-    object.__setattr__(request, "mission_id", "mission:forged")
+    from dataclasses import replace
+
+    request = replace(prepare_request(), mission_id="mission:forged")
 
     with pytest.raises(ValueError, match="mission_specific_lease_required"):
         binder.prepare(request)
