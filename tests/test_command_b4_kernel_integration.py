@@ -2,7 +2,11 @@ from time import time
 
 import pytest
 
-from app.command.kernel_adapter import CommandIntent, CommandKernelAdapter, CommandKernelContext
+from app.command.kernel_adapter import (
+    CommandIntent,
+    CommandKernelAdapter,
+    CommandKernelContext,
+)
 from app.universal_kernel.contracts import AuthorizationDecision, Evidence, RiskLevel
 from app.universal_kernel.governance import (
     AuthorityLease,
