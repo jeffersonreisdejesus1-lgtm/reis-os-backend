@@ -8,6 +8,7 @@ import pytest
 
 from app.ocs_instances.contracts import (
     BootstrapAck,
+    BindingMaturity,
     InstanceBinding,
     InstanceBindingError,
     InstanceStatus,
@@ -77,11 +78,14 @@ def make_binding(
     return InstanceBinding(
         binding_id=binding_id,
         mission_id="mission:1",
-        run_id="mission:1:SOFIA",
+        run_id="REIS OS:org:reis-os:mission:1:SOFIA",
         organization_id="org:reis-os",
         ocs_id="SOFIA",
         profile_version="r2-v0.1.0",
         profile_hash="profile-hash",
+        identity_binding_hash="identity-binding-hash",
+        request_hash="request-hash",
+        maturity=BindingMaturity.OPERATIONALLY_BOUND_L1,
         host="ChatGPT Work",
         capability="software_implementation_via_valid_envelope_lease_effector",
         lease_id="lease:sofia:1",
@@ -98,6 +102,7 @@ def make_binding(
         predecessor_binding_id=None,
         checkpoint_version=0,
         checkpoint_hash=None,
+        hazel_event_hash=None,
         idempotency_key=idempotency_key,
         correlation_id="correlation:1",
         causation_id=None,
@@ -145,7 +150,7 @@ def build_binder(
         identity_guard=identity,
         leases=leases,
         continuity=continuity,
-        nonce_factory=lambda: "challenge-nonce",
+        binding_secret=b"test-binding-secret",
     )
     return binder, store, transport
 
@@ -173,7 +178,7 @@ def test_registry_survives_restart_and_journals_prepare(tmp_path: Path) -> None:
     restarted = InstanceBindingStore(path)
 
     assert restarted.get(binding.binding_id) == binding
-    assert restarted.latest_generation("mission:1", "SOFIA") == 1
+    assert (\n        restarted.latest_generation("org:reis-os", "mission:1", "SOFIA") == 1\n    )
     journal = restarted.journal(binding.binding_id)
     assert len(journal) == 1
     assert journal[0]["event_type"] == "OCS_INSTANCE_PREPARED"
@@ -227,7 +232,7 @@ def test_binder_reuses_profile_identity_lease_and_hazel(
 
     binding, envelope = binder.prepare(prepare_request())
 
-    assert binding.run_id == "mission:1:SOFIA"
+    assert binding.run_id == "REIS OS:org:reis-os:mission:1:SOFIA"
     assert binding.profile_version == PROFILES["SOFIA"].version
     assert binding.state_namespace == PROFILES["SOFIA"].state_namespace
     assert binding.memory_namespace == PROFILES["SOFIA"].memory_namespace
@@ -258,14 +263,14 @@ def test_work_bridge_requires_matching_name_and_challenge(
         bridge.attach(
             binding.binding_id,
             WorkSpawnReceipt("work:1", "agora__mission-1"),
-            expected_version=1,
+            expected_version=2,
             idempotency_key="idem:attach:wrong",
         )
 
     bound = bridge.attach(
         binding.binding_id,
         WorkSpawnReceipt("work:1", "sofia__mission-1"),
-        expected_version=1,
+        expected_version=2,
         idempotency_key="idem:attach:1",
     )
     assert bound.status is InstanceStatus.BOUND
@@ -277,10 +282,11 @@ def test_work_bridge_requires_matching_name_and_challenge(
                 platform_instance_id="work:1",
                 generation=1,
                 bootstrap_hash=binding.bootstrap_hash,
+                identity_binding_hash=binding.identity_binding_hash,
                 challenge_nonce="wrong",
                 idempotency_key="idem:ack:wrong",
             ),
-            expected_version=2,
+            expected_version=3,
         )
 
     active = bridge.acknowledge(
@@ -289,19 +295,15 @@ def test_work_bridge_requires_matching_name_and_challenge(
             platform_instance_id="work:1",
             generation=1,
             bootstrap_hash=envelope.digest(),
-            challenge_nonce="challenge-nonce",
+            identity_binding_hash=binding.identity_binding_hash,
+            challenge_nonce=envelope.challenge_nonce,
             idempotency_key="idem:ack:1",
         ),
-        expected_version=2,
+        expected_version=3,
     )
     assert active.status is InstanceStatus.ACTIVE
     assert active.platform_instance_id == "work:1"
 
 
 @pytest.mark.parametrize("ocs_id", tuple(PROFILES))
-def test_stable_run_identity_is_distinct_for_all_ten_profiles(
-    ocs_id: str,
-) -> None:
-    from app.ocs_instances.contracts import stable_run_id
-
-    assert stable_run_id("mission:all", ocs_id) == f"mission:all:{ocs_id}"
+def test_all_ten_profiles_bind_identity_namespace_and_authority(\n    tmp_path: Path, ocs_id: str\n) -> None:\n    from app.ocs_instances.contracts import canonical_hash, stable_run_id\n    from dataclasses import asdict\n\n    profile = PROFILES[ocs_id]\n    run_id = stable_run_id("REIS OS", "org:all", "mission:all", ocs_id)\n    guard = IdentityKernelGuard(\n        audit_log=IdentityAuditLog(tmp_path / f"{ocs_id}.jsonl")\n    )\n    binding = guard.bind_active_identity(\n        run_id=run_id,\n        ocs_id=ocs_id,\n        host="ChatGPT Work",\n        session_context="mission:all",\n    )\n    assert binding.ocs_id == profile.ocs_id\n    assert binding.state_namespace == profile.state_namespace\n    assert binding.memory_namespace == profile.memory_namespace\n    assert binding.authority_envelope_ref == profile.authority_envelope_ref\n    assert canonical_hash(asdict(profile))
