@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     command_institution_organization_id: UUID | None = None
     command_event_store_path: str = "command_events.sqlite3"
+    ocs_instance_store_path: str = "ocs_instances.sqlite3"
 
     model_config = SettingsConfigDict(
         env_file=".env",
