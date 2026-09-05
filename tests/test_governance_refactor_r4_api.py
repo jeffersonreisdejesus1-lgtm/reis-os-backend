@@ -7,17 +7,10 @@ from typing import Any
 from uuid import UUID
 
 import pytest
-from app.command.api.dependencies import get_command_institution_organization_id
-from app.governance_refactor.store import (
-    GovernanceCandidateStore,
-    GovernancePersistenceError,
-)
-from app.memberships.domain.enums import MembershipRole
-from app.memberships.infrastructure.models import MembershipModel
-from conftest import TestSessionLocal
 from httpx import AsyncClient
 from sqlalchemy import update
 
+from app.command.api.dependencies import get_command_institution_organization_id
 from app.governance_refactor.contracts import Completeness, MissionMetricsRecord
 from app.governance_refactor.projections import (
     GovernanceCommandViews,
@@ -25,8 +18,15 @@ from app.governance_refactor.projections import (
 )
 from app.governance_refactor.schema import migrate_governance_candidate_store
 from app.governance_refactor.scoped_store import ScopedGovernanceStore
+from app.governance_refactor.store import (
+    GovernanceCandidateStore,
+    GovernancePersistenceError,
+)
 from app.main import app
+from app.memberships.domain.enums import MembershipRole
+from app.memberships.infrastructure.models import MembershipModel
 from app.shared.config.settings import Settings, get_settings
+from conftest import TestSessionLocal
 
 pytestmark = pytest.mark.integration
 NOW = datetime(2026, 9, 5, 22, 0, tzinfo=UTC)
