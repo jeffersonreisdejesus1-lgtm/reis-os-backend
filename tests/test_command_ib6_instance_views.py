@@ -73,7 +73,7 @@ def test_projection_preserves_canonical_status_and_derives_awaiting_phase(
         event_type="OCS_INSTANCE_PERSISTED",
     )
 
-    result = CommandInstanceViews(database).list(
+    result = CommandInstanceViews(database).list_instances(
         filters=InstanceFilter(), cursor=None, limit=25, now=stored.updated_at
     )
 
@@ -86,7 +86,7 @@ def test_projection_preserves_canonical_status_and_derives_awaiting_phase(
 
 def test_empty_snapshot_is_unknown_not_healthy(tmp_path: Path) -> None:
     database = tmp_path / "instances.sqlite3"
-    result = CommandInstanceViews(database).list(
+    result = CommandInstanceViews(database).list_instances(
         filters=InstanceFilter(), cursor=None, limit=25
     )
     assert result["items"] == []
@@ -191,10 +191,10 @@ def test_invalid_status_filter_and_cursor_fail_closed(tmp_path: Path) -> None:
     database = tmp_path / "instances.sqlite3"
     views = CommandInstanceViews(database)
     with pytest.raises(ValueError, match="command_instance_status_invalid"):
-        views.list(
+        views.list_instances(
             filters=InstanceFilter(canonical_status="paused"),
             cursor=None,
             limit=25,
         )
     with pytest.raises(ValueError, match="command_instance_cursor_invalid"):
-        views.list(filters=InstanceFilter(), cursor="invalid", limit=25)
+        views.list_instances(filters=InstanceFilter(), cursor="invalid", limit=25)

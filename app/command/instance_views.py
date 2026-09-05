@@ -43,7 +43,7 @@ class CommandInstanceViews:
         self._path = str(database_path)
         self._store = InstanceBindingStore(database_path)
 
-    def list(
+    def list_instances(
         self,
         *,
         filters: InstanceFilter,
@@ -161,7 +161,9 @@ class CommandInstanceViews:
         limit: int,
         now: float | None = None,
     ) -> dict[str, Any]:
-        result = self.list(filters=filters, cursor=cursor, limit=limit, now=now)
+        result = self.list_instances(
+            filters=filters, cursor=cursor, limit=limit, now=now
+        )
         attention = {
             InstanceStatus.HOLD.value,
             InstanceStatus.REVOKED.value,

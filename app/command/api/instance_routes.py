@@ -55,7 +55,7 @@ async def list_instances(
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
 ) -> dict[str, Any]:
     try:
-        return _views(settings).list(
+        return _views(settings).list_instances(
             filters=_filters(mission_id, ocs_id, canonical_status, operational_phase),
             cursor=cursor,
             limit=limit,
