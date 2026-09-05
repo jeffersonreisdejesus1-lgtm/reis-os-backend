@@ -11,6 +11,10 @@ class InstanceBindingError(RuntimeError):
     pass
 
 
+class BindingMaturity(StrEnum):
+    OPERATIONALLY_BOUND_L1 = "operationally_bound_l1"
+
+
 class InstanceStatus(StrEnum):
     PREPARED = "prepared"
     PERSISTED = "persisted"
@@ -59,10 +63,15 @@ ALLOWED_TRANSITIONS: dict[InstanceStatus, frozenset[InstanceStatus]] = {
 }
 
 
-def stable_run_id(mission_id: str, ocs_id: str) -> str:
-    if not mission_id or not ocs_id:
-        raise ValueError("mission_and_ocs_required")
-    return f"{mission_id}:{ocs_id}"
+def stable_run_id(
+    institution_id: str,
+    organization_id: str,
+    mission_id: str,
+    ocs_id: str,
+) -> str:
+    if not all((institution_id, organization_id, mission_id, ocs_id)):
+        raise ValueError("institution_organization_mission_and_ocs_required")
+    return f"{institution_id}:{organization_id}:{mission_id}:{ocs_id}"
 
 
 def canonical_hash(value: dict[str, Any]) -> str:
@@ -95,6 +104,9 @@ class InstanceBinding:
     ocs_id: str
     profile_version: str
     profile_hash: str
+    identity_binding_hash: str
+    request_hash: str
+    maturity: BindingMaturity
     host: str
     capability: str
     lease_id: str
@@ -111,6 +123,7 @@ class InstanceBinding:
     predecessor_binding_id: str | None
     checkpoint_version: int
     checkpoint_hash: str | None
+    hazel_event_hash: str | None
     idempotency_key: str
     correlation_id: str
     causation_id: str | None
@@ -132,6 +145,8 @@ class InstanceBootstrapEnvelope:
     csp_ref: str
     profile_version: str
     profile_hash: str
+    identity_binding_hash: str
+    maturity: BindingMaturity
     host: str
     capability: str
     lease_id: str
@@ -166,6 +181,7 @@ class BootstrapAck:
     platform_instance_id: str
     generation: int
     bootstrap_hash: str
+    identity_binding_hash: str
     challenge_nonce: str
     idempotency_key: str
 
