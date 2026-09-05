@@ -48,7 +48,7 @@ def test_b7_capability_and_authority_are_separate_fields(tmp_path: Path) -> None
     assert dossier["capability"] != dossier["authority"]
 
 
-def test_b7_no_runtime_event_means_unknown_not_healthy_or_current(tmp_path: Path) -> None:
+def test_b7_no_runtime_event_is_unknown(tmp_path: Path) -> None:
     dossier = CommandDossierService(tmp_path / "events.sqlite3").get("noesis")
 
     assert dossier is not None
