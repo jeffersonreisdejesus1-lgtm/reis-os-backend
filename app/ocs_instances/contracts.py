@@ -41,6 +41,7 @@ ALLOWED_TRANSITIONS: dict[InstanceStatus, frozenset[InstanceStatus]] = {
     InstanceStatus.CHECKPOINTED: frozenset(
         {
             InstanceStatus.ACTIVE,
+            InstanceStatus.CHECKPOINTED,
             InstanceStatus.REPLACED,
             InstanceStatus.CLOSED,
             InstanceStatus.REVOKED,
