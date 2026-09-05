@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, TypeVar
 
 from fastapi import APIRouter, Depends
 
@@ -10,13 +10,14 @@ from app.shared.config.settings import Settings, get_settings
 from app.shared.errors.exceptions import AppError
 
 router = APIRouter(prefix="/v1/command", tags=["command"])
+T = TypeVar("T")
 
 
 def _read_models(settings: Settings) -> CommandReadModels:
     return CommandReadModels(settings.command_event_store_path)
 
 
-def _require_material(value: Any, resource: str) -> Any:
+def _require_material(value: T, resource: str) -> T:
     if value in ({}, []):
         raise AppError(
             f"Command {resource} has no material projection.",
