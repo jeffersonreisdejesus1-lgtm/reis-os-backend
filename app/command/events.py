@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -52,7 +52,9 @@ class CommandEvent:
         if self.sequence < 1:
             raise EventValidationError("command_event_sequence_invalid")
         if self.occurred_at.tzinfo is None:
-            raise EventValidationError("command_event_occurred_at_must_be_timezone_aware")
+            raise EventValidationError(
+                "command_event_occurred_at_must_be_timezone_aware"
+            )
         if self.source.casefold() in {"unknown", "", "unspecified"}:
             raise EventValidationError("command_event_source_unknown")
         target_ocs = self.payload.get("target_ocs_id")
@@ -63,4 +65,4 @@ class CommandEvent:
             raise EventValidationError("command_event_claim_requires_evidence")
 
     def occurred_at_utc(self) -> str:
-        return self.occurred_at.astimezone(timezone.utc).isoformat()
+        return self.occurred_at.astimezone(UTC).isoformat()
