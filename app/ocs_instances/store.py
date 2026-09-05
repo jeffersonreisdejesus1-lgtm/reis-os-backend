@@ -10,6 +10,7 @@ from typing import Any
 
 from app.ocs_instances.contracts import (
     InstanceBinding,
+    BindingMaturity,
     InstanceBindingError,
     InstanceStatus,
     require_transition,
@@ -41,6 +42,9 @@ class InstanceBindingStore:
                     ocs_id TEXT NOT NULL,
                     profile_version TEXT NOT NULL,
                     profile_hash TEXT NOT NULL,
+                    identity_binding_hash TEXT NOT NULL,
+                    request_hash TEXT NOT NULL,
+                    maturity TEXT NOT NULL,
                     host TEXT NOT NULL,
                     capability TEXT NOT NULL,
                     lease_id TEXT NOT NULL,
@@ -57,12 +61,13 @@ class InstanceBindingStore:
                     predecessor_binding_id TEXT,
                     checkpoint_version INTEGER NOT NULL,
                     checkpoint_hash TEXT,
+                    hazel_event_hash TEXT,
                     idempotency_key TEXT NOT NULL UNIQUE,
                     correlation_id TEXT NOT NULL,
                     causation_id TEXT,
                     created_at REAL NOT NULL,
                     updated_at REAL NOT NULL,
-                    UNIQUE(mission_id, ocs_id, generation),
+                    UNIQUE(organization_id, mission_id, ocs_id, generation),
                     UNIQUE(platform_instance_id)
                 )
                 """
@@ -95,16 +100,16 @@ class InstanceBindingStore:
             ).fetchone()
             if existing is not None:
                 recovered = self._row(existing)
-                if recovered != binding:
+                if recovered.request_hash != binding.request_hash:
                     raise InstanceBindingError("instance_idempotency_conflict")
                 return recovered
             active = connection.execute(
                 """
                 SELECT binding_id FROM ocs_instance_bindings
-                WHERE mission_id = ? AND ocs_id = ?
+                WHERE organization_id = ? AND mission_id = ? AND ocs_id = ?
                   AND status IN ('prepared', 'bound', 'active', 'checkpointed')
                 """,
-                (binding.mission_id, binding.ocs_id),
+                (binding.organization_id, binding.mission_id, binding.ocs_id),
             ).fetchone()
             if active is not None:
                 raise InstanceBindingError("active_mission_ocs_binding_exists")
@@ -113,19 +118,23 @@ class InstanceBindingStore:
                 """
                 INSERT INTO ocs_instance_bindings (
                     binding_id, mission_id, run_id, organization_id, ocs_id,
-                    profile_version, profile_hash, host, capability, lease_id,
+                    profile_version, profile_hash, identity_binding_hash,
+                    request_hash, maturity, host, capability, lease_id,
                     authority_ref, scope_json, state_namespace, memory_namespace,
                     generation, platform_instance_id, challenge_hash, bootstrap_hash,
                     status, version, predecessor_binding_id, checkpoint_version,
-                    checkpoint_hash, idempotency_key, correlation_id, causation_id,
+                    checkpoint_hash, hazel_event_hash, idempotency_key,
+                    correlation_id, causation_id,
                     created_at, updated_at
                 ) VALUES (
                     :binding_id, :mission_id, :run_id, :organization_id, :ocs_id,
-                    :profile_version, :profile_hash, :host, :capability, :lease_id,
+                    :profile_version, :profile_hash, :identity_binding_hash,
+                    :request_hash, :maturity, :host, :capability, :lease_id,
                     :authority_ref, :scope_json, :state_namespace, :memory_namespace,
                     :generation, :platform_instance_id, :challenge_hash,\n                    :bootstrap_hash,
                     :status, :version, :predecessor_binding_id, :checkpoint_version,
-                    :checkpoint_hash, :idempotency_key, :correlation_id, :causation_id,
+                    :checkpoint_hash, :hazel_event_hash, :idempotency_key,
+                    :correlation_id, :causation_id,
                     :created_at, :updated_at
                 )
                 """,
@@ -151,14 +160,16 @@ class InstanceBindingStore:
             raise InstanceBindingError("instance_binding_not_found")
         return self._row(row)
 
-    def latest_generation(self, mission_id: str, ocs_id: str) -> int:
+    def latest_generation(
+        self, organization_id: str, mission_id: str, ocs_id: str
+    ) -> int:
         with self._connect() as connection:
             row = connection.execute(
                 """
                 SELECT MAX(generation) AS generation FROM ocs_instance_bindings
-                WHERE mission_id = ? AND ocs_id = ?
+                WHERE organization_id = ? AND mission_id = ? AND ocs_id = ?
                 """,
-                (mission_id, ocs_id),
+                (organization_id, mission_id, ocs_id),
             ).fetchone()
         value = None if row is None else row["generation"]
         return 0 if value is None else int(value)
@@ -174,6 +185,7 @@ class InstanceBindingStore:
         platform_instance_id: str | None = None,
         checkpoint_version: int | None = None,
         checkpoint_hash: str | None = None,
+        hazel_event_hash: str | None = None,
         payload: dict[str, Any] | None = None,
     ) -> InstanceBinding:
         with self._lock, self._connect() as connection:
@@ -181,8 +193,17 @@ class InstanceBindingStore:
                 "SELECT binding_id FROM ocs_instance_journal WHERE idempotency_key = ?",
                 (idempotency_key,),
             ).fetchone()
+            requested_payload = {} if payload is None else payload
+            requested_hash = json.dumps(
+                requested_payload, sort_keys=True, separators=(",", ":")
+            )
             if replay is not None:
-                if replay["binding_id"] != binding_id:
+                if (
+                    replay["binding_id"] != binding_id
+                    or replay["event_type"] != event_type
+                    or replay["to_status"] != target.value
+                    or replay["payload_json"] != requested_hash
+                ):
                     raise InstanceBindingError("instance_idempotency_conflict")
                 return self.get(binding_id)
             row = connection.execute(
@@ -214,13 +235,19 @@ class InstanceBindingStore:
                     if checkpoint_hash is None
                     else checkpoint_hash
                 ),
+                hazel_event_hash=(
+                    current.hazel_event_hash
+                    if hazel_event_hash is None
+                    else hazel_event_hash
+                ),
                 updated_at=time(),
             )
             cursor = connection.execute(
                 """
                 UPDATE ocs_instance_bindings
                 SET status = ?, version = ?, platform_instance_id = ?,
-                    checkpoint_version = ?, checkpoint_hash = ?, updated_at = ?
+                    checkpoint_version = ?, checkpoint_hash = ?,
+                    hazel_event_hash = ?, updated_at = ?
                 WHERE binding_id = ? AND version = ?
                 """,
                 (
@@ -229,6 +256,7 @@ class InstanceBindingStore:
                     updated.platform_instance_id,
                     updated.checkpoint_version,
                     updated.checkpoint_hash,
+                    updated.hazel_event_hash,
                     updated.updated_at,
                     binding_id,
                     expected_version,
@@ -242,7 +270,7 @@ class InstanceBindingStore:
                 event_type=event_type,
                 from_status=current.status,
                 idempotency_key=idempotency_key,
-                payload={} if payload is None else payload,
+                payload=requested_payload,
             )
         return updated
 
@@ -291,6 +319,7 @@ class InstanceBindingStore:
     def _values(binding: InstanceBinding) -> dict[str, Any]:
         values = asdict(binding)
         values["status"] = binding.status.value
+        values["maturity"] = binding.maturity.value
         values["scope_json"] = json.dumps(binding.scope)
         values.pop("scope")
         return values
@@ -305,6 +334,9 @@ class InstanceBindingStore:
             ocs_id=str(row["ocs_id"]),
             profile_version=str(row["profile_version"]),
             profile_hash=str(row["profile_hash"]),
+            identity_binding_hash=str(row["identity_binding_hash"]),
+            request_hash=str(row["request_hash"]),
+            maturity=BindingMaturity(str(row["maturity"])),
             host=str(row["host"]),
             capability=str(row["capability"]),
             lease_id=str(row["lease_id"]),
@@ -321,6 +353,7 @@ class InstanceBindingStore:
             predecessor_binding_id=row["predecessor_binding_id"],
             checkpoint_version=int(row["checkpoint_version"]),
             checkpoint_hash=row["checkpoint_hash"],
+            hazel_event_hash=row["hazel_event_hash"],
             idempotency_key=str(row["idempotency_key"]),
             correlation_id=str(row["correlation_id"]),
             causation_id=row["causation_id"],
