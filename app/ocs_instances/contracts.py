@@ -73,10 +73,10 @@ def stable_run_id(
     if not all((institution_id, organization_id, mission_id, ocs_id)):
         raise ValueError("institution_organization_mission_and_ocs_required")
     return f"run:{canonical_hash({
-        \"institution_id\": institution_id,
-        \"organization_id\": organization_id,
-        \"mission_id\": mission_id,
-        \"ocs_id\": ocs_id,
+        "institution_id": institution_id,
+        "organization_id": organization_id,
+        "mission_id": mission_id,
+        "ocs_id": ocs_id,
     })}"
 
 
