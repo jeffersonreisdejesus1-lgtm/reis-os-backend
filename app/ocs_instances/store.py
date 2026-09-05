@@ -28,6 +28,7 @@ class InstanceBindingStore:
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._database_path)
         connection.row_factory = sqlite3.Row
+        connection.execute("PRAGMA foreign_keys = ON")
         return connection
 
     def _initialize(self) -> None:
@@ -345,12 +346,23 @@ class InstanceBindingStore:
             predecessor = self._row(predecessor_row)
             successor = self._row(successor_row)
             if (
+                successor.predecessor_binding_id != predecessor.binding_id
+                or successor.organization_id != predecessor.organization_id
+                or successor.mission_id != predecessor.mission_id
+                or successor.ocs_id != predecessor.ocs_id
+                or successor.run_id != predecessor.run_id
+                or successor.generation != predecessor.generation + 1
+            ):
+                raise InstanceBindingError("replacement_lineage_mismatch")
+            if (
                 predecessor.version != predecessor_expected_version
                 or successor.version != successor_expected_version
             ):
                 raise InstanceBindingError("instance_version_conflict")
             if predecessor.status is not InstanceStatus.CHECKPOINTED:
-                raise InstanceBindingError("verified_checkpoint_required_for_replacement")
+                raise InstanceBindingError(
+                    "verified_checkpoint_required_for_replacement"
+                )
             if successor.status is not InstanceStatus.PREPARED:
                 raise InstanceBindingError("replacement_successor_not_prepared")
             now = time()
@@ -434,6 +446,71 @@ class InstanceBindingStore:
                 (binding_id,),
             ).fetchall()
         return tuple(dict(row) for row in rows)
+
+    def transition_replay(
+        self,
+        *,
+        binding_id: str,
+        target: InstanceStatus,
+        idempotency_key: str,
+        event_type: str,
+        platform_instance_id: str | None = None,
+        checkpoint_version: int | None = None,
+        checkpoint_hash: str | None = None,
+        hazel_event_hash: str | None = None,
+        maturity: BindingMaturity | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> InstanceBinding | None:
+        requested_payload = {
+            **({} if payload is None else payload),
+            "platform_instance_id": platform_instance_id,
+            "checkpoint_version": checkpoint_version,
+            "checkpoint_hash": checkpoint_hash,
+            "hazel_event_hash": hazel_event_hash,
+            "maturity": None if maturity is None else maturity.value,
+        }
+        requested_hash = json.dumps(
+            requested_payload, sort_keys=True, separators=(",", ":")
+        )
+        with self._connect() as connection:
+            replay = connection.execute(
+                "SELECT * FROM ocs_instance_journal WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+        if replay is None:
+            return None
+        if (
+            replay["binding_id"] != binding_id
+            or replay["event_type"] != event_type
+            or replay["to_status"] != target.value
+            or replay["payload_json"] != requested_hash
+        ):
+            raise InstanceBindingError("instance_idempotency_conflict")
+        return self.get(binding_id)
+
+    def checkpoint_replay(
+        self,
+        *,
+        binding_id: str,
+        idempotency_key: str,
+        request_fingerprint: str,
+    ) -> InstanceBinding | None:
+        with self._connect() as connection:
+            replay = connection.execute(
+                "SELECT * FROM ocs_instance_journal WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+        if replay is None:
+            return None
+        payload = json.loads(str(replay["payload_json"]))
+        if (
+            replay["binding_id"] != binding_id
+            or replay["event_type"] != "OCS_INSTANCE_CHECKPOINTED"
+            or replay["to_status"] != InstanceStatus.CHECKPOINTED.value
+            or payload.get("request_fingerprint") != request_fingerprint
+        ):
+            raise InstanceBindingError("instance_idempotency_conflict")
+        return self.get(binding_id)
 
     @staticmethod
     def _append_event(
