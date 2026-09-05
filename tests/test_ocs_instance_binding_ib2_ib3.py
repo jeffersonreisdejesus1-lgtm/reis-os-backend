@@ -11,8 +11,8 @@ from unicodedata import normalize
 import pytest
 
 from app.ocs_instances.contracts import (
-    BootstrapAck,
     BindingMaturity,
+    BootstrapAck,
     InstanceBinding,
     InstanceBindingError,
     InstanceStatus,
@@ -149,6 +149,29 @@ def build_binder(
             authority_ref=profile.authority_envelope_ref,
             policy_snapshot="policy:mission:1",
             action_binding="ocs_instance_binding",
+            object_ref_or_selector="mission:1",
+            trace_ref="trace:mission:1",
+            max_uses=1,
+            single_use=True,
+        )
+    )
+    leases.issue(
+        AuthorityLease(
+            lease_id="lease:sofia:checkpoint:1",
+            ocs="SOFIA",
+            capability=(
+                "software_implementation_via_valid_envelope_lease_effector"
+            ),
+            expires_at=now + 3600,
+            actor="NÓESIS",
+            issued_at=now,
+            not_before=now,
+            scope=("repo:reis-os-backend",),
+            tenant="org:reis-os",
+            context_ref="mission:1",
+            authority_ref=profile.authority_envelope_ref,
+            policy_snapshot="policy:mission:1",
+            action_binding="ocs_instance_checkpoint",
             object_ref_or_selector="mission:1",
             trace_ref="trace:mission:1",
             max_uses=1,
@@ -399,7 +422,7 @@ def test_prepare_replay_recovers_same_bootstrap_without_second_hazel_write(
 def test_checkpoint_replacement_restart_and_old_generation_fencing(
     tmp_path: Path,
 ) -> None:
-    binder, store, _ = build_binder(tmp_path)
+    binder, store, transport = build_binder(tmp_path)
     binding, envelope = binder.prepare(prepare_request())
     bridge = WorkInstanceBridge(store)
     bridge.attach(
@@ -422,6 +445,9 @@ def test_checkpoint_replacement_restart_and_old_generation_fencing(
     )
     checkpoint = binder.checkpoint(
         active.binding_id,
+        authority=replace(
+            prepare_request(), lease_id="lease:sofia:checkpoint:1"
+        ),
         platform_instance_id="work:1",
         generation=1,
         expected_version=4,
@@ -429,6 +455,32 @@ def test_checkpoint_replacement_restart_and_old_generation_fencing(
         idempotency_key="idem:checkpoint:1",
     )
     assert checkpoint.checkpoint_version == 2
+    writes_after_checkpoint = transport.persist_calls
+    replay = binder.checkpoint(
+        active.binding_id,
+        authority=replace(
+            prepare_request(), lease_id="lease:sofia:checkpoint:1"
+        ),
+        platform_instance_id="work:1",
+        generation=1,
+        expected_version=4,
+        state={"slice": "IB3", "completed": True},
+        idempotency_key="idem:checkpoint:1",
+    )
+    assert replay == checkpoint
+    assert transport.persist_calls == writes_after_checkpoint
+    with pytest.raises(InstanceBindingError, match="instance_idempotency_conflict"):
+        binder.checkpoint(
+            active.binding_id,
+            authority=replace(
+                prepare_request(), lease_id="lease:sofia:checkpoint:1"
+            ),
+            platform_instance_id="work:1",
+            generation=1,
+            expected_version=4,
+            state={"slice": "IB3", "completed": False},
+            idempotency_key="idem:checkpoint:1",
+        )
     replacement_request = replace(
         prepare_request(),
         lease_id="lease:sofia:2",
@@ -458,6 +510,9 @@ def test_checkpoint_replacement_restart_and_old_generation_fencing(
     ):
         binder.checkpoint(
             binding.binding_id,
+            authority=replace(
+                prepare_request(), lease_id="lease:sofia:checkpoint:1"
+            ),
             platform_instance_id="work:1",
             generation=1,
             expected_version=6,
@@ -500,6 +555,28 @@ def test_ten_ocs_complete_bootstrap_ack_checkpoint_recovery(
             authority_ref=profile.authority_envelope_ref,
             policy_snapshot="policy:all",
             action_binding="ocs_instance_binding",
+            object_ref_or_selector=mission_id,
+            trace_ref=trace_ref,
+            max_uses=1,
+            single_use=True,
+        )
+    )
+    checkpoint_lease_id = f"lease:{ocs_id}:checkpoint"
+    leases.issue(
+        AuthorityLease(
+            lease_id=checkpoint_lease_id,
+            ocs=ocs_id,
+            capability=capability,
+            expires_at=now + 3600,
+            actor="NÓESIS",
+            issued_at=now,
+            not_before=now,
+            scope=("repo:reis-os-backend",),
+            tenant=organization_id,
+            context_ref=mission_id,
+            authority_ref=profile.authority_envelope_ref,
+            policy_snapshot="policy:all",
+            action_binding="ocs_instance_checkpoint",
             object_ref_or_selector=mission_id,
             trace_ref=trace_ref,
             max_uses=1,
@@ -560,6 +637,7 @@ def test_ten_ocs_complete_bootstrap_ack_checkpoint_recovery(
     )
     checkpoint = binder.checkpoint(
         active.binding_id,
+        authority=replace(request, lease_id=checkpoint_lease_id),
         platform_instance_id=f"work:{ocs_id}",
         generation=1,
         expected_version=4,
