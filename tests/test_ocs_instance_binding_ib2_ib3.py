@@ -262,8 +262,16 @@ def test_work_bridge_requires_matching_name_and_challenge(
     binding, envelope = binder.prepare(prepare_request())
     bridge = WorkInstanceBridge(store)
 
-    for invalid_name in ("agora__mission-1", "sofiaevil"):\n        with pytest.raises(\n            InstanceBindingError, match="work_task_name_ocs_mismatch"\n        ):\n            bridge.attach(\n                binding.binding_id,\n                WorkSpawnReceipt("work:1", invalid_name),
-                expected_version=2,\n                idempotency_key=f"idem:attach:wrong:{invalid_name}",\n            )
+    for invalid_name in ("agora__mission-1", "sofiaevil"):
+        with pytest.raises(
+            InstanceBindingError, match="work_task_name_ocs_mismatch"
+        ):
+            bridge.attach(
+                binding.binding_id,
+                WorkSpawnReceipt("work:1", invalid_name),
+                expected_version=2,
+                idempotency_key=f"idem:attach:wrong:{invalid_name}",
+            )
 
     bound = bridge.attach(
         binding.binding_id,
