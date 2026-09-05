@@ -72,7 +72,12 @@ def stable_run_id(
 ) -> str:
     if not all((institution_id, organization_id, mission_id, ocs_id)):
         raise ValueError("institution_organization_mission_and_ocs_required")
-    return f"run:{canonical_hash({\n        \"institution_id\": institution_id,\n        \"organization_id\": organization_id,\n        \"mission_id\": mission_id,\n        \"ocs_id\": ocs_id,\n    })}"
+    return f"run:{canonical_hash({
+        \"institution_id\": institution_id,
+        \"organization_id\": organization_id,
+        \"mission_id\": mission_id,
+        \"ocs_id\": ocs_id,
+    })}"
 
 
 def canonical_hash(value: dict[str, Any]) -> str:
