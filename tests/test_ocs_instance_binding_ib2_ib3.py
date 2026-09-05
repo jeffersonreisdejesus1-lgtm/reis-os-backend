@@ -705,7 +705,7 @@ def test_shared_store_rejects_all_directional_cross_ocs_lineages(
 
     store = InstanceBindingStore(tmp_path / "shared-instances.sqlite3")
     bindings: dict[str, InstanceBinding] = {}
-    for index, ocs_id in enumerate(PROFILES, start=1):
+    for ocs_id in PROFILES:
         mission_id = f"mission:shared:{ocs_id}"
         binding = replace(
             make_binding(
