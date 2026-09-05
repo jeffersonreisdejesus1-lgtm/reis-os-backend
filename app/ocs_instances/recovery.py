@@ -25,11 +25,7 @@ class RecoveryResult:
 
 
 class OCSInstanceRecovery:
-    """Cold-start reconciliation for one mission-scoped OCS lineage.
-
-    Hazel remains the continuity authority. The local registry is a durable
-    coordination projection and may only be promoted after an exact Hazel readback.
-    """
+    """Cold-start reconciliation for one mission-scoped OCS lineage."""
 
     def __init__(
         self,
@@ -51,6 +47,11 @@ class OCSInstanceRecovery:
         binding = self._latest_binding(organization_id, mission_id, ocs_id)
         self._validate_local_identity(binding)
         self._require_single_active_generation(organization_id, mission_id, ocs_id)
+
+        if binding.predecessor_binding_id is None:
+            stranded = self._replacement_saga_or_none(binding.binding_id)
+            if stranded is not None and str(stranded["state"]) != "LEASE_FINALIZED":
+                raise InstanceBindingError("replacement_successor_missing")
 
         saga_state: str | None = None
         if binding.predecessor_binding_id is not None:
@@ -82,12 +83,7 @@ class OCSInstanceRecovery:
         if lease.authority_ref != successor.authority_ref:
             raise InstanceBindingError("replacement_recovery_authority_mismatch")
 
-        recovered = self._continuity.recover_state(
-            run_id=successor.run_id,
-            expected_ocs=successor.ocs_id,
-            host=successor.host,
-            authority_ref=successor.authority_ref,
-        )
+        recovered = self._recover_hazel(successor)
         next_version = predecessor.checkpoint_version + 1
         recovered_version = int(recovered["state_version"])
         if recovered_version == predecessor.checkpoint_version:
@@ -126,12 +122,7 @@ class OCSInstanceRecovery:
             )
             saga_state = str(saga["state"])
 
-        recovered = self._continuity.recover_state(
-            run_id=successor.run_id,
-            expected_ocs=successor.ocs_id,
-            host=successor.host,
-            authority_ref=successor.authority_ref,
-        )
+        recovered = self._recover_hazel(successor)
         self._validate_replacement_hazel(
             predecessor, successor, recovered, expected_version=next_version
         )
@@ -288,7 +279,7 @@ class OCSInstanceRecovery:
             raise InstanceBindingError("recovery_binding_not_found")
         return self._store._row(row)
 
-    def _replacement_saga(self, predecessor_id: str) -> dict[str, Any]:
+    def _replacement_saga_or_none(self, predecessor_id: str) -> dict[str, Any] | None:
         with self._store._connect() as connection:
             row = connection.execute(
                 """
@@ -298,9 +289,13 @@ class OCSInstanceRecovery:
                 """,
                 (predecessor_id,),
             ).fetchone()
-        if row is None:
+        return None if row is None else dict(row)
+
+    def _replacement_saga(self, predecessor_id: str) -> dict[str, Any]:
+        saga = self._replacement_saga_or_none(predecessor_id)
+        if saga is None:
             raise InstanceBindingError("replacement_recovery_saga_missing")
-        return dict(row)
+        return saga
 
     def _require_single_active_generation(
         self, organization_id: str, mission_id: str, ocs_id: str
