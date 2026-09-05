@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict, replace
 from hashlib import sha256
 from pathlib import Path
 from time import time
@@ -248,8 +249,6 @@ def test_binder_reuses_profile_identity_lease_and_hazel(
 
 def test_binder_rejects_non_mission_lease(tmp_path: Path) -> None:
     binder, _, _ = build_binder(tmp_path)
-    from dataclasses import replace
-
     request = replace(prepare_request(), mission_id="mission:forged")
 
     with pytest.raises(ValueError, match="mission_specific_lease_required"):
@@ -263,13 +262,8 @@ def test_work_bridge_requires_matching_name_and_challenge(
     binding, envelope = binder.prepare(prepare_request())
     bridge = WorkInstanceBridge(store)
 
-    with pytest.raises(InstanceBindingError, match="work_task_name_ocs_mismatch"):
-        bridge.attach(
-            binding.binding_id,
-            WorkSpawnReceipt("work:1", "agora__mission-1"),
-            expected_version=2,
-            idempotency_key="idem:attach:wrong",
-        )
+    for invalid_name in ("agora__mission-1", "sofiaevil"):\n        with pytest.raises(\n            InstanceBindingError, match="work_task_name_ocs_mismatch"\n        ):\n            bridge.attach(\n                binding.binding_id,\n                WorkSpawnReceipt("work:1", invalid_name),
+                expected_version=2,\n                idempotency_key=f"idem:attach:wrong:{invalid_name}",\n            )
 
     bound = bridge.attach(
         binding.binding_id,
@@ -314,7 +308,6 @@ def test_all_ten_profiles_bind_identity_namespace_and_authority(
     tmp_path: Path, ocs_id: str
 ) -> None:
     from app.ocs_instances.contracts import canonical_hash, stable_run_id
-    from dataclasses import asdict
 
     profile = PROFILES[ocs_id]
     run_id = stable_run_id("REIS OS", "org:all", "mission:all", ocs_id)
@@ -332,3 +325,85 @@ def test_all_ten_profiles_bind_identity_namespace_and_authority(
     assert binding.memory_namespace == profile.memory_namespace
     assert binding.authority_envelope_ref == profile.authority_envelope_ref
     assert canonical_hash(asdict(profile))
+
+
+def test_prepare_replay_recovers_same_bootstrap_without_second_hazel_write(
+    tmp_path: Path,
+) -> None:
+    binder, _, transport = build_binder(tmp_path)
+
+    first_binding, first_envelope = binder.prepare(prepare_request())
+    second_binding, second_envelope = binder.prepare(prepare_request())
+
+    assert second_binding == first_binding
+    assert second_envelope == first_envelope
+    assert transport.persist_calls == 1
+
+
+def test_checkpoint_replacement_restart_and_old_generation_fencing(
+    tmp_path: Path,
+) -> None:
+    binder, store, _ = build_binder(tmp_path)
+    binding, envelope = binder.prepare(prepare_request())
+    bridge = WorkInstanceBridge(store)
+    bridge.attach(
+        binding.binding_id,
+        WorkSpawnReceipt("work:1", "sofia__mission-1"),
+        expected_version=2,
+        idempotency_key="idem:attach:1",
+    )
+    active = bridge.acknowledge(
+        BootstrapAck(
+            binding.binding_id,
+            "work:1",
+            1,
+            envelope.digest(),
+            binding.identity_binding_hash,
+            envelope.challenge_nonce,
+            "idem:ack:1",
+        ),
+        expected_version=3,
+    )
+    checkpoint = binder.checkpoint(
+        active.binding_id,
+        platform_instance_id="work:1",
+        generation=1,
+        expected_version=4,
+        state={"slice": "IB3", "completed": True},
+        idempotency_key="idem:checkpoint:1",
+    )
+    assert checkpoint.checkpoint_version == 2
+    replacement_request = replace(
+        prepare_request(),
+        idempotency_key="idem:prepare:2",
+        correlation_id="correlation:2",
+        causation_id="idem:checkpoint:1",
+    )
+    replacement, recovered_envelope = binder.replace_instance(
+        checkpoint.binding_id,
+        replacement_request,
+        platform_instance_id="work:1",
+        generation=1,
+        expected_version=5,
+        replacement_idempotency_key="idem:replace:1",
+    )
+    assert replacement.generation == 2
+    assert replacement.predecessor_binding_id == binding.binding_id
+    assert replacement.checkpoint_version == 3
+    assert replacement.run_id == binding.run_id
+    assert recovered_envelope.identity_binding_hash == binding.identity_binding_hash
+
+    restarted = InstanceBindingStore(tmp_path / "instances.sqlite3")
+    assert restarted.get(binding.binding_id).status is InstanceStatus.REPLACED
+    assert restarted.get(replacement.binding_id).generation == 2
+    with pytest.raises(
+        InstanceBindingError, match="active_instance_required_for_checkpoint"
+    ):
+        binder.checkpoint(
+            binding.binding_id,
+            platform_instance_id="work:1",
+            generation=1,
+            expected_version=6,
+            state={"forged": True},
+            idempotency_key="idem:checkpoint:old",
+        )
