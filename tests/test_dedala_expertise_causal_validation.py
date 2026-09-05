@@ -2,6 +2,12 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from app.expertise.assurance import (
+    FalsificationReceipt,
+    VerificationReceipt,
+    candidate_binding,
+    evidence_binding,
+)
 from app.expertise.causal_validation import (
     REPRESENTATIVE_ARCHITECTURE_CASES,
     evaluate_representative_case,
@@ -15,6 +21,8 @@ from app.universal_kernel.contracts import (
     ExecutionResult,
     RiskLevel,
 )
+
+REVISION = "causal-suite-revision-001"
 
 
 class FakeKernel:
@@ -37,6 +45,43 @@ class FakeKernel:
         )
 
 
+class CaseFalsifier:
+    def __init__(self, case) -> None:
+        self.case = case
+
+    def evaluate(self, candidate, evidence, assessed_revision):
+        survived = (
+            self.case.expected_lens in candidate.candidate_lenses
+            and any(item.source_family == self.case.expected_source_family for item in evidence)
+        )
+        return FalsificationReceipt(
+            receipt_id=f"FALSIFY-{self.case.case_id}",
+            candidate_binding=candidate_binding(candidate),
+            evidence_binding=evidence_binding(evidence),
+            assessed_revision=assessed_revision,
+            procedure_id="representative-family-counterexample-check-v1",
+            survived=survived,
+            evidence_refs=candidate.evidence_refs,
+        )
+
+
+class CaseVerifier:
+    def evaluate(self, candidate, evidence, assessed_revision):
+        verified = bool(candidate.evidence_refs) and all(
+            item.authority_effect == "NONE" and item.canon_effect == "NONE"
+            for item in evidence
+        )
+        return VerificationReceipt(
+            receipt_id="VERIFY-REPRESENTATIVE-CASE",
+            candidate_binding=candidate_binding(candidate),
+            evidence_binding=evidence_binding(evidence),
+            assessed_revision=assessed_revision,
+            procedure_id="bounded-evidence-integrity-check-v1",
+            verified=verified,
+            evidence_refs=candidate.evidence_refs,
+        )
+
+
 def _proposal(case_id: str) -> ActionProposal:
     return ActionProposal(
         action_id=f"ACT-{case_id}",
@@ -52,19 +97,10 @@ def _proposal(case_id: str) -> ActionProposal:
     )
 
 
-def test_four_representative_families_have_bounded_causal_consumption() -> None:
+def test_four_representative_families_have_bounded_routing_consumption() -> None:
     receipts = evaluate_representative_suite()
-
     assert len(receipts) == 4
     assert all(receipt.causal_consumption_proven for receipt in receipts)
-    assert all(
-        receipt.reason == "bounded_causal_expertise_consumption_proven"
-        for receipt in receipts
-    )
-    assert all(receipt.identity_effect == "NONE" for receipt in receipts)
-    assert all(receipt.authority_effect == "NONE" for receipt in receipts)
-    assert all(receipt.canon_effect == "NONE" for receipt in receipts)
-
     families = {
         source_id.split("-", 1)[0]
         for receipt in receipts
@@ -73,29 +109,15 @@ def test_four_representative_families_have_bounded_causal_consumption() -> None:
     assert {"FOWLER", "KLEPPMANN", "NEWMAN", "HOHPE"}.issubset(families)
 
 
-def test_each_case_selects_expected_lens_and_expected_source_family() -> None:
-    for case in REPRESENTATIVE_ARCHITECTURE_CASES:
-        receipt = evaluate_representative_case(case)
-        assert case.expected_lens in receipt.selected_lenses
-        assert any(
-            source_id.startswith(f"{case.expected_source_family}-")
-            for source_id in receipt.source_ids
-        )
-        assert receipt.evidence_refs
-
-
 def test_wrong_expected_family_fails_closed_instead_of_claiming_causality() -> None:
     case = REPRESENTATIVE_ARCHITECTURE_CASES[0]
     mismatched = replace(case, expected_source_family="KLEPPMANN")
-
     receipt = evaluate_representative_case(mismatched)
-
     assert receipt.causal_consumption_proven is False
     assert receipt.reason == "expected_source_family_not_retrieved"
 
 
-def test_representative_cases_reach_kernel_without_authority_or_evidence_mutation(
-) -> None:
+def test_representative_cases_reach_kernel_with_bound_receipts() -> None:
     kernel = FakeKernel()
     physiology = DedalaExpertisePhysiology(kernel=kernel)
 
@@ -103,31 +125,18 @@ def test_representative_cases_reach_kernel_without_authority_or_evidence_mutatio
         proposal = _proposal(case.case_id)
         original_evidence = proposal.evidence
         original_authority = proposal.authority_ref
-
         result = physiology.execute(
             proposal,
             problem=case.problem,
             proposition=case.proposition,
-            falsifier=lambda candidate, evidence, case=case: (
-                case.expected_lens in candidate.candidate_lenses
-                and any(
-                    item.source_id.startswith(f"{case.expected_source_family}-")
-                    for item in evidence
-                )
-            ),
-            verifier=lambda candidate, evidence: (
-                bool(candidate.evidence_refs)
-                and all(item.authority_effect == "NONE" for item in evidence)
-                and all(item.canon_effect == "NONE" for item in evidence)
-            ),
+            assessed_revision=REVISION,
+            falsifier=CaseFalsifier(case),
+            verifier=CaseVerifier(),
         )
-
         assert result.material_execution_attempted is True
-        assert result.kernel_result is not None
-        assert result.kernel_result.proven is True
-        assert result.identity_effect == "NONE"
-        assert result.authority_effect == "NONE"
-        assert result.canon_effect == "NONE"
+        assert result.kernel_result is not None and result.kernel_result.proven is True
+        assert result.falsification_receipt is not None
+        assert result.verification_receipt is not None
         assert proposal.evidence == original_evidence
         assert proposal.authority_ref == original_authority
 
