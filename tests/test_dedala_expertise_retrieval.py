@@ -52,14 +52,51 @@ def fragment(
 def test_selective_retrieval_returns_only_lens_authorized_source_families() -> None:
     plan = build_retrieval_plan("distributed state consistency recovery message retry")
     sources = (
-        source("kleppmann-001", "KLEPPMANN", "Martin Kleppmann", ("distributed", "state", "consistency", "recovery")),
-        source("hohpe-001", "HOHPE", "Gregor Hohpe", ("message", "retry", "routing")),
-        source("fowler-001", "FOWLER", "Martin Fowler", ("distributed", "state", "consistency", "recovery", "message", "retry")),
+        source(
+            "kleppmann-001",
+            "KLEPPMANN",
+            "Martin Kleppmann",
+            ("distributed", "state", "consistency", "recovery"),
+        ),
+        source(
+            "hohpe-001",
+            "HOHPE",
+            "Gregor Hohpe",
+            ("message", "retry", "routing"),
+        ),
+        source(
+            "fowler-001",
+            "FOWLER",
+            "Martin Fowler",
+            (
+                "distributed",
+                "state",
+                "consistency",
+                "recovery",
+                "message",
+                "retry",
+            ),
+        ),
     )
     fragments = (
-        fragment("kleppmann-001", "k-1", "State recovery evidence.", ("state", "recovery")),
-        fragment("hohpe-001", "h-1", "Message retry evidence.", ("message", "retry")),
-        fragment("fowler-001", "f-1", "Lexically overlapping but wrong family.", ("distributed", "state", "message", "retry")),
+        fragment(
+            "kleppmann-001",
+            "k-1",
+            "State recovery evidence.",
+            ("state", "recovery"),
+        ),
+        fragment(
+            "hohpe-001",
+            "h-1",
+            "Message retry evidence.",
+            ("message", "retry"),
+        ),
+        fragment(
+            "fowler-001",
+            "f-1",
+            "Lexically overlapping but wrong family.",
+            ("distributed", "state", "message", "retry"),
+        ),
     )
     result = retrieve_expert_evidence(plan, sources, fragments)
     assert {item.source_id for item in result} == {"kleppmann-001", "hohpe-001"}
@@ -67,7 +104,12 @@ def test_selective_retrieval_returns_only_lens_authorized_source_families() -> N
 
 
 def test_source_provenance_hash_detects_bound_field_tampering() -> None:
-    original = source("fowler-001", "FOWLER", "Martin Fowler", ("architecture", "refactoring"))
+    original = source(
+        "fowler-001",
+        "FOWLER",
+        "Martin Fowler",
+        ("architecture", "refactoring"),
+    )
     validate_source_record(original)
     for tampered in (
         replace(original, source_id="fowler-evil"),
@@ -76,13 +118,23 @@ def test_source_provenance_hash_detects_bound_field_tampering() -> None:
         replace(original, retrieval_tags=("state", "consistency")),
         replace(original, content_hash="f" * 64),
     ):
-        with pytest.raises(ValueError, match="expert_source_provenance_integrity_failure"):
+        with pytest.raises(
+            ValueError,
+            match="expert_source_provenance_integrity_failure",
+        ):
             validate_source_record(tampered)
 
 
 def test_corrupted_fragment_fails_closed() -> None:
     plan = build_retrieval_plan("distributed state consistency")
-    sources = (source("kleppmann-001", "KLEPPMANN", "Martin Kleppmann", ("distributed", "state", "consistency")),)
+    sources = (
+        source(
+            "kleppmann-001",
+            "KLEPPMANN",
+            "Martin Kleppmann",
+            ("distributed", "state", "consistency"),
+        ),
+    )
     bad = ExpertEvidenceFragment(
         source_id="kleppmann-001",
         fragment_id="k-bad",
