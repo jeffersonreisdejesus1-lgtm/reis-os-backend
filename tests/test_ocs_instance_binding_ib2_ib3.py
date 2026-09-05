@@ -46,6 +46,13 @@ class FakeHazelTransport:
             str(envelope["ocs_id"]),
             str(envelope["state_namespace"]),
         )
+        previous = self.latest.get(key)
+        if previous is None:
+            assert envelope["state_version"] == 1
+            assert envelope["predecessor_hash"] is None
+        else:
+            assert envelope["state_version"] == previous["state_version"] + 1
+            assert envelope["predecessor_hash"] == previous["event_hash"]
         payload = dict(envelope["payload"])
         payload_hash = self._hash(payload)
         event_hash = self._hash(
@@ -457,3 +464,113 @@ def test_checkpoint_replacement_restart_and_old_generation_fencing(
             state={"forged": True},
             idempotency_key="idem:checkpoint:old",
         )
+
+
+@pytest.mark.parametrize("ocs_id", tuple(PROFILES))
+def test_ten_ocs_complete_bootstrap_ack_checkpoint_recovery(
+    tmp_path: Path,
+    ocs_id: str,
+) -> None:
+    profile = PROFILES[ocs_id]
+    capability = profile.allowed_action_classes[0]
+    mission_id = f"mission:{ocs_id}"
+    organization_id = "org:all"
+    root = tmp_path / ocs_id
+    root.mkdir()
+    store = InstanceBindingStore(root / "instances.sqlite3")
+    identity = IdentityKernelGuard(
+        audit_log=IdentityAuditLog(root / "identity.jsonl")
+    )
+    leases = AuthorityLeaseManager()
+    now = time()
+    lease_id = f"lease:{ocs_id}:1"
+    trace_ref = f"trace:{ocs_id}:1"
+    leases.issue(
+        AuthorityLease(
+            lease_id=lease_id,
+            ocs=ocs_id,
+            capability=capability,
+            expires_at=now + 3600,
+            actor="NÓESIS",
+            issued_at=now,
+            not_before=now,
+            scope=("repo:reis-os-backend",),
+            tenant=organization_id,
+            context_ref=mission_id,
+            authority_ref=profile.authority_envelope_ref,
+            policy_snapshot="policy:all",
+            action_binding="ocs_instance_binding",
+            object_ref_or_selector=mission_id,
+            trace_ref=trace_ref,
+            max_uses=1,
+            single_use=True,
+        )
+    )
+    transport = FakeHazelTransport()
+    binder = OCSInstanceBinder(
+        store=store,
+        identity_guard=identity,
+        leases=leases,
+        continuity=HazelBoundContinuity(
+            guard=identity,
+            transport=transport,
+        ),
+        binding_secret=b"ten-profile-binding-secret",
+    )
+    request = PrepareInstanceRequest(
+        mission_id=mission_id,
+        organization_id=organization_id,
+        ocs_id=ocs_id,
+        capability=capability,
+        lease_id=lease_id,
+        host="ChatGPT Work",
+        scope=("repo:reis-os-backend",),
+        idempotency_key=f"idem:{ocs_id}:prepare",
+        correlation_id=f"corr:{ocs_id}",
+        actor="NÓESIS",
+        context_ref=mission_id,
+        policy_snapshot="policy:all",
+        trace_ref=trace_ref,
+    )
+    binding, envelope = binder.prepare(request)
+    task_prefix = "".join(
+        character
+        for character in normalize("NFKD", ocs_id.casefold())
+        if character.isascii()
+    )
+    bridge = WorkInstanceBridge(store)
+    bridge.attach(
+        binding.binding_id,
+        WorkSpawnReceipt(f"work:{ocs_id}", f"{task_prefix}__mission"),
+        expected_version=2,
+        idempotency_key=f"idem:{ocs_id}:attach",
+    )
+    active = bridge.acknowledge(
+        BootstrapAck(
+            binding.binding_id,
+            f"work:{ocs_id}",
+            1,
+            envelope.digest(),
+            binding.identity_binding_hash,
+            envelope.challenge_nonce,
+            f"idem:{ocs_id}:ack",
+        ),
+        expected_version=3,
+    )
+    checkpoint = binder.checkpoint(
+        active.binding_id,
+        platform_instance_id=f"work:{ocs_id}",
+        generation=1,
+        expected_version=4,
+        state={"ocs_id": ocs_id, "phase": "checkpoint"},
+        idempotency_key=f"idem:{ocs_id}:checkpoint",
+    )
+    recovered = binder._continuity.recover_state(
+        run_id=checkpoint.run_id,
+        expected_ocs=ocs_id,
+        host="ChatGPT Work",
+        authority_ref=profile.authority_envelope_ref,
+    )
+    assert checkpoint.maturity is BindingMaturity.OPERATIONALLY_BOUND_L1
+    assert recovered["state_version"] == 2
+    assert recovered["payload"]["generation"] == 1
