@@ -195,6 +195,13 @@ def test_registry_cas_rejects_stale_writer(tmp_path: Path) -> None:
     store.transition(
         binding.binding_id,
         expected_version=1,
+        target=InstanceStatus.PERSISTED,
+        idempotency_key="idem:persist:1",
+        event_type="OCS_INSTANCE_PERSISTED",
+    )
+    store.transition(
+        binding.binding_id,
+        expected_version=2,
         target=InstanceStatus.BOUND,
         idempotency_key="idem:attach:1",
         event_type="OCS_PLATFORM_INSTANCE_ATTACHED",
@@ -206,7 +213,7 @@ def test_registry_cas_rejects_stale_writer(tmp_path: Path) -> None:
     ):
         store.transition(
             binding.binding_id,
-            expected_version=1,
+            expected_version=2,
             target=InstanceStatus.ACTIVE,
             idempotency_key="idem:ack:stale",
             event_type="OCS_BOOTSTRAP_ACKNOWLEDGED",
