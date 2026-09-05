@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import Depends
@@ -42,13 +42,14 @@ async def _active_command_role(
     organization_id: UUID,
     session: AsyncSession,
 ) -> MembershipRole | None:
-    return await session.scalar(
+    role = await session.scalar(
         select(MembershipModel.role).where(
             MembershipModel.organization_id == organization_id,
             MembershipModel.user_id == current_user.id,
             MembershipModel.status == MembershipStatus.ACTIVE,
         )
     )
+    return cast(MembershipRole | None, role)
 
 
 def _require_institution_binding(
