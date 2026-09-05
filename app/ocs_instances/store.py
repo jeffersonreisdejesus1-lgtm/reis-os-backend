@@ -150,6 +150,14 @@ class InstanceBindingStore:
             )
         return binding
 
+    def by_idempotency(self, idempotency_key: str) -> InstanceBinding | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM ocs_instance_bindings WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+        return None if row is None else self._row(row)
+
     def get(self, binding_id: str) -> InstanceBinding:
         with self._connect() as connection:
             row = connection.execute(
