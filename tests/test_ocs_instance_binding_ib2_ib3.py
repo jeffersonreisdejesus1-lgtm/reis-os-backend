@@ -274,7 +274,7 @@ def test_binder_reuses_profile_identity_lease_and_hazel(
 
     binding, envelope = binder.prepare(prepare_request())
 
-    assert binding.run_id == "REIS OS:org:reis-os:mission:1:SOFIA"
+    assert binding.run_id.startswith("run:")
     assert binding.profile_version == PROFILES["SOFIA"].version
     assert binding.maturity is BindingMaturity.PREPARED_UNVERIFIED
     assert binding.state_namespace == PROFILES["SOFIA"].state_namespace
@@ -358,6 +358,9 @@ def test_all_ten_profiles_bind_identity_namespace_and_authority(
 
     profile = PROFILES[ocs_id]
     run_id = stable_run_id("REIS OS", "org:all", "mission:all", ocs_id)
+    assert run_id != stable_run_id(
+        "REIS OS", "org:other", "mission:all", ocs_id
+    )
     guard = IdentityKernelGuard(
         audit_log=IdentityAuditLog(tmp_path / f"{ocs_id}.jsonl")
     )
