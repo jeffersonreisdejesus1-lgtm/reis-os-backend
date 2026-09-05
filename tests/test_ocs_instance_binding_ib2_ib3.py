@@ -261,8 +261,7 @@ def test_registry_rejects_second_active_binding_for_same_mission_ocs(
         store.create(
             make_binding(
                 binding_id="binding:2",
-                lease_id="lease:sofia:2",
-        idempotency_key="idem:prepare:2",
+                idempotency_key="idem:prepare:2",
             )
         )
 
@@ -425,6 +424,7 @@ def test_checkpoint_replacement_restart_and_old_generation_fencing(
     assert checkpoint.checkpoint_version == 2
     replacement_request = replace(
         prepare_request(),
+        lease_id="lease:sofia:2",
         idempotency_key="idem:prepare:2",
         correlation_id="correlation:2",
         causation_id="idem:checkpoint:1",
