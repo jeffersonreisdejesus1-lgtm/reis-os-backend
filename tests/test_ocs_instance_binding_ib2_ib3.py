@@ -18,6 +18,7 @@ from app.ocs_instances.contracts import (
     InstanceStatus,
     PrepareInstanceRequest,
 )
+from app.ocs_instances.lease_store import AuthenticatedLeaseSnapshotStore
 from app.ocs_instances.service import OCSInstanceBinder
 from app.ocs_instances.store import InstanceBindingStore
 from app.ocs_instances.work_bridge import WorkInstanceBridge, WorkSpawnReceipt
@@ -455,6 +456,12 @@ def test_checkpoint_replacement_restart_and_old_generation_fencing(
         idempotency_key="idem:checkpoint:1",
     )
     assert checkpoint.checkpoint_version == 2
+    lease_store = AuthenticatedLeaseSnapshotStore(
+        tmp_path / "leases.json", b"lease-snapshot-test-key"
+    )
+    lease_store.save(binder._leases)
+    restored_leases = lease_store.load()
+    assert restored_leases.uses_consumed("lease:sofia:checkpoint:1") == 1
     writes_after_checkpoint = transport.persist_calls
     replay = binder.checkpoint(
         active.binding_id,
@@ -486,7 +493,7 @@ def test_checkpoint_replacement_restart_and_old_generation_fencing(
         lease_id="lease:sofia:2",
         idempotency_key="idem:prepare:2",
         correlation_id="correlation:2",
-        causation_id="idem:checkpoint:1",
+        causation_id=checkpoint.hazel_event_hash,
     )
     replacement, recovered_envelope = binder.replace_instance(
         checkpoint.binding_id,
