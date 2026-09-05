@@ -570,12 +570,19 @@ class OCSInstanceBinder:
             )
         next_binding = self._store.create(next_binding)
         next_version = previous.checkpoint_version + 1
+        recovered_payload = prior_state["payload"]
+        if (
+            prior_state.get("state_version") == next_version
+            and isinstance(recovered_payload, dict)
+            and recovered_payload.get("binding_id") == next_binding.binding_id
+        ):
+            recovered_payload = recovered_payload["recovered_payload"]
         replacement_state = {
             "binding_id": next_binding.binding_id,
             "mission_id": next_binding.mission_id,
             "generation": next_binding.generation,
             "recovered_from": previous.binding_id,
-            "recovered_payload": prior_state["payload"],
+            "recovered_payload": recovered_payload,
             "bootstrap_hash": next_binding.bootstrap_hash,
         }
         recovered = self._continuity.recover_state(
