@@ -90,6 +90,20 @@ class InstanceBindingStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS ocs_action_sagas (
+                    idempotency_key TEXT PRIMARY KEY,
+                    binding_id TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    request_fingerprint TEXT NOT NULL,
+                    state TEXT NOT NULL,
+                    payload_json TEXT NOT NULL,
+                    updated_at REAL NOT NULL,
+                    FOREIGN KEY(binding_id) REFERENCES ocs_instance_bindings(binding_id)
+                )
+                """
+            )
 
     def create(self, binding: InstanceBinding) -> InstanceBinding:
         if binding.status is not InstanceStatus.PREPARED or binding.version != 1:
@@ -116,6 +130,23 @@ class InstanceBindingStore:
             ).fetchone()
             if active is not None and binding.predecessor_binding_id is None:
                 raise InstanceBindingError("active_mission_ocs_binding_exists")
+            if binding.predecessor_binding_id is not None:
+                predecessor_row = connection.execute(
+                    "SELECT * FROM ocs_instance_bindings WHERE binding_id = ?",
+                    (binding.predecessor_binding_id,),
+                ).fetchone()
+                if predecessor_row is None:
+                    raise InstanceBindingError("replacement_predecessor_not_found")
+                predecessor = self._row(predecessor_row)
+                if (
+                    predecessor.status is not InstanceStatus.CHECKPOINTED
+                    or binding.organization_id != predecessor.organization_id
+                    or binding.mission_id != predecessor.mission_id
+                    or binding.ocs_id != predecessor.ocs_id
+                    or binding.run_id != predecessor.run_id
+                    or binding.generation != predecessor.generation + 1
+                ):
+                    raise InstanceBindingError("replacement_lineage_mismatch")
             values = self._values(binding)
             connection.execute(
                 """
@@ -511,6 +542,83 @@ class InstanceBindingStore:
         ):
             raise InstanceBindingError("instance_idempotency_conflict")
         return self.get(binding_id)
+
+    def begin_action_saga(
+        self,
+        *,
+        idempotency_key: str,
+        binding_id: str,
+        operation: str,
+        request_fingerprint: str,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        payload_json = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+        with self._lock, self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM ocs_action_sagas WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+            if row is not None:
+                current = dict(row)
+                if (
+                    current["binding_id"] != binding_id
+                    or current["operation"] != operation
+                    or current["request_fingerprint"] != request_fingerprint
+                    or current["payload_json"] != payload_json
+                ):
+                    raise InstanceBindingError("instance_idempotency_conflict")
+                return current
+            connection.execute(
+                """
+                INSERT INTO ocs_action_sagas (
+                    idempotency_key, binding_id, operation, request_fingerprint,
+                    state, payload_json, updated_at
+                ) VALUES (?, ?, ?, ?, 'LEASE_RESERVED', ?, ?)
+                """,
+                (
+                    idempotency_key,
+                    binding_id,
+                    operation,
+                    request_fingerprint,
+                    payload_json,
+                    time(),
+                ),
+            )
+        return self.action_saga(idempotency_key)
+
+    def action_saga(self, idempotency_key: str) -> dict[str, Any]:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM ocs_action_sagas WHERE idempotency_key = ?",
+                (idempotency_key,),
+            ).fetchone()
+        if row is None:
+            raise InstanceBindingError("action_saga_not_found")
+        return dict(row)
+
+    def advance_action_saga(
+        self,
+        idempotency_key: str,
+        *,
+        expected_state: str,
+        target_state: str,
+    ) -> dict[str, Any]:
+        with self._lock, self._connect() as connection:
+            cursor = connection.execute(
+                """
+                UPDATE ocs_action_sagas SET state = ?, updated_at = ?
+                WHERE idempotency_key = ? AND state = ?
+                """,
+                (target_state, time(), idempotency_key, expected_state),
+            )
+            if cursor.rowcount != 1:
+                row = connection.execute(
+                    "SELECT state FROM ocs_action_sagas WHERE idempotency_key = ?",
+                    (idempotency_key,),
+                ).fetchone()
+                if row is None or row["state"] != target_state:
+                    raise InstanceBindingError("action_saga_state_conflict")
+        return self.action_saga(idempotency_key)
 
     @staticmethod
     def _append_event(
