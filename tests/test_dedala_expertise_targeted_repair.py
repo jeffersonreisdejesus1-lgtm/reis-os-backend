@@ -39,23 +39,33 @@ def _candidate_and_evidence():
 def test_expected_family_removal_breaks_bounded_causal_chain() -> None:
     plan = build_retrieval_plan("legacy architecture refactoring evolution")
     sources = tuple(
-        source for source in DEDALA_EXPERT_SOURCES if source.source_family != "FOWLER"
+        source
+        for source in DEDALA_EXPERT_SOURCES
+        if source.source_family != "FOWLER"
     )
     source_ids = {source.source_id for source in sources}
     fragments = tuple(
-        fragment for fragment in DEDALA_EXPERT_FRAGMENTS if fragment.source_id in source_ids
+        fragment
+        for fragment in DEDALA_EXPERT_FRAGMENTS
+        if fragment.source_id in source_ids
     )
     assert retrieve_expert_evidence(plan, sources, fragments) == ()
 
 
 def test_unrelated_family_with_matching_vocabulary_cannot_cross_lens_boundary() -> None:
-    plan = build_retrieval_plan("legacy architecture refactoring evolution")
-    original = next(source for source in DEDALA_EXPERT_SOURCES if source.source_family == "KLEPPMANN")
+    original = next(
+        source
+        for source in DEDALA_EXPERT_SOURCES
+        if source.source_family == "KLEPPMANN"
+    )
     forged_overlap = replace(
         original,
         retrieval_tags=("legacy", "architecture", "refactoring", "evolution"),
     )
-    with pytest.raises(ValueError, match="expert_source_provenance_integrity_failure"):
+    with pytest.raises(
+        ValueError,
+        match="expert_source_provenance_integrity_failure",
+    ):
         validate_source_record(forged_overlap)
 
 
