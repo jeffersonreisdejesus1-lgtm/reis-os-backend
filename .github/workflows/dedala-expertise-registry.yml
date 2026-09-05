@@ -10,8 +10,10 @@ on:
       - "tests/test_dedala_expertise_physiology.py"
       - "tests/test_dedala_expertise_corpus.py"
       - "tests/test_dedala_expertise_causal_validation.py"
+      - "tests/test_dedala_expertise_targeted_repair.py"
       - "docs/DEDALA-EXPERTISE-LAYER-REFACTOR-001.md"
       - "docs/DEDALA-EXPERTISE-CAUSAL-CLOSURE-001.md"
+      - "docs/SYNESIS-DEDALA-EXPERTISE-TARGETED-REPAIR-001.md"
       - ".github/workflows/dedala-expertise-registry.yml"
 
 jobs:
@@ -31,3 +33,4 @@ jobs:
           tests/test_dedala_expertise_physiology.py
           tests/test_dedala_expertise_corpus.py
           tests/test_dedala_expertise_causal_validation.py
+          tests/test_dedala_expertise_targeted_repair.py
