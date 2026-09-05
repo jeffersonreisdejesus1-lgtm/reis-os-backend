@@ -53,7 +53,9 @@ class CommandRealtimeFeed:
             return Freshness.STALE
         if Freshness.UNKNOWN in values:
             return Freshness.UNKNOWN
-        return Freshness.CURRENT
+        if values == {Freshness.LIVE}:
+            return Freshness.LIVE
+        return Freshness.RECENT
 
 
 def encode_sse(batch: RealtimeBatch) -> Iterable[str]:
