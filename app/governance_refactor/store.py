@@ -113,6 +113,10 @@ class GovernanceCandidateStore:
         ).hexdigest()
         with self._lock, self._connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            if _has_scope_table(connection):
+                raise GovernancePersistenceError(
+                    "legacy_unscoped_writer_disabled"
+                )
             existing = connection.execute(
                 """
                 SELECT * FROM governance_candidate_records
@@ -223,6 +227,14 @@ class GovernanceCandidateStore:
                 "SELECT COUNT(*) AS count FROM governance_candidate_events"
             ).fetchone()
         return 0 if row is None else int(row["count"])
+
+
+def _has_scope_table(connection: sqlite3.Connection) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='table' "
+        "AND name='governance_candidate_scopes'"
+    ).fetchone()
+    return row is not None
 
 
 def _record_from_row(row: sqlite3.Row) -> dict[str, Any]:

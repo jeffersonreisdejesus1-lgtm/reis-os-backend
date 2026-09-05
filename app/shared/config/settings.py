@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     command_institution_organization_id: UUID | None = None
     command_event_store_path: str = "command_events.sqlite3"
     ocs_instance_store_path: str = "ocs_instances.sqlite3"
+    governance_candidate_store_path: str = "governance_candidates.sqlite3"
 
     model_config = SettingsConfigDict(
         env_file=".env",
