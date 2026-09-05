@@ -23,6 +23,16 @@ def migrate_governance_candidate_store(database_path: str | Path) -> None:
     with sqlite3.connect(path, timeout=30.0) as connection:
         connection.execute("BEGIN IMMEDIATE")
         names = _table_names(connection)
+        if "governance_schema_meta" in names:
+            row = connection.execute(
+                "SELECT version FROM governance_schema_meta WHERE singleton=1"
+            ).fetchone()
+            if row is None:
+                raise GovernanceProjectionError(
+                    "governance_candidate_schema_meta_invalid"
+                )
+            if int(row[0]) > RUNTIME_SCHEMA_VERSION:
+                raise GovernanceProjectionError("governance_candidate_schema_too_new")
         present_core = names.intersection(_CORE_TABLES)
         if present_core and present_core != _CORE_TABLES:
             raise GovernanceProjectionError("governance_candidate_schema_partial")
@@ -38,11 +48,6 @@ def migrate_governance_candidate_store(database_path: str | Path) -> None:
             )
             """
         )
-        row = connection.execute(
-            "SELECT version FROM governance_schema_meta WHERE singleton=1"
-        ).fetchone()
-        if row is not None and int(row[0]) > RUNTIME_SCHEMA_VERSION:
-            raise GovernanceProjectionError("governance_candidate_schema_too_new")
         connection.execute(
             """
             INSERT INTO governance_schema_meta(singleton, version) VALUES(1, ?)
@@ -60,7 +65,7 @@ def _table_names(connection: sqlite3.Connection) -> set[str]:
 
 
 def _create_core(connection: sqlite3.Connection) -> None:
-    connection.executescript(
+    statements = (
         """
         CREATE TABLE governance_candidate_records (
             position INTEGER PRIMARY KEY,
@@ -73,9 +78,13 @@ def _create_core(connection: sqlite3.Connection) -> None:
             provenance_refs_json TEXT NOT NULL,
             written_at TEXT NOT NULL,
             UNIQUE(record_type, record_id, schema_version)
-        );
+        )
+        """,
+        """
         CREATE INDEX ix_governance_candidate_records_type_id
-        ON governance_candidate_records(record_type, record_id);
+        ON governance_candidate_records(record_type, record_id)
+        """,
+        """
         CREATE TABLE governance_candidate_events (
             position INTEGER PRIMARY KEY,
             event_id TEXT NOT NULL UNIQUE,
@@ -88,15 +97,19 @@ def _create_core(connection: sqlite3.Connection) -> None:
             source_refs_json TEXT NOT NULL,
             provenance_refs_json TEXT NOT NULL,
             occurred_at TEXT NOT NULL
-        );
-        CREATE INDEX ix_governance_candidate_events_record
-        ON governance_candidate_events(record_type, record_id, position);
+        )
+        """,
         """
+        CREATE INDEX ix_governance_candidate_events_record
+        ON governance_candidate_events(record_type, record_id, position)
+        """,
     )
+    for statement in statements:
+        connection.execute(statement)
 
 
 def _create_scope(connection: sqlite3.Connection) -> None:
-    connection.executescript(
+    connection.execute(
         """
         CREATE TABLE IF NOT EXISTS governance_candidate_scopes (
             organization_id TEXT NOT NULL,
@@ -108,9 +121,13 @@ def _create_scope(connection: sqlite3.Connection) -> None:
                 organization_id, record_type, record_id, schema_version
             ),
             UNIQUE(record_type, record_id, schema_version)
-        );
+        )
+        """
+    )
+    connection.execute(
+        """
         CREATE INDEX IF NOT EXISTS ix_governance_candidate_scopes_organization
-        ON governance_candidate_scopes(organization_id, record_type);
+        ON governance_candidate_scopes(organization_id, record_type)
         """
     )
 

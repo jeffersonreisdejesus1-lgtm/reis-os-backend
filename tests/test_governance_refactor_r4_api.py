@@ -19,7 +19,10 @@ from httpx import AsyncClient
 from sqlalchemy import update
 
 from app.governance_refactor.contracts import Completeness, MissionMetricsRecord
-from app.governance_refactor.projections import GovernanceCommandViews
+from app.governance_refactor.projections import (
+    GovernanceCommandViews,
+    GovernanceProjectionError,
+)
 from app.governance_refactor.schema import migrate_governance_candidate_store
 from app.governance_refactor.scoped_store import ScopedGovernanceStore
 from app.main import app
@@ -147,6 +150,38 @@ def _counts(path: Path) -> tuple[int, int, int]:
                 "governance_candidate_scopes",
             )
         )
+
+
+def _schema_snapshot(path: Path) -> tuple[tuple[str, str, str], ...]:
+    with sqlite3.connect(path) as connection:
+        rows = connection.execute(
+            """
+            SELECT type, name, sql FROM sqlite_master
+            WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name
+            """
+        ).fetchall()
+    return tuple((str(row[0]), str(row[1]), str(row[2])) for row in rows)
+
+
+def test_r4_too_new_schema_is_rejected_before_any_ddl(tmp_path: Path) -> None:
+    database = tmp_path / "future.sqlite3"
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            """
+            CREATE TABLE governance_schema_meta (
+                singleton INTEGER PRIMARY KEY, version INTEGER NOT NULL
+            )
+            """
+        )
+        connection.execute("INSERT INTO governance_schema_meta VALUES(1, 3)")
+    before = _schema_snapshot(database)
+    with pytest.raises(GovernanceProjectionError, match="schema_too_new"):
+        migrate_governance_candidate_store(database)
+    assert _schema_snapshot(database) == before
+    with sqlite3.connect(database) as connection:
+        assert connection.execute(
+            "SELECT version FROM governance_schema_meta WHERE singleton=1"
+        ).fetchone()[0] == 3
 
 
 def test_r4_runtime_schema_migrates_legacy_store_and_survives_restart(
