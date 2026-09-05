@@ -148,6 +148,29 @@ def build_binder(
             single_use=True,
         )
     )
+    leases.issue(
+        AuthorityLease(
+            lease_id="lease:sofia:2",
+            ocs="SOFIA",
+            capability=(
+                "software_implementation_via_valid_envelope_lease_effector"
+            ),
+            expires_at=now + 3600,
+            actor="NÓESIS",
+            issued_at=now,
+            not_before=now,
+            scope=("repo:reis-os-backend",),
+            tenant="org:reis-os",
+            context_ref="mission:1",
+            authority_ref=profile.authority_envelope_ref,
+            policy_snapshot="policy:mission:1",
+            action_binding="ocs_instance_binding",
+            object_ref_or_selector="mission:1",
+            trace_ref="trace:mission:1",
+            max_uses=1,
+            single_use=True,
+        )
+    )
     transport = FakeHazelTransport()
     continuity = HazelBoundContinuity(guard=identity, transport=transport)
     binder = OCSInstanceBinder(
