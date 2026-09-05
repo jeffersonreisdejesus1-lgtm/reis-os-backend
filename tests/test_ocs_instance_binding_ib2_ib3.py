@@ -82,6 +82,28 @@ class FakeHazelTransport:
         return dict(self.latest[key])
 
 
+class FaultInjectingStore(InstanceBindingStore):
+    fail_after_state: str | None = None
+    failure_emitted = False
+
+    def advance_action_saga(
+        self,
+        idempotency_key: str,
+        *,
+        expected_state: str,
+        target_state: str,
+    ) -> dict[str, Any]:
+        result = super().advance_action_saga(
+            idempotency_key,
+            expected_state=expected_state,
+            target_state=target_state,
+        )
+        if target_state == self.fail_after_state and not self.failure_emitted:
+            self.failure_emitted = True
+            raise RuntimeError(f"injected_crash_after:{target_state}")
+        return result
+
+
 def make_binding(
     *,
     binding_id: str = "binding:1",
@@ -125,8 +147,10 @@ def make_binding(
 
 def build_binder(
     tmp_path: Path,
+    *,
+    store: InstanceBindingStore | None = None,
 ) -> tuple[OCSInstanceBinder, InstanceBindingStore, FakeHazelTransport]:
-    store = InstanceBindingStore(tmp_path / "instances.sqlite3")
+    store = store or InstanceBindingStore(tmp_path / "instances.sqlite3")
     identity = IdentityKernelGuard(
         audit_log=IdentityAuditLog(tmp_path / "identity.jsonl")
     )
@@ -719,6 +743,20 @@ def test_shared_store_rejects_all_directional_cross_ocs_lineages(
                 )
             denied += 1
     assert denied == 90
+    for ocs_id, predecessor in bindings.items():
+        with pytest.raises(
+            InstanceBindingError, match="replacement_lineage_mismatch"
+        ):
+            store.create(
+                replace(
+                    predecessor,
+                    binding_id=f"binding:cross-org:{ocs_id}",
+                    organization_id="org:other",
+                    generation=2,
+                    predecessor_binding_id=predecessor.binding_id,
+                    idempotency_key=f"idem:cross-org:{ocs_id}",
+                )
+            )
 
 
 def test_action_saga_survives_restart_at_every_boundary(tmp_path: Path) -> None:
@@ -749,3 +787,173 @@ def test_action_saga_survives_restart_at_every_boundary(tmp_path: Path) -> None:
         previous = target
     final = InstanceBindingStore(path).action_saga("idem:saga:1")
     assert final["state"] == "LEASE_FINALIZED"
+
+
+@pytest.mark.parametrize(
+    "boundary",
+    (
+        "EFFECT_APPLIED",
+        "READBACK_VERIFIED",
+        "LOCAL_COMMITTED",
+        "LEASE_FINALIZED",
+    ),
+)
+def test_checkpoint_fault_boundaries_retry_without_duplicate_hazel(
+    tmp_path: Path, boundary: str
+) -> None:
+    store = FaultInjectingStore(tmp_path / "instances.sqlite3")
+    binder, _, transport = build_binder(tmp_path, store=store)
+    binding, envelope = binder.prepare(prepare_request())
+    bridge = WorkInstanceBridge(store)
+    bridge.attach(
+        binding.binding_id,
+        WorkSpawnReceipt("work:1", "sofia__fault"),
+        expected_version=2,
+        idempotency_key="idem:fault:attach",
+    )
+    active = bridge.acknowledge(
+        BootstrapAck(
+            binding.binding_id,
+            "work:1",
+            1,
+            envelope.digest(),
+            binding.identity_binding_hash,
+            envelope.challenge_nonce,
+            "idem:fault:ack",
+        ),
+        expected_version=3,
+    )
+    authority = replace(
+        prepare_request(), lease_id="lease:sofia:checkpoint:1"
+    )
+    store.fail_after_state = boundary
+    with pytest.raises(RuntimeError, match="injected_crash_after"):
+        binder.checkpoint(
+            active.binding_id,
+            authority=authority,
+            platform_instance_id="work:1",
+            generation=1,
+            expected_version=4,
+            state={"fault_boundary": boundary},
+            idempotency_key=f"idem:fault:{boundary}",
+        )
+    writes = transport.persist_calls
+    snapshots = AuthenticatedLeaseSnapshotStore(
+        tmp_path / "fault-leases.json", b"fault-snapshot-key"
+    )
+    snapshots.save(binder._leases)
+    restarted_store = FaultInjectingStore(tmp_path / "instances.sqlite3")
+    restarted_store.failure_emitted = True
+    restarted = OCSInstanceBinder(
+        store=restarted_store,
+        identity_guard=binder._identity_guard,
+        leases=snapshots.load(),
+        continuity=binder._continuity,
+        binding_secret=b"test-binding-secret",
+    )
+    recovered = restarted.checkpoint(
+        active.binding_id,
+        authority=authority,
+        platform_instance_id="work:1",
+        generation=1,
+        expected_version=4,
+        state={"fault_boundary": boundary},
+        idempotency_key=f"idem:fault:{boundary}",
+    )
+    assert recovered.status is InstanceStatus.CHECKPOINTED
+    assert transport.persist_calls == writes
+    assert restarted_store.action_saga(f"idem:fault:{boundary}")["state"] == (
+        "LEASE_FINALIZED"
+    )
+
+
+@pytest.mark.parametrize(
+    "boundary",
+    (
+        "EFFECT_APPLIED",
+        "READBACK_VERIFIED",
+        "LOCAL_COMMITTED",
+        "LEASE_FINALIZED",
+    ),
+)
+def test_replacement_fault_boundaries_retry_without_duplicate_hazel(
+    tmp_path: Path, boundary: str
+) -> None:
+    store = FaultInjectingStore(tmp_path / "instances.sqlite3")
+    binder, _, transport = build_binder(tmp_path, store=store)
+    binding, envelope = binder.prepare(prepare_request())
+    bridge = WorkInstanceBridge(store)
+    bridge.attach(
+        binding.binding_id,
+        WorkSpawnReceipt("work:1", "sofia__replacement-fault"),
+        expected_version=2,
+        idempotency_key="idem:replacement-fault:attach",
+    )
+    active = bridge.acknowledge(
+        BootstrapAck(
+            binding.binding_id,
+            "work:1",
+            1,
+            envelope.digest(),
+            binding.identity_binding_hash,
+            envelope.challenge_nonce,
+            "idem:replacement-fault:ack",
+        ),
+        expected_version=3,
+    )
+    checkpoint = binder.checkpoint(
+        active.binding_id,
+        authority=replace(
+            prepare_request(), lease_id="lease:sofia:checkpoint:1"
+        ),
+        platform_instance_id="work:1",
+        generation=1,
+        expected_version=4,
+        state={"ready": True},
+        idempotency_key="idem:replacement-fault:checkpoint",
+    )
+    request = replace(
+        prepare_request(),
+        lease_id="lease:sofia:2",
+        idempotency_key="idem:replacement-fault:prepare",
+        correlation_id="corr:replacement-fault",
+        causation_id=checkpoint.hazel_event_hash,
+    )
+    store.fail_after_state = boundary
+    replacement_idempotency = f"idem:replacement-fault:{boundary}"
+    with pytest.raises(RuntimeError, match="injected_crash_after"):
+        binder.replace_instance(
+            checkpoint.binding_id,
+            request,
+            platform_instance_id="work:1",
+            generation=1,
+            expected_version=5,
+            replacement_idempotency_key=replacement_idempotency,
+        )
+    writes = transport.persist_calls
+    snapshots = AuthenticatedLeaseSnapshotStore(
+        tmp_path / "replacement-leases.json", b"replacement-snapshot-key"
+    )
+    snapshots.save(binder._leases)
+    restarted_store = FaultInjectingStore(tmp_path / "instances.sqlite3")
+    restarted_store.failure_emitted = True
+    restarted = OCSInstanceBinder(
+        store=restarted_store,
+        identity_guard=binder._identity_guard,
+        leases=snapshots.load(),
+        continuity=binder._continuity,
+        binding_secret=b"test-binding-secret",
+    )
+    recovered, _ = restarted.replace_instance(
+        checkpoint.binding_id,
+        request,
+        platform_instance_id="work:1",
+        generation=1,
+        expected_version=5,
+        replacement_idempotency_key=replacement_idempotency,
+    )
+    assert recovered.generation == 2
+    assert transport.persist_calls == writes
+    assert restarted_store.action_saga(replacement_idempotency)["state"] == (
+        "LEASE_FINALIZED"
+    )
