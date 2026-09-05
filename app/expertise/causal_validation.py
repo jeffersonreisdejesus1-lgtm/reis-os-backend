@@ -29,6 +29,7 @@ class CausalExpertiseReceipt:
     evidence_refs: tuple[str, ...]
     causal_consumption_proven: bool
     reason: str
+    semantic_derivation_causality_proven: bool = False
     identity_effect: str = "NONE"
     authority_effect: str = "NONE"
     canon_effect: str = "NONE"
@@ -92,12 +93,13 @@ REPRESENTATIVE_ARCHITECTURE_CASES = (
 def evaluate_representative_case(
     case: RepresentativeArchitectureCase,
 ) -> CausalExpertiseReceipt:
-    """Prove bounded causal consumption from problem classification to derivation.
+    """Prove only bounded routing/evidence-attachment causality.
 
-    This does not claim real-world architectural superiority. It proves that, for a
-    representative bounded case, the expected expert lens causally affects source
-    retrieval and the resulting local derivation evidence while preserving the
-    no-identity/no-authority/no-canon invariants.
+    The harness proves that the problem selects a lens, that the lens constrains the
+    eligible source family, and that provenance-bound evidence from that family is
+    attached to the local derivation candidate. It deliberately does NOT prove that
+    the evidence semantically caused the proposition or that the proposition is
+    architecturally superior.
     """
 
     validate_seed_corpus()
@@ -117,11 +119,18 @@ def evaluate_representative_case(
             causal_consumption_proven=False,
             reason="expected_lens_not_selected",
         )
+    if case.expected_source_family not in plan.allowed_source_families:
+        return CausalExpertiseReceipt(
+            case_id=case.case_id,
+            selected_lenses=plan.candidate_lenses,
+            source_ids=tuple(item.source_id for item in evidence),
+            evidence_refs=(),
+            causal_consumption_proven=False,
+            reason="expected_source_family_not_authorized_by_lens",
+        )
 
     family_evidence = tuple(
-        item
-        for item in evidence
-        if item.source_id.startswith(f"{case.expected_source_family}-")
+        item for item in evidence if item.source_family == case.expected_source_family
     )
     if not family_evidence:
         return CausalExpertiseReceipt(
@@ -156,10 +165,11 @@ def evaluate_representative_case(
         evidence_refs=candidate.evidence_refs,
         causal_consumption_proven=proven,
         reason=(
-            "bounded_causal_expertise_consumption_proven"
+            "bounded_routing_and_evidence_attachment_causality_proven"
             if proven
             else "causal_chain_integrity_failed"
         ),
+        semantic_derivation_causality_proven=False,
     )
 
 
