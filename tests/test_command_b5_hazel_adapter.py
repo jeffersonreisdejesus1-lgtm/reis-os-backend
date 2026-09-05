@@ -2,6 +2,7 @@ from __future__ import annotations
 
 # ruff: noqa: E501, I001
 
+from dataclasses import replace
 from hashlib import sha256
 import json
 from pathlib import Path
@@ -148,7 +149,7 @@ def test_b5_idempotent_replay_causes_zero_additional_mutations(tmp_path: Path) -
 
     assert first.mutation_count == 1
     assert second.idempotent_replay is True
-    assert second.mutation_count == 1
+    assert second.mutation_count == 0
     assert transport.persist_calls == 1
 
 
@@ -161,25 +162,20 @@ def test_b5_predecessor_drift_fails_before_second_persist(tmp_path: Path) -> Non
     first = adapter.persist(decision, _request())
     assert first.event_hash is not None
 
+    next_decision = replace(
+        decision,
+        idempotency_key="idem-b5-002",
+        correlation_id="corr-b5-002",
+        causation_id="cause-b5-001",
+    )
+    next_request = replace(
+        _request(version=2, predecessor="wrong-predecessor"),
+        idempotency_key="idem-b5-002",
+        correlation_id="corr-b5-002",
+        causation_id="cause-b5-001",
+    )
     with pytest.raises(HazelIntegrationError, match="command_hazel_predecessor_drift"):
-        adapter.persist(
-            KernelDecisionReadback(
-                **{
-                    **decision.__dict__,
-                    "idempotency_key": "idem-b5-002",
-                    "correlation_id": "corr-b5-002",
-                    "causation_id": "cause-b5-001",
-                }
-            ),
-            AuthorizedPersistRequest(
-                **{
-                    **_request(version=2, predecessor="wrong-predecessor").__dict__,
-                    "idempotency_key": "idem-b5-002",
-                    "correlation_id": "corr-b5-002",
-                    "causation_id": "cause-b5-001",
-                }
-            ),
-        )
+        adapter.persist(next_decision, next_request)
     assert transport.persist_calls == 1
 
 
@@ -188,9 +184,7 @@ def test_b5_invalid_causal_binding_fails_before_hazel(tmp_path: Path) -> None:
     binding = guard.bind_active_identity(
         run_id="run-b5-001", ocs_id="ÁGORA", host="ChatGPT", session_context="b5"
     )
-    request = AuthorizedPersistRequest(
-        **{**_request().__dict__, "correlation_id": "corr-forged"}
-    )
+    request = replace(_request(), correlation_id="corr-forged")
 
     with pytest.raises(HazelIntegrationError, match="command_hazel_correlation_binding_mismatch"):
         adapter.persist(_decision(binding.authority_envelope_ref), request)
