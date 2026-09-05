@@ -3,7 +3,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from app.command.api.dependencies import CommandReadAccess
+from app.command.api.dependencies import CommandFounderAccess, CommandReadAccess
 from app.command.api.schemas import OCSListResponse, OCSProfileResponse
 from app.command.application import get_ocs_profile, list_ocs_profiles
 from app.command.dossiers import CommandDossierService
@@ -11,6 +11,7 @@ from app.command.event_store import CommandEventStore
 from app.command.observability import CommandObservability
 from app.command.read_models import CommandReadModels
 from app.command.realtime import CommandRealtimeFeed, encode_sse
+from app.command.security import command_security_posture
 from app.shared.config.settings import Settings, get_settings
 from app.shared.errors.exceptions import AppError
 
@@ -89,6 +90,13 @@ async def get_observability(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> dict[str, Any]:
     return CommandObservability(settings.command_event_store_path).snapshot()
+
+
+@router.get("/security/posture")
+async def get_security_posture(
+    command_founder_access: CommandFounderAccess,
+) -> dict[str, Any]:
+    return command_security_posture()
 
 
 @router.get("/operations")
