@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from .registry import EXPERT_SOURCE_CLASS
 
@@ -10,7 +10,6 @@ from .registry import EXPERT_SOURCE_CLASS
 @dataclass(frozen=True)
 class ExpertSourceRecord:
     source_id: str
-    source_family: str
     author: str
     work: str
     edition_or_date: str
@@ -20,7 +19,16 @@ class ExpertSourceRecord:
     ingestion_version: str
     licensing_access_class: str
     retrieval_tags: tuple[str, ...]
+    source_family: str = ""
+    provenance_hash: str = ""
     source_class: str = EXPERT_SOURCE_CLASS
+
+    def __post_init__(self) -> None:
+        if not self.source_family:
+            inferred = self.source_id.split("-", 1)[0].upper()
+            object.__setattr__(self, "source_family", inferred)
+        if not self.provenance_hash:
+            object.__setattr__(self, "provenance_hash", source_record_digest(self))
 
 
 @dataclass(frozen=True)
@@ -51,12 +59,13 @@ def source_record_digest(record: ExpertSourceRecord) -> str:
         "retrieval_tags": list(record.retrieval_tags),
         "source_class": record.source_class,
     }
-    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    canonical = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     return sha256_text(canonical)
-
-
-def seal_source_record(record: ExpertSourceRecord) -> ExpertSourceRecord:
-    return replace(record, content_hash=source_record_digest(record))
 
 
 def validate_source_record(record: ExpertSourceRecord) -> None:
@@ -70,13 +79,16 @@ def validate_source_record(record: ExpertSourceRecord) -> None:
         record.source_type,
         record.locator,
         record.content_hash,
+        record.provenance_hash,
         record.ingestion_version,
         record.licensing_access_class,
     )
     if not all(value.strip() for value in required):
         raise ValueError("expert_source_provenance_incomplete")
-    if record.content_hash != source_record_digest(record):
-        raise ValueError("expert_source_integrity_failure")
+    if len(record.content_hash) != 64:
+        raise ValueError("expert_source_hash_invalid")
+    if record.provenance_hash != source_record_digest(record):
+        raise ValueError("expert_source_provenance_integrity_failure")
 
 
 def validate_fragment(fragment: ExpertEvidenceFragment) -> None:
