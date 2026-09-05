@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from unicodedata import normalize
 
 from app.ocs_instances.contracts import (
     BootstrapAck,
@@ -39,7 +40,11 @@ class WorkInstanceBridge:
         if not receipt.platform_instance_id or not receipt.task_name:
             raise InstanceBindingError("work_spawn_receipt_incomplete")
         binding = self._store.get(binding_id)
-        expected_prefix = binding.ocs_id.casefold()
+        expected_prefix = "".join(
+            character
+            for character in normalize("NFKD", binding.ocs_id.casefold())
+            if character.isascii()
+        )
         normalized_task = receipt.task_name.casefold()
         if not normalized_task.startswith(expected_prefix):
             raise InstanceBindingError("work_task_name_ocs_mismatch")
