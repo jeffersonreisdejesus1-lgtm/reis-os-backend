@@ -443,6 +443,16 @@ class OCSInstanceBinder:
         lease: AuthorityLease,
         nonce: str,
     ) -> InstanceBootstrapEnvelope:
+        bootstrap_checkpoint_version = binding.checkpoint_version
+        bootstrap_checkpoint_hash = binding.checkpoint_hash
+        if binding.status is not InstanceStatus.PREPARED:
+            if binding.predecessor_binding_id is None:
+                bootstrap_checkpoint_version = 0
+                bootstrap_checkpoint_hash = None
+            else:
+                predecessor = self._store.get(binding.predecessor_binding_id)
+                bootstrap_checkpoint_version = predecessor.checkpoint_version
+                bootstrap_checkpoint_hash = predecessor.checkpoint_hash
         return InstanceBootstrapEnvelope(
             schema_version="ocs-instance-bootstrap-v1",
             binding_id=binding.binding_id,
@@ -473,8 +483,8 @@ class OCSInstanceBinder:
             recovery_policy=profile.recovery_policy,
             generation=binding.generation,
             predecessor_binding_id=binding.predecessor_binding_id,
-            checkpoint_version=binding.checkpoint_version,
-            checkpoint_hash=binding.checkpoint_hash,
+            checkpoint_version=bootstrap_checkpoint_version,
+            checkpoint_hash=bootstrap_checkpoint_hash,
             challenge_nonce=nonce,
             issued_at=binding.created_at,
             expires_at=lease.expires_at,
