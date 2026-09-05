@@ -94,7 +94,8 @@ def test_wrong_expected_family_fails_closed_instead_of_claiming_causality() -> N
     assert receipt.reason == "expected_source_family_not_retrieved"
 
 
-def test_representative_cases_reach_kernel_without_authority_or_evidence_mutation() -> None:
+def test_representative_cases_reach_kernel_without_authority_or_evidence_mutation(
+) -> None:
     kernel = FakeKernel()
     physiology = DedalaExpertisePhysiology(kernel=kernel)
 
