@@ -569,6 +569,7 @@ class OCSInstanceBinder:
                 request_fingerprint=replacement_fingerprint,
                 payload={"lease_id": lease.lease_id},
             )
+        assert replacement_saga is not None
         next_binding = self._store.create(next_binding)
         next_version = previous.checkpoint_version + 1
         recovered_payload = prior_state["payload"]
