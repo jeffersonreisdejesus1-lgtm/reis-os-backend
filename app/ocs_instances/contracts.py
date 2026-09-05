@@ -13,7 +13,8 @@ class InstanceBindingError(RuntimeError):
 
 class InstanceStatus(StrEnum):
     PREPARED = "prepared"
-    PERSISTED = "persisted"\n    BOUND = "bound"
+    PERSISTED = "persisted"
+    BOUND = "bound"
     ACTIVE = "active"
     CHECKPOINTED = "checkpointed"
     REPLACED = "replaced"
@@ -26,7 +27,10 @@ ALLOWED_TRANSITIONS: dict[InstanceStatus, frozenset[InstanceStatus]] = {
     InstanceStatus.PREPARED: frozenset(
         {InstanceStatus.PERSISTED, InstanceStatus.REVOKED, InstanceStatus.HOLD}
     ),
-    InstanceStatus.PERSISTED: frozenset(\n        {InstanceStatus.BOUND, InstanceStatus.REVOKED, InstanceStatus.HOLD}\n    ),\n    InstanceStatus.BOUND: frozenset(
+    InstanceStatus.PERSISTED: frozenset(
+        {InstanceStatus.BOUND, InstanceStatus.REVOKED, InstanceStatus.HOLD}
+    ),
+    InstanceStatus.BOUND: frozenset(
         {InstanceStatus.ACTIVE, InstanceStatus.REVOKED, InstanceStatus.HOLD}
     ),
     InstanceStatus.ACTIVE: frozenset(
