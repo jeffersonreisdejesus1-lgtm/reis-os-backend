@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Annotated, cast
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends
@@ -49,7 +49,7 @@ async def _active_command_role(
             MembershipModel.status == MembershipStatus.ACTIVE,
         )
     )
-    return cast(MembershipRole | None, role)
+    return role
 
 
 def _require_institution_binding(
