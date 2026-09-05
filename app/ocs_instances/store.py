@@ -123,7 +123,7 @@ class InstanceBindingStore:
                     :binding_id, :mission_id, :run_id, :organization_id, :ocs_id,
                     :profile_version, :profile_hash, :host, :capability, :lease_id,
                     :authority_ref, :scope_json, :state_namespace, :memory_namespace,
-                    :generation, :platform_instance_id, :challenge_hash, :bootstrap_hash,
+                    :generation, :platform_instance_id, :challenge_hash,\n                    :bootstrap_hash,
                     :status, :version, :predecessor_binding_id, :checkpoint_version,
                     :checkpoint_hash, :idempotency_key, :correlation_id, :causation_id,
                     :created_at, :updated_at
