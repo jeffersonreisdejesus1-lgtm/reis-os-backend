@@ -508,6 +508,18 @@ def test_checkpoint_replacement_restart_and_old_generation_fencing(
     assert replacement.checkpoint_version == 3
     assert replacement.run_id == binding.run_id
     assert recovered_envelope.identity_binding_hash == binding.identity_binding_hash
+    writes_after_replacement = transport.persist_calls
+    replayed_replacement, replayed_envelope = binder.replace_instance(
+        checkpoint.binding_id,
+        replacement_request,
+        platform_instance_id="work:1",
+        generation=1,
+        expected_version=5,
+        replacement_idempotency_key="idem:replace:1",
+    )
+    assert replayed_replacement == replacement
+    assert replayed_envelope == recovered_envelope
+    assert transport.persist_calls == writes_after_replacement
 
     restarted = InstanceBindingStore(tmp_path / "instances.sqlite3")
     assert restarted.get(binding.binding_id).status is InstanceStatus.REPLACED
@@ -660,3 +672,80 @@ def test_ten_ocs_complete_bootstrap_ack_checkpoint_recovery(
     assert checkpoint.maturity is BindingMaturity.OPERATIONALLY_BOUND_L1
     assert recovered["state_version"] == 2
     assert recovered["payload"]["generation"] == 1
+
+
+def test_shared_store_rejects_all_directional_cross_ocs_lineages(
+    tmp_path: Path,
+) -> None:
+    from app.ocs_instances.contracts import stable_run_id
+
+    store = InstanceBindingStore(tmp_path / "shared-instances.sqlite3")
+    bindings: dict[str, InstanceBinding] = {}
+    for index, ocs_id in enumerate(PROFILES, start=1):
+        mission_id = f"mission:shared:{ocs_id}"
+        binding = replace(
+            make_binding(
+                binding_id=f"binding:shared:{ocs_id}",
+                idempotency_key=f"idem:shared:{ocs_id}",
+            ),
+            mission_id=mission_id,
+            run_id=stable_run_id("REIS OS", "org:shared", mission_id, ocs_id),
+            organization_id="org:shared",
+            ocs_id=ocs_id,
+            generation=1,
+        )
+        bindings[ocs_id] = store.create(binding)
+    denied = 0
+    for predecessor_ocs, predecessor in bindings.items():
+        for successor_ocs in PROFILES:
+            if successor_ocs == predecessor_ocs:
+                continue
+            with pytest.raises(
+                InstanceBindingError, match="replacement_lineage_mismatch"
+            ):
+                store.create(
+                    replace(
+                        predecessor,
+                        binding_id=(
+                            f"binding:cross:{predecessor_ocs}:{successor_ocs}"
+                        ),
+                        ocs_id=successor_ocs,
+                        generation=2,
+                        predecessor_binding_id=predecessor.binding_id,
+                        idempotency_key=(
+                            f"idem:cross:{predecessor_ocs}:{successor_ocs}"
+                        ),
+                    )
+                )
+            denied += 1
+    assert denied == 90
+
+
+def test_action_saga_survives_restart_at_every_boundary(tmp_path: Path) -> None:
+    path = tmp_path / "saga.sqlite3"
+    store = InstanceBindingStore(path)
+    binding = store.create(make_binding())
+    saga = store.begin_action_saga(
+        idempotency_key="idem:saga:1",
+        binding_id=binding.binding_id,
+        operation="ocs_instance_checkpoint",
+        request_fingerprint="fingerprint:1",
+        payload={"lease_id": binding.lease_id},
+    )
+    assert saga["state"] == "LEASE_RESERVED"
+    states = (
+        "EFFECT_APPLIED",
+        "READBACK_VERIFIED",
+        "LOCAL_COMMITTED",
+        "LEASE_FINALIZED",
+    )
+    previous = "LEASE_RESERVED"
+    for target in states:
+        restarted = InstanceBindingStore(path)
+        saga = restarted.advance_action_saga(
+            "idem:saga:1", expected_state=previous, target_state=target
+        )
+        assert saga["state"] == target
+        previous = target
+    final = InstanceBindingStore(path).action_saga("idem:saga:1")
+    assert final["state"] == "LEASE_FINALIZED"
