@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 # ruff: noqa: E501
-
 from .sources import ExpertEvidenceFragment, ExpertSourceRecord, sha256_text
 
 CORPUS_INGESTION_VERSION = "dedala-expertise-corpus-v0.1.0"
