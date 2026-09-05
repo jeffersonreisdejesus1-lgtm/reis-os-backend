@@ -6,6 +6,7 @@ from hashlib import sha256
 from pathlib import Path
 from time import time
 from typing import Any
+from unicodedata import normalize
 
 import pytest
 
@@ -143,7 +144,8 @@ def build_binder(
             action_binding="ocs_instance_binding",
             object_ref_or_selector="mission:1",
             trace_ref="trace:mission:1",
-            max_uses=2,
+            max_uses=1,
+            single_use=True,
         )
     )
     transport = FakeHazelTransport()
@@ -169,6 +171,10 @@ def prepare_request() -> PrepareInstanceRequest:
         scope=("repo:reis-os-backend",),
         idempotency_key="idem:prepare:1",
         correlation_id="correlation:1",
+        actor="NÓESIS",
+        context_ref="mission:1",
+        policy_snapshot="policy:mission:1",
+        trace_ref="trace:mission:1",
     )
 
 
@@ -232,7 +238,8 @@ def test_registry_rejects_second_active_binding_for_same_mission_ocs(
         store.create(
             make_binding(
                 binding_id="binding:2",
-                idempotency_key="idem:prepare:2",
+                lease_id="lease:sofia:2",
+        idempotency_key="idem:prepare:2",
             )
         )
 
@@ -246,6 +253,7 @@ def test_binder_reuses_profile_identity_lease_and_hazel(
 
     assert binding.run_id == "REIS OS:org:reis-os:mission:1:SOFIA"
     assert binding.profile_version == PROFILES["SOFIA"].version
+    assert binding.maturity is BindingMaturity.PREPARED_UNVERIFIED
     assert binding.state_namespace == PROFILES["SOFIA"].state_namespace
     assert binding.memory_namespace == PROFILES["SOFIA"].memory_namespace
     assert envelope.tool_permissions == ()
@@ -315,6 +323,7 @@ def test_work_bridge_requires_matching_name_and_challenge(
         expected_version=3,
     )
     assert active.status is InstanceStatus.ACTIVE
+    assert active.maturity is BindingMaturity.OPERATIONALLY_BOUND_L1
     assert active.platform_instance_id == "work:1"
 
 
