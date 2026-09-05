@@ -1,29 +1,24 @@
 from fastapi import APIRouter
 
-from app.auth.api.dependencies import CurrentUser
+from app.command.api.dependencies import CommandReadAccess
 from app.command.api.schemas import OCSListResponse, OCSProfileResponse
 from app.command.application import get_ocs_profile, list_ocs_profiles
 from app.shared.errors.exceptions import AppError
-from app.shared.security.organization import CurrentOrganizationId
 
 router = APIRouter(prefix="/v1/command", tags=["command"])
 
 
 @router.get("/ocs", response_model=OCSListResponse)
-async def list_ocs(
-    current_user: CurrentUser,
-    organization_id: CurrentOrganizationId,
-) -> OCSListResponse:
+async def list_ocs(command_read_access: CommandReadAccess) -> OCSListResponse:
     return list_ocs_profiles()
 
 
-@router.get("/ocs/{ocs_id}", response_model=OCSProfileResponse)
+@router.get("/ocs/{ocs_slug}", response_model=OCSProfileResponse)
 async def get_ocs(
-    ocs_id: str,
-    current_user: CurrentUser,
-    organization_id: CurrentOrganizationId,
+    ocs_slug: str,
+    command_read_access: CommandReadAccess,
 ) -> OCSProfileResponse:
-    profile = get_ocs_profile(ocs_id)
+    profile = get_ocs_profile(ocs_slug)
     if profile is None:
         raise AppError(
             "OCS profile not found.",
