@@ -331,7 +331,26 @@ class OCSInstanceBinder:
         expected_version: int,
         replacement_idempotency_key: str,
     ) -> tuple[InstanceBinding, InstanceBootstrapEnvelope]:
+        self._validate_request(request)
         previous = self._store.get(binding_id)
+        request_hash = canonical_hash(
+            {"institution_id": INSTITUTION_ID, **asdict(request)}
+        )
+        replayed = self._store.by_idempotency(request.idempotency_key)
+        if previous.status is InstanceStatus.REPLACED:
+            if (
+                replayed is None
+                or replayed.predecessor_binding_id != previous.binding_id
+                or replayed.request_hash != request_hash
+            ):
+                raise InstanceBindingError("replacement_idempotency_conflict")
+            profile = PROFILES[replayed.ocs_id]
+            lease = self._leases.lease_for(replayed.lease_id)
+            nonce = self._nonce(replayed.request_hash)
+            envelope = self._envelope(replayed, profile, lease, nonce)
+            if envelope.digest() != replayed.bootstrap_hash:
+                raise InstanceBindingError("bootstrap_recovery_hash_mismatch")
+            return replayed, envelope
         if previous.status is not InstanceStatus.CHECKPOINTED:
             raise InstanceBindingError("verified_checkpoint_required_for_replacement")
         self._require_physical_worker(
@@ -344,15 +363,17 @@ class OCSInstanceBinder:
         ):
             raise InstanceBindingError("replacement_identity_scope_mismatch")
         profile = PROFILES[request.ocs_id]
+        if (
+            previous.profile_version != profile.version
+            or previous.profile_hash != canonical_hash(asdict(profile))
+        ):
+            raise InstanceBindingError("replacement_profile_drift")
         lease = self._validated_lease(request, profile)
         prior_state = self._continuity.recover_state(
             run_id=previous.run_id,
             expected_ocs=previous.ocs_id,
             host=previous.host,
             authority_ref=previous.authority_ref,
-        )
-        request_hash = canonical_hash(
-            {"institution_id": INSTITUTION_ID, **asdict(request)}
         )
         now = self._clock()
         nonce = self._nonce(request_hash)
@@ -386,32 +407,48 @@ class OCSInstanceBinder:
             bootstrap_hash=unsigned.digest(),
         )
         envelope = self._envelope(next_binding, profile, lease, nonce)
-        self._store.create(next_binding)
+        next_binding = self._store.create(next_binding)
         next_version = previous.checkpoint_version + 1
-        persisted = self._continuity.persist_state(
-            run_id=previous.run_id,
-            expected_ocs=previous.ocs_id,
-            host=previous.host,
-            authority_ref=lease.authority_ref,
-            state_version=next_version,
-            predecessor_hash=previous.hazel_event_hash,
-            state={
-                "binding_id": next_binding.binding_id,
-                "mission_id": next_binding.mission_id,
-                "generation": next_binding.generation,
-                "recovered_from": previous.binding_id,
-                "recovered_payload": prior_state["payload"],
-                "bootstrap_hash": next_binding.bootstrap_hash,
-            },
-            trace_id=f"trace:{next_binding.binding_id}:replacement",
-        )
+        replacement_state = {
+            "binding_id": next_binding.binding_id,
+            "mission_id": next_binding.mission_id,
+            "generation": next_binding.generation,
+            "recovered_from": previous.binding_id,
+            "recovered_payload": prior_state["payload"],
+            "bootstrap_hash": next_binding.bootstrap_hash,
+        }
         recovered = self._continuity.recover_state(
             run_id=next_binding.run_id,
             expected_ocs=next_binding.ocs_id,
             host=next_binding.host,
             authority_ref=next_binding.authority_ref,
         )
-        if recovered.get("event_hash") != persisted.receipt.get("event_hash"):
+        recovered_version = recovered.get("state_version")
+        if recovered_version == next_version:
+            if recovered.get("payload") != replacement_state:
+                raise InstanceBindingError("replacement_recovery_conflict")
+            persisted_event_hash = recovered.get("event_hash")
+        elif recovered_version == previous.checkpoint_version:
+            persisted = self._continuity.persist_state(
+                run_id=previous.run_id,
+                expected_ocs=previous.ocs_id,
+                host=previous.host,
+                authority_ref=lease.authority_ref,
+                state_version=next_version,
+                predecessor_hash=previous.hazel_event_hash,
+                state=replacement_state,
+                trace_id=f"trace:{next_binding.binding_id}:replacement",
+            )
+            persisted_event_hash = persisted.receipt.get("event_hash")
+        else:
+            raise InstanceBindingError("replacement_state_version_conflict")
+        recovered = self._continuity.recover_state(
+            run_id=next_binding.run_id,
+            expected_ocs=next_binding.ocs_id,
+            host=next_binding.host,
+            authority_ref=next_binding.authority_ref,
+        )
+        if recovered.get("event_hash") != persisted_event_hash:
             raise InstanceBindingError("replacement_readback_mismatch")
         _, durable = self._store.commit_replacement(
             predecessor_id=previous.binding_id,
