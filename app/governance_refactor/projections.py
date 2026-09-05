@@ -33,6 +33,8 @@ _REQUIRED_TABLES = frozenset(
         "governance_candidate_scopes",
     }
 )
+_TYPE_SQL = ",".join("?" for _ in ALLOWED_RECORD_TYPES)
+_TYPE_VALUES = tuple(sorted(ALLOWED_RECORD_TYPES))
 
 
 class GovernanceProjectionError(RuntimeError):
@@ -81,8 +83,12 @@ class GovernanceCommandViews:
         health = self._health()
         if health != "available":
             return self._empty(health, cursor)
-        clauses = ["s.organization_id=?", "r.position>?"]
-        values: list[object] = [organization_id, cursor]
+        clauses = [
+            "s.organization_id=?",
+            "r.position>?",
+            f"r.record_type IN ({_TYPE_SQL})",
+        ]
+        values: list[object] = [organization_id, cursor, *_TYPE_VALUES]
         if filters.record_type is not None:
             clauses.append("r.record_type=?")
             values.append(filters.record_type)
@@ -94,7 +100,7 @@ class GovernanceCommandViews:
             values.append(filters.ocs_id)
         values.append(limit + 1)
         rows = self._query(
-            """
+            f"""
             SELECT r.* FROM governance_candidate_records r
             JOIN governance_candidate_scopes s
               ON s.record_type=r.record_type
@@ -155,17 +161,19 @@ class GovernanceCommandViews:
         health = self._health()
         if health != "available":
             return self._empty(health, cursor)
-        rows = self._query(
-            """
+        event_sql = f"""
             SELECT e.* FROM governance_candidate_events e
             JOIN governance_candidate_scopes s
               ON s.record_type=e.record_type
              AND s.record_id=e.record_id
              AND s.schema_version=e.schema_version
             WHERE s.organization_id=? AND e.position>?
+              AND e.record_type IN ({_TYPE_SQL})
             ORDER BY e.position ASC LIMIT ?
-            """,
-            (organization_id, cursor, limit + 1),
+            """
+        rows = self._query(
+            event_sql,
+            (organization_id, cursor, *_TYPE_VALUES, limit + 1),
         )
         items = [self._event(row) for row in rows[:limit]]
         return {
@@ -187,17 +195,19 @@ class GovernanceCommandViews:
                 "epistemic_boundary": self._boundary(),
             }
         rows = self._query(
-            """
+            f"""
             SELECT r.record_type, COUNT(*) AS count
             FROM governance_candidate_records r
             JOIN governance_candidate_scopes s
               ON s.record_type=r.record_type
              AND s.record_id=r.record_id
              AND s.schema_version=r.schema_version
-            WHERE s.organization_id=? GROUP BY r.record_type
+            WHERE s.organization_id=?
+              AND r.record_type IN ({_TYPE_SQL})
+            GROUP BY r.record_type
             ORDER BY r.record_type ASC
             """,
-            (organization_id,),
+            (organization_id, *_TYPE_VALUES),
         )
         counts = {str(row["record_type"]): int(row["count"]) for row in rows}
         return {
@@ -211,6 +221,7 @@ class GovernanceCommandViews:
         payload_json = str(row["payload_json"])
         self._verify_hash(payload_json, str(row["payload_hash"]))
         payload = json.loads(payload_json)
+        self._verify_evidence_envelope(row, payload)
         observed = self._observed_at(payload, str(row["written_at"]))
         return {
             "position": int(row["position"]),
@@ -229,6 +240,7 @@ class GovernanceCommandViews:
     def _event(self, row: sqlite3.Row) -> dict[str, Any]:
         payload_json = str(row["payload_json"])
         self._verify_hash(payload_json, str(row["payload_hash"]))
+        self._verify_evidence_envelope(row, json.loads(payload_json))
         return {
             "position": int(row["position"]),
             "event_id": str(row["event_id"]),
@@ -273,6 +285,21 @@ class GovernanceCommandViews:
     def _verify_hash(payload_json: str, expected: str) -> None:
         if sha256(payload_json.encode()).hexdigest() != expected:
             raise GovernanceProjectionError("candidate_projection_hash_mismatch")
+
+    @staticmethod
+    def _verify_evidence_envelope(
+        row: sqlite3.Row, payload: dict[str, Any]
+    ) -> None:
+        for key, column in (
+            ("source_refs", "source_refs_json"),
+            ("provenance_refs", "provenance_refs_json"),
+        ):
+            stored = json.loads(str(row[column]))
+            embedded = payload.get(key, [])
+            if stored != embedded:
+                raise GovernanceProjectionError(
+                    "candidate_evidence_envelope_mismatch"
+                )
 
     @staticmethod
     def _observed_at(payload: dict[str, Any], fallback: str) -> datetime | None:

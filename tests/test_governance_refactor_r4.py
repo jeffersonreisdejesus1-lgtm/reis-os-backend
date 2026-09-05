@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
@@ -13,8 +14,20 @@ from app.governance_refactor.projections import (
     GovernanceCommandViews,
     GovernanceProjectionError,
 )
+from app.governance_refactor.scoped_store import ScopedGovernanceStore
 
 NOW = datetime(2026, 9, 5, 22, 0, tzinfo=UTC)
+
+
+@dataclass(frozen=True)
+class MissionMetricsRecord:
+    record_id: str
+    mission_id: str
+    ocs_id: str
+    observed_at: datetime
+    source_refs: tuple[str, ...]
+    provenance_refs: tuple[str, ...]
+    schema_version: str = "governance-candidate-v0.1"
 
 
 def _schema(path: Path) -> None:
@@ -57,6 +70,8 @@ def _insert(
         "mission_id": "mission-1",
         "ocs_id": "SOFIA",
         "observed_at": observed_at.isoformat(),
+        "source_refs": ["source:1"],
+        "provenance_refs": ["proof:1"],
         "schema_version": "governance-candidate-v0.1",
     }
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -174,3 +189,83 @@ def test_r4_events_are_tenant_scoped_and_payload_not_duplicated(tmp_path: Path) 
     assert result["count"] == 1
     assert "payload" not in result["items"][0]
     assert not result["source"]["duplicates_command_event_truth"]
+
+
+def test_r4_atomic_writer_restart_readback_idempotency_and_conflicts(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "writer.sqlite3"
+    _schema(path)
+    record = MissionMetricsRecord(
+        "writer-1", "mission-1", "SOFIA", NOW, ("source:1",), ("proof:1",)
+    )
+    first = ScopedGovernanceStore(path).append(
+        record, organization_id="org-a", occurred_at=NOW
+    )
+    replay = ScopedGovernanceStore(path).append(
+        record, organization_id="org-a", occurred_at=NOW + timedelta(seconds=1)
+    )
+    assert not first["replayed"]
+    assert replay["replayed"]
+    assert GovernanceCommandViews(path).get_candidate(
+        organization_id="org-a",
+        record_type="MissionMetricsRecord",
+        record_id="writer-1",
+        now=NOW,
+    )["payload_hash"] == first["payload_hash"]
+    with pytest.raises(GovernanceProjectionError, match="scope_conflict"):
+        ScopedGovernanceStore(path).append(
+            record, organization_id="org-b", occurred_at=NOW
+        )
+    changed = MissionMetricsRecord(
+        "writer-1", "mission-1", "SOFIA", NOW, ("source:2",), ("proof:1",)
+    )
+    with pytest.raises(GovernanceProjectionError, match="append_conflict"):
+        ScopedGovernanceStore(path).append(
+            changed, organization_id="org-a", occurred_at=NOW
+        )
+    with sqlite3.connect(path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM governance_candidate_records"
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM governance_candidate_events"
+        ).fetchone()[0] == 1
+        assert connection.execute(
+            "SELECT COUNT(*) FROM governance_candidate_scopes"
+        ).fetchone()[0] == 1
+
+
+def test_r4_tampered_evidence_and_unknown_type_fail_closed(tmp_path: Path) -> None:
+    path = tmp_path / "evidence.sqlite3"
+    _schema(path)
+    _insert(path, record_id="owned", organization_id="org-a")
+    with sqlite3.connect(path) as connection:
+        connection.execute(
+            "UPDATE governance_candidate_records SET source_refs_json='[]'"
+        )
+    with pytest.raises(GovernanceProjectionError, match="evidence_envelope"):
+        GovernanceCommandViews(path).list_candidates(
+            organization_id="org-a",
+            filters=CandidateFilter(),
+            cursor=0,
+            limit=25,
+            now=NOW,
+        )
+
+    other = tmp_path / "unknown.sqlite3"
+    _schema(other)
+    _insert(other, record_id="hidden", organization_id="org-a")
+    with sqlite3.connect(other) as connection:
+        connection.execute(
+            "UPDATE governance_candidate_records SET record_type='InjectedType'"
+        )
+        connection.execute(
+            "UPDATE governance_candidate_events SET record_type='InjectedType'"
+        )
+        connection.execute(
+            "UPDATE governance_candidate_scopes SET record_type='InjectedType'"
+        )
+    view = GovernanceCommandViews(other)
+    assert view.summary(organization_id="org-a")["total"] == 0
+    assert view.events(organization_id="org-a", cursor=0, limit=25)["count"] == 0
