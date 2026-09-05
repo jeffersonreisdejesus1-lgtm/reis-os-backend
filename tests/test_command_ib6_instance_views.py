@@ -90,7 +90,7 @@ def test_projection_preserves_canonical_status_and_derives_awaiting_phase(
     item = result["items"][0]
     assert item["canonical_status"] == "persisted"
     assert item["operational_phases"] == ["awaiting_platform_instance"]
-    assert item["phase_derivations"][0]["derivation_version"] == "ib6-v1"
+    assert item["phase_derivations"][0]["derivation_version"] == "ib6-v2"
     assert "paused" not in item["operational_phases"]
 
 
