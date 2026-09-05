@@ -19,11 +19,8 @@ from app.governance_refactor.projections import (
     GovernanceCommandViews,
     GovernanceProjectionError,
 )
+from app.governance_refactor.schema import migrate_governance_candidate_store
 from app.governance_refactor.scoped_store import ScopedGovernanceStore
-from app.governance_refactor.store import (
-    GovernanceCandidateStore,
-    GovernancePersistenceError,
-)
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -33,9 +30,7 @@ __all__ = [
     "ChatInstitutionalRoutingContract",
     "FounderApprovalDecision",
     "GatePerformanceRecord",
-    "GovernanceCandidateStore",
     "GovernanceCommandViews",
-    "GovernancePersistenceError",
     "GovernanceProjectionError",
     "IntegrationCapabilityRecord",
     "MissionMetricsRecord",
@@ -46,4 +41,5 @@ __all__ = [
     "RefactorEvent",
     "ScopedGovernanceStore",
     "SourceLink",
+    "migrate_governance_candidate_store",
 ]

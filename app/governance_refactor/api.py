@@ -2,20 +2,20 @@ from __future__ import annotations
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query
-from starlette.concurrency import run_in_threadpool
-
 from app.command.api.dependencies import (
     CommandInstitutionOrganizationId,
     CommandReadAccess,
 )
+from app.shared.errors.exceptions import AppError
+from fastapi import APIRouter, Depends, Query
+from starlette.concurrency import run_in_threadpool
+
 from app.governance_refactor.projections import (
     CandidateFilter,
     GovernanceCommandViews,
     GovernanceProjectionError,
 )
 from app.shared.config.settings import Settings, get_settings
-from app.shared.errors.exceptions import AppError
 
 router = APIRouter(prefix="/v1/command/governance", tags=["command-governance"])
 

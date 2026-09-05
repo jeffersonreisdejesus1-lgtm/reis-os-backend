@@ -100,7 +100,7 @@ class GovernanceCommandViews:
             values.append(filters.ocs_id)
         values.append(limit + 1)
         rows = self._query(
-            f"""
+            """
             SELECT r.* FROM governance_candidate_records r
             JOIN governance_candidate_scopes s
               ON s.record_type=r.record_type

@@ -7,17 +7,23 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from app.command.api.dependencies import get_command_institution_organization_id
+from app.governance_refactor.store import (
+    GovernanceCandidateStore,
+    GovernancePersistenceError,
+)
+from app.memberships.domain.enums import MembershipRole
+from app.memberships.infrastructure.models import MembershipModel
+from conftest import TestSessionLocal
 from httpx import AsyncClient
 from sqlalchemy import update
 
-from app.command.api.dependencies import get_command_institution_organization_id
 from app.governance_refactor.contracts import Completeness, MissionMetricsRecord
+from app.governance_refactor.projections import GovernanceCommandViews
+from app.governance_refactor.schema import migrate_governance_candidate_store
 from app.governance_refactor.scoped_store import ScopedGovernanceStore
 from app.main import app
-from app.memberships.domain.enums import MembershipRole
-from app.memberships.infrastructure.models import MembershipModel
 from app.shared.config.settings import Settings, get_settings
-from conftest import TestSessionLocal
 
 pytestmark = pytest.mark.integration
 NOW = datetime(2026, 9, 5, 22, 0, tzinfo=UTC)
@@ -141,6 +147,50 @@ def _counts(path: Path) -> tuple[int, int, int]:
                 "governance_candidate_scopes",
             )
         )
+
+
+def test_r4_runtime_schema_migrates_legacy_store_and_survives_restart(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "runtime.sqlite3"
+    with sqlite3.connect(database) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE governance_candidate_records (
+              position INTEGER PRIMARY KEY, record_type TEXT NOT NULL,
+              record_id TEXT NOT NULL, schema_version TEXT NOT NULL,
+              payload_json TEXT NOT NULL, payload_hash TEXT NOT NULL,
+              source_refs_json TEXT NOT NULL, provenance_refs_json TEXT NOT NULL,
+              written_at TEXT NOT NULL,
+              UNIQUE(record_type, record_id, schema_version));
+            CREATE TABLE governance_candidate_events (
+              position INTEGER PRIMARY KEY, event_id TEXT NOT NULL UNIQUE,
+              record_type TEXT NOT NULL, record_id TEXT NOT NULL,
+              schema_version TEXT NOT NULL, event_type TEXT NOT NULL,
+              payload_hash TEXT NOT NULL, payload_json TEXT NOT NULL,
+              source_refs_json TEXT NOT NULL, provenance_refs_json TEXT NOT NULL,
+              occurred_at TEXT NOT NULL);
+            """
+        )
+    migrate_governance_candidate_store(database)
+    migrate_governance_candidate_store(database)
+    with sqlite3.connect(database) as connection:
+        assert connection.execute(
+            "SELECT version FROM governance_schema_meta WHERE singleton=1"
+        ).fetchone()[0] == 2
+    with pytest.raises(
+        GovernancePersistenceError, match="legacy_unscoped_writer_disabled"
+    ):
+        GovernanceCandidateStore(database).append(_metric("legacy"), occurred_at=NOW)
+    result = ScopedGovernanceStore(database).append(
+        _metric("scoped"), organization_id="org-a", occurred_at=NOW
+    )
+    assert GovernanceCommandViews(database).get_candidate(
+        organization_id="org-a",
+        record_type="MissionMetricsRecord",
+        record_id="scoped",
+        now=NOW,
+    )["payload_hash"] == result["payload_hash"]
 
 
 @pytest.mark.asyncio
