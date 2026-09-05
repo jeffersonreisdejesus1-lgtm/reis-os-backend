@@ -1,4 +1,5 @@
 from functools import lru_cache
+from uuid import UUID
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -16,6 +17,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     secret_key: str = "change-me"
     access_token_expire_minutes: int = 60
+    command_institution_organization_id: UUID | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",
