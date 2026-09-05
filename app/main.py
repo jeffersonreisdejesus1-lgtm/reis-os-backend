@@ -7,6 +7,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.api.routes import router as auth_router
+from app.command.api.routes import router as command_router
 from app.organizations.api.routes import router as organizations_router
 from app.projects.api.routes import router as projects_router
 from app.shared.config.settings import get_settings
@@ -33,6 +34,7 @@ app.include_router(organizations_router)
 app.include_router(workspaces_router)
 app.include_router(projects_router)
 app.include_router(tasks_router)
+app.include_router(command_router)
 
 
 @app.get("/health", tags=["system"])
