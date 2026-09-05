@@ -308,12 +308,28 @@ class InstanceBindingStore:
         hazel_event_hash: str,
     ) -> tuple[InstanceBinding, InstanceBinding]:
         with self._lock, self._connect() as connection:
+            replay_payload = {
+                "successor_binding_id": successor_id,
+                "predecessor_expected_version": predecessor_expected_version,
+                "successor_expected_version": successor_expected_version,
+                "checkpoint_version": checkpoint_version,
+                "checkpoint_hash": checkpoint_hash,
+                "hazel_event_hash": hazel_event_hash,
+            }
+            replay_hash = json.dumps(
+                replay_payload, sort_keys=True, separators=(",", ":")
+            )
             replay = connection.execute(
                 "SELECT * FROM ocs_instance_journal WHERE idempotency_key = ?",
                 (idempotency_key,),
             ).fetchone()
             if replay is not None:
-                if replay["binding_id"] != predecessor_id:
+                if (
+                    replay["binding_id"] != predecessor_id
+                    or replay["event_type"] != "OCS_INSTANCE_REPLACED"
+                    or replay["to_status"] != InstanceStatus.REPLACED.value
+                    or replay["payload_json"] != replay_hash
+                ):
                     raise InstanceBindingError("instance_idempotency_conflict")
                 return self.get(predecessor_id), self.get(successor_id)
             predecessor_row = connection.execute(
@@ -393,7 +409,7 @@ class InstanceBindingStore:
                 event_type="OCS_INSTANCE_REPLACED",
                 from_status=predecessor.status,
                 idempotency_key=idempotency_key,
-                payload={"successor_binding_id": successor_id},
+                payload=replay_payload,
             )
             self._append_event(
                 connection,
