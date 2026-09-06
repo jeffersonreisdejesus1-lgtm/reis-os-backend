@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from app.command.instance_views import CommandInstanceViews
+if TYPE_CHECKING:
+    from app.command.instance_views import CommandInstanceViews
 from app.ocs_instances.contracts import (
     BootstrapAck,
     InstanceBinding,
