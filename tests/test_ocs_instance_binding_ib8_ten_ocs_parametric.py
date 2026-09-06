@@ -224,7 +224,7 @@ def test_ib8_ten_ocs_replacement_fencing_and_recovery(
 
     bound_n = bridge.attach(
         prepared.binding_id,
-        WorkSpawnReceipt(f"work:ib8:{slug}:n", f"{slug}:n"),
+        WorkSpawnReceipt(f"work:ib8:{slug}:n", f"{slug}__n"),
         expected_version=prepared.version,
         idempotency_key=f"idem:ib8:{slug}:attach:n",
     )
@@ -310,7 +310,7 @@ def test_ib8_ten_ocs_replacement_fencing_and_recovery(
     bridge_n1 = WorkInstanceBridge(restarted_store)
     bound_n1 = bridge_n1.attach(
         successor.binding_id,
-        WorkSpawnReceipt(f"work:ib8:{slug}:n1", f"{slug}:n1"),
+        WorkSpawnReceipt(f"work:ib8:{slug}:n1", f"{slug}__n1"),
         expected_version=recovered.binding.version,
         idempotency_key=f"idem:ib8:{slug}:attach:n1",
     )
