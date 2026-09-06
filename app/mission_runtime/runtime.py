@@ -1,12 +1,11 @@
+ # ruff: noqa: E501
 from __future__ import annotations
 
-# ruff: noqa: E501
-
 import json
+from collections.abc import Callable
 from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
-from collections.abc import Callable
 
 from .contracts import (
     BindingStatus,
