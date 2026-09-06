@@ -27,6 +27,13 @@ from app.universal_kernel.hazel_continuity import HazelBoundContinuity
 from app.universal_kernel.identity import IdentityAuditLog, IdentityKernelGuard
 
 
+def _canonical_hash(value: dict[str, Any]) -> str:
+    encoded = json.dumps(
+        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
+    return sha256(encoded).hexdigest()
+
+
 class FakeHazelTransport:
     def __init__(self) -> None:
         self.latest: dict[tuple[str, str, str], dict[str, Any]] = {}
@@ -34,10 +41,7 @@ class FakeHazelTransport:
 
     @staticmethod
     def _hash(value: dict[str, Any]) -> str:
-        encoded = json.dumps(
-            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        ).encode()
-        return sha256(encoded).hexdigest()
+        return _canonical_hash(value)
 
     def persist(self, envelope: dict[str, Any]) -> dict[str, Any]:
         self.persist_calls += 1
@@ -107,8 +111,7 @@ class IdempotentActionLedger:
         payload: dict[str, Any],
     ) -> ActionReceipt:
         current = self._store.get(binding.binding_id)
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        payload_hash = sha256(encoded).hexdigest()
+        payload_hash = _canonical_hash(payload)
         existing = self._receipts.get(idempotency_key)
         if existing is not None:
             if (
@@ -228,6 +231,7 @@ def test_ib7_one_ocs_generational_e2e(tmp_path: Path) -> None:
     assert active_n.generation == 1
 
     business_state = {"counter": 1, "slice": "IB7", "mission": active_n.mission_id}
+    original_business_state_hash = _canonical_hash(business_state)
     receipt_n = action_ledger.execute(
         active_n,
         generation=1,
@@ -235,6 +239,7 @@ def test_ib7_one_ocs_generational_e2e(tmp_path: Path) -> None:
         payload=business_state,
     )
     assert action_ledger.readback(receipt_n.idempotency_key) == receipt_n
+    assert receipt_n.payload_hash == original_business_state_hash
 
     checkpoint_n = binder.checkpoint(
         active_n.binding_id,
@@ -265,7 +270,8 @@ def test_ib7_one_ocs_generational_e2e(tmp_path: Path) -> None:
         expected_version=checkpoint_n.version,
         replacement_idempotency_key="idem:ib7:replacement",
     )
-    assert store.get(active_n.binding_id).status is InstanceStatus.REPLACED
+    replaced_n = store.get(active_n.binding_id)
+    assert replaced_n.status is InstanceStatus.REPLACED
     assert successor.generation == 2
 
     snapshots = AuthenticatedLeaseSnapshotStore(
@@ -291,10 +297,43 @@ def test_ib7_one_ocs_generational_e2e(tmp_path: Path) -> None:
         authority_ref=successor.authority_ref,
     )
     recovered_payload = recovered_state["payload"]["recovered_payload"]
+    recovered_business_state = recovered_payload["state"]
+    recovered_business_state_hash = _canonical_hash(recovered_business_state)
+
+    # Full continuity-relevant state equivalence: stable institutional state must match.
+    must_match = (
+        (active_n.organization_id, successor.organization_id),
+        (active_n.mission_id, successor.mission_id),
+        (active_n.run_id, successor.run_id),
+        (active_n.ocs_id, successor.ocs_id),
+        (active_n.profile_version, successor.profile_version),
+        (active_n.profile_hash, successor.profile_hash),
+        (active_n.identity_binding_hash, successor.identity_binding_hash),
+        (active_n.authority_ref, successor.authority_ref),
+        (active_n.scope, successor.scope),
+        (active_n.state_namespace, successor.state_namespace),
+        (active_n.memory_namespace, successor.memory_namespace),
+    )
+    assert all(before == after for before, after in must_match)
+
+    # Lineage and recovered state must preserve the causal predecessor exactly.
+    assert successor.predecessor_binding_id == checkpoint_n.binding_id
+    assert successor.causation_id == checkpoint_n.hazel_event_hash
+    assert recovered_state["predecessor_hash"] == checkpoint_n.hazel_event_hash
     assert recovered_payload["binding_id"] == checkpoint_n.binding_id
     assert recovered_payload["generation"] == checkpoint_n.generation
     assert recovered_payload["mission_id"] == checkpoint_n.mission_id
-    assert recovered_payload["state"] == business_state
+    assert recovered_business_state == business_state
+    assert original_business_state_hash == recovered_business_state_hash
+
+    # Generation-scoped state must change exactly as expected.
+    assert successor.binding_id != checkpoint_n.binding_id
+    assert successor.generation == checkpoint_n.generation + 1
+    assert successor.lease_id != checkpoint_n.lease_id
+    assert successor.platform_instance_id is None
+    assert replaced_n.status is InstanceStatus.REPLACED
+    assert replaced_n.binding_id == checkpoint_n.binding_id
+    assert replaced_n.generation == checkpoint_n.generation
 
     bridge_after_restart = WorkInstanceBridge(restarted_store)
     bound_n1 = bridge_after_restart.attach(
@@ -316,6 +355,28 @@ def test_ib7_one_ocs_generational_e2e(tmp_path: Path) -> None:
         expected_version=bound_n1.version,
     )
     assert active_n1.status is InstanceStatus.ACTIVE
+    assert active_n1.platform_instance_id == "work:ib7:n1"
+    assert active_n1.platform_instance_id != active_n.platform_instance_id
+
+    # The recovered active generation still carries all institutional continuity fields.
+    must_match_after_activation = (
+        (active_n.organization_id, active_n1.organization_id),
+        (active_n.mission_id, active_n1.mission_id),
+        (active_n.run_id, active_n1.run_id),
+        (active_n.ocs_id, active_n1.ocs_id),
+        (active_n.profile_version, active_n1.profile_version),
+        (active_n.profile_hash, active_n1.profile_hash),
+        (active_n.identity_binding_hash, active_n1.identity_binding_hash),
+        (active_n.authority_ref, active_n1.authority_ref),
+        (active_n.scope, active_n1.scope),
+        (active_n.state_namespace, active_n1.state_namespace),
+        (active_n.memory_namespace, active_n1.memory_namespace),
+    )
+    assert all(before == after for before, after in must_match_after_activation)
+    assert active_n1.predecessor_binding_id == active_n.binding_id
+    assert active_n1.binding_id != active_n.binding_id
+    assert active_n1.generation == active_n.generation + 1
+    assert active_n1.lease_id != active_n.lease_id
 
     action_ledger._store = restarted_store
     replay = action_ledger.execute(
@@ -327,16 +388,23 @@ def test_ib7_one_ocs_generational_e2e(tmp_path: Path) -> None:
     assert replay == receipt_n
     assert action_ledger.effect_count == 1
 
+    # Exact replay after fencing is allowed only for the already committed identical effect.
+    fenced_replay = action_ledger.execute(
+        restarted_store.get(active_n.binding_id),
+        generation=1,
+        idempotency_key="idem:ib7:action:1",
+        payload=business_state,
+    )
+    assert fenced_replay == receipt_n
+    assert action_ledger.effect_count == 1
+
+    # A new effect from the fenced generation is denied.
     with pytest.raises(InstanceBindingError, match="action_instance_not_active"):
         action_ledger.execute(
-            store.get(active_n.binding_id),
+            restarted_store.get(active_n.binding_id),
             generation=1,
             idempotency_key="idem:ib7:old-generation-effect",
             payload={"counter": 2},
         )
 
-    assert active_n.mission_id == active_n1.mission_id
-    assert active_n.ocs_id == active_n1.ocs_id == "SOFIA"
-    assert active_n.binding_id != active_n1.binding_id
-    assert active_n.generation + 1 == active_n1.generation
     assert transport.persist_calls == 3
