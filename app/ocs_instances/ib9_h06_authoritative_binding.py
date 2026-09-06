@@ -109,13 +109,18 @@ class IB9H06AuthoritativeBindingRuntime:
             binding_id, receipt, expected_version=expected_version,
             idempotency_key=idempotency_key,
         )
-        return self._receipt(binding, IB9H06ReconciliationStep.ATTACH_WORK_RECEIPT, idempotency_key)
+        return self._receipt(
+            binding, IB9H06ReconciliationStep.ATTACH_WORK_RECEIPT, idempotency_key
+        )
 
     def acknowledge_bootstrap(
         self, ack: BootstrapAck, *, expected_version: int
     ) -> IB9H06ReconciliationReceipt:
         binding = self._work_bridge.acknowledge(ack, expected_version=expected_version)
-        return self._receipt(binding, IB9H06ReconciliationStep.ACKNOWLEDGE_BOOTSTRAP, ack.idempotency_key)
+        return self._receipt(
+            binding, IB9H06ReconciliationStep.ACKNOWLEDGE_BOOTSTRAP,
+            ack.idempotency_key,
+        )
 
     def checkpoint(
         self,
@@ -133,7 +138,9 @@ class IB9H06AuthoritativeBindingRuntime:
             generation=generation, expected_version=expected_version, state=state,
             idempotency_key=idempotency_key,
         )
-        return self._receipt(binding, IB9H06ReconciliationStep.CHECKPOINT, idempotency_key)
+        return self._receipt(
+            binding, IB9H06ReconciliationStep.CHECKPOINT, idempotency_key
+        )
 
     def replace(
         self,
@@ -150,7 +157,9 @@ class IB9H06AuthoritativeBindingRuntime:
             generation=generation, expected_version=expected_version,
             replacement_idempotency_key=replacement_idempotency_key,
         )
-        return self._receipt(binding, IB9H06ReconciliationStep.REPLACE, replacement_idempotency_key)
+        return self._receipt(
+            binding, IB9H06ReconciliationStep.REPLACE, replacement_idempotency_key
+        )
 
     def readback(
         self, *, binding_id: str, organization_id: str
