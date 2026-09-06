@@ -42,6 +42,10 @@ class RepositoryMaintenanceAdapter:
                 except FileNotFoundError:
                     os.mkdir(part, mode=0o755, dir_fd=fd)
                     child = os.open(part, flags, dir_fd=fd)
+                except OSError as exc:
+                    if exc.errno in {getattr(os, "ELOOP", 40), getattr(os, "ENOTDIR", 20)}:
+                        raise ValueError("repository_path_symlink") from exc
+                    raise
                 os.close(fd)
                 fd = child
             return fd, parts[-1]
