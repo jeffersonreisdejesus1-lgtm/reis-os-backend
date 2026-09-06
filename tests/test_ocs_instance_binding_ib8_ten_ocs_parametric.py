@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-# ruff: noqa: E501
-
 import json
 from dataclasses import replace
 from hashlib import sha256
