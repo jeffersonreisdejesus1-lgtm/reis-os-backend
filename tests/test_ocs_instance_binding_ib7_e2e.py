@@ -388,7 +388,8 @@ def test_ib7_one_ocs_generational_e2e(tmp_path: Path) -> None:
     assert replay == receipt_n
     assert action_ledger.effect_count == 1
 
-    # Exact replay after fencing is allowed only for the already committed identical effect.
+    # Exact replay after fencing is allowed only for an already committed
+    # identical effect; it cannot create another material effect.
     fenced_replay = action_ledger.execute(
         restarted_store.get(active_n.binding_id),
         generation=1,
