@@ -260,16 +260,19 @@ def test_ib7_full_continuity_relevant_state_equivalence(tmp_path: Path) -> None:
     assert recovered_business_state == business_state
     assert original_business_state_hash == recovered_business_state_hash
 
-    # MUST MATCH: continuity lineage inherited from the verified checkpoint.
+    # MUST MATCH: causal linkage back to the verified checkpoint.
     assert active_n1.predecessor_binding_id == checkpoint_n.binding_id
-    assert active_n1.checkpoint_version == checkpoint_n.checkpoint_version
-    assert active_n1.checkpoint_hash == checkpoint_n.checkpoint_hash
     assert active_n1.causation_id == checkpoint_n.hazel_event_hash
     assert recovered_state["predecessor_hash"] == checkpoint_n.hazel_event_hash
     assert recovered_state["payload"]["recovered_from"] == checkpoint_n.binding_id
     assert recovered_payload["binding_id"] == checkpoint_n.binding_id
     assert recovered_payload["generation"] == checkpoint_n.generation
     assert recovered_payload["mission_id"] == checkpoint_n.mission_id
+
+    # MUST CHANGE CORRECTLY: replacement appends the next Hazel checkpoint/event.
+    assert active_n1.checkpoint_version == checkpoint_n.checkpoint_version + 1
+    assert active_n1.checkpoint_hash != checkpoint_n.checkpoint_hash
+    assert active_n1.hazel_event_hash != checkpoint_n.hazel_event_hash
 
     # MUST CHANGE CORRECTLY: the physical instance and leased generation rotate.
     assert checkpoint_n.binding_id != active_n1.binding_id
