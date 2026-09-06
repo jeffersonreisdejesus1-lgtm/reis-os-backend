@@ -1,8 +1,9 @@
 # ruff: noqa: E501,I001,E702
 from __future__ import annotations
 
-from pathlib import Path
+import multiprocessing
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -175,6 +176,33 @@ def test_round2_checkpoint_rejects_applied_extra(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="mission_checkpoint_material_mismatch"):
         rt.replace_instance(MISSION_ID, old_generation=1, old_instance_id="work:sofia:ib9:n", new_instance_id="n1")
 
+
+
+def _multiprocess_claim_worker(
+    database_path: str,
+    ready_event: multiprocessing.synchronize.Event,
+    start_event: multiprocessing.synchronize.Event,
+    results: multiprocessing.queues.Queue,
+) -> None:
+    store = MissionRuntimeStore(Path(database_path))
+    ready_event.set()
+    if not start_event.wait(timeout=10):
+        results.put(("not_started", None))
+        return
+    try:
+        claim = store.claim_effect(
+            MISSION_ID,
+            "same",
+            generation=1,
+            path="same.txt",
+            requested_hash="x" * 64,
+        )
+    except Exception as exc:
+        results.put(("error", type(exc).__name__))
+        return
+    results.put(("winner" if claim is None else "contender", claim))
+
+
 def test_round2_replacement_pending_recovers(tmp_path: Path) -> None:
     rt, _ = runtime(tmp_path)
     start(rt); effect(rt, "one", "one.txt", "1\n"); rt.checkpoint(MISSION_ID, generation=1, instance_id="work:sofia:ib9:n")
@@ -185,14 +213,38 @@ def test_round2_replacement_pending_recovers(tmp_path: Path) -> None:
     assert recovered.generation == 2
 
 def test_round2_multiprocess_claims_are_single(tmp_path: Path) -> None:
-    import multiprocessing.pool
-    def claim(_: int) -> str:
-        s = MissionRuntimeStore(tmp_path / "mission-runtime.sqlite3")
-        try:
-            return str(s.claim_effect(MISSION_ID, "same", generation=1, path="same.txt", requested_hash="x"*64))
-        except Exception as exc:
-            return type(exc).__name__
-    start(runtime(tmp_path)[0])
-    with multiprocessing.pool.ThreadPool(4) as pool:
-        results = pool.map(claim, range(4))
-    assert sum(r == "None" for r in results) == 1
+    rt, _ = runtime(tmp_path)
+    start(rt)
+    process_count = 4
+    context = multiprocessing.get_context("spawn")
+    ready_events = [context.Event() for _ in range(process_count)]
+    start_event = context.Event()
+    results_queue = context.Queue()
+    processes = [
+        context.Process(
+            target=_multiprocess_claim_worker,
+            args=(
+                str(rt.store.path),
+                ready_event,
+                start_event,
+                results_queue,
+            ),
+        )
+        for ready_event in ready_events
+    ]
+    for process in processes:
+        process.start()
+    for ready_event in ready_events:
+        assert ready_event.wait(timeout=10)
+    start_event.set()
+    observed = [results_queue.get(timeout=10) for _ in processes]
+    for process in processes:
+        process.join(timeout=10)
+        assert process.exitcode == 0
+    assert sum(result[0] == "winner" for result in observed) == 1
+    assert sum(result[0] == "contender" for result in observed) == process_count - 1
+    assert all(result[0] != "error" for result in observed)
+    status, path, requested_hash = rt.store.effect_claim(MISSION_ID, "same")
+    assert status == "PENDING"
+    assert path == "same.txt"
+    assert requested_hash == "x" * 64
