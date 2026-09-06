@@ -151,6 +151,7 @@ class MissionRuntime:
             except (FileNotFoundError, ValueError):
                 actual = None
             if actual == claim["requested_hash"]:
+                assert actual is not None
                 receipt = RepositoryEffectReceipt(mission_id, claim["idempotency_key"], claim["generation"],
                     claim["path"], claim["before_hash"], actual, False, actual)
                 self.store.apply_effect(receipt, {"content_hash": claim["requested_hash"], "reconciled": "true"})
