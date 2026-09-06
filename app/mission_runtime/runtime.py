@@ -127,10 +127,13 @@ class MissionRuntime:
         )
         if existing is not None:
             status, existing_path, existing_hash = existing
-            if existing_path != relative_path or existing_hash != requested_hash:
-                raise ValueError("mission_effect_idempotency_conflict")
+            # An abandoned claim is fail-closed. Do not reinterpret it as a
+            # payload conflict or apply an effect without an explicit recovery
+            # protocol for the pending claim.
             if status == "PENDING":
                 raise ValueError("mission_effect_pending")
+            if existing_path != relative_path or existing_hash != requested_hash:
+                raise ValueError("mission_effect_idempotency_conflict")
             replay = self.store.effect(mission_id, idempotency_key)
             if replay is None:
                 raise ValueError("mission_effect_record_missing")
@@ -190,11 +193,18 @@ class MissionRuntime:
         self, mission_id: str, *, old_generation: int, old_instance_id: str,
         new_instance_id: str,
     ) -> MissionSnapshot:
-        snapshot = self._require_current_generation(
-            mission_id, generation=old_generation, instance_id=old_instance_id
-        )
+        snapshot = self.store.load(mission_id)
+        # Replacement is the one deliberate transition authorized from a
+        # checkpoint. It must still fence identity/generation, while effects
+        # remain disallowed in CHECKPOINTED and REPLACEMENT_PENDING.
         if snapshot.status is not MissionStatus.CHECKPOINTED:
-            raise ValueError("mission_replacement_invalid_state")
+            if snapshot.status is MissionStatus.CLOSED:
+                raise ValueError("mission_closed")
+            raise ValueError("mission_state_fenced")
+        if snapshot.generation != old_generation:
+            raise ValueError("mission_generation_fenced")
+        if snapshot.instance_id != old_instance_id:
+            raise ValueError("mission_instance_fenced")
         pending = replace(snapshot, status=MissionStatus.REPLACEMENT_PENDING)
         self.store.save(pending, "MISSION_REPLACEMENT_PENDING")
         successor = replace(
