@@ -223,7 +223,8 @@ def test_ib8_profile_resolution_and_static_invariants() -> None:
         assert profile.tool_permissions == ()
 
 
-def test_ib8_runtime_does_not_expose_arbitrary_namespace_targets_or_memory_import() -> None:
+def test_ib8_runtime_does_not_expose_arbitrary_namespace_targets_or_memory_import(
+) -> None:
     persist_parameters = signature(HazelBoundContinuity.persist_state).parameters
     recovery_parameters = signature(HazelBoundContinuity.recover_state).parameters
 
