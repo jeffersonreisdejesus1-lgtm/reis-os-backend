@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from hashlib import sha256
+from inspect import signature
 from pathlib import Path
 from time import time
 from typing import Any
@@ -165,6 +166,42 @@ def _leases(ocs_id: str) -> AuthorityLeaseManager:
     return manager
 
 
+def _single_prepare_lease(
+    ocs_id: str,
+    *,
+    lease_id: str,
+    tenant: str = ORG,
+    scope: tuple[str, ...] = SCOPE,
+    action_binding: str = "ocs_instance_binding",
+    authority_ref: str | None = None,
+) -> AuthorityLeaseManager:
+    manager = AuthorityLeaseManager()
+    profile = PROFILES[ocs_id]
+    now = time()
+    manager.issue(
+        AuthorityLease(
+            lease_id=lease_id,
+            ocs=ocs_id,
+            capability=CAPABILITY,
+            expires_at=now + 3600,
+            actor="NÓESIS",
+            issued_at=now,
+            not_before=now,
+            scope=scope,
+            tenant=tenant,
+            context_ref=_mission(ocs_id),
+            authority_ref=authority_ref or profile.authority_envelope_ref,
+            policy_snapshot="policy:ib8",
+            action_binding=action_binding,
+            object_ref_or_selector=_mission(ocs_id),
+            trace_ref=f"trace:ib8:{_slug(ocs_id)}",
+            max_uses=1,
+            single_use=True,
+        )
+    )
+    return manager
+
+
 def _guard(tmp_path: Path, name: str) -> IdentityKernelGuard:
     return IdentityKernelGuard(
         audit_log=IdentityAuditLog(tmp_path / f"{name}.jsonl")
@@ -184,6 +221,88 @@ def test_ib8_profile_resolution_and_static_invariants() -> None:
         assert "memory_import=false" in profile.handoff_policy
         assert profile.capability_adapters == ()
         assert profile.tool_permissions == ()
+
+
+def test_ib8_runtime_does_not_expose_arbitrary_namespace_targets_or_memory_import() -> None:
+    persist_parameters = signature(HazelBoundContinuity.persist_state).parameters
+    recovery_parameters = signature(HazelBoundContinuity.recover_state).parameters
+
+    assert "state_namespace" not in persist_parameters
+    assert "memory_namespace" not in persist_parameters
+    assert "state_namespace" not in recovery_parameters
+    assert "memory_namespace" not in recovery_parameters
+    assert not hasattr(HazelBoundContinuity, "import_memory")
+
+
+@pytest.mark.parametrize(
+    "case,expected_reason",
+    (
+        ("wrong_organization", "lease_tenant_mismatch"),
+        ("wrong_tenant", "lease_tenant_mismatch"),
+        ("wrong_scope", "lease_scope_mismatch"),
+        ("wrong_action_binding", "ocs_instance_binding_action_lease_required"),
+        ("wrong_authority_ref", "profile_authority_ref_mismatch"),
+    ),
+)
+@pytest.mark.parametrize("ocs_id", OCS_IDS)
+def test_ib8_authority_negative_matrix_fail_closed_zero_mutation(
+    tmp_path: Path,
+    ocs_id: str,
+    case: str,
+    expected_reason: str,
+) -> None:
+    slug = _slug(ocs_id)
+    lease_id = f"lease:ib8:{slug}:negative:{case}"
+    request = _request(
+        ocs_id,
+        lease_id=lease_id,
+        idempotency_key=f"idem:ib8:{slug}:negative:{case}",
+    )
+    tenant = ORG
+    lease_scope = SCOPE
+    action_binding = "ocs_instance_binding"
+    authority_ref: str | None = None
+
+    if case == "wrong_organization":
+        request = replace(request, organization_id="org:foreign")
+    elif case == "wrong_tenant":
+        tenant = "org:foreign"
+    elif case == "wrong_scope":
+        request = replace(request, scope=("repo:foreign",))
+    elif case == "wrong_action_binding":
+        action_binding = "ocs_instance_checkpoint"
+    elif case == "wrong_authority_ref":
+        authority_ref = "authority:foreign"
+    else:  # pragma: no cover - parametrization is closed above.
+        raise AssertionError(f"unknown negative case: {case}")
+
+    leases = _single_prepare_lease(
+        ocs_id,
+        lease_id=lease_id,
+        tenant=tenant,
+        scope=lease_scope,
+        action_binding=action_binding,
+        authority_ref=authority_ref,
+    )
+    before_lease_snapshot = leases.snapshot()
+    store = InstanceBindingStore(tmp_path / f"{slug}-{case}.sqlite3")
+    guard = _guard(tmp_path, f"{slug}-{case}-identity")
+    transport = FakeHazelTransport()
+    binder = OCSInstanceBinder(
+        store=store,
+        identity_guard=guard,
+        leases=leases,
+        continuity=HazelBoundContinuity(guard=guard, transport=transport),
+        binding_secret=f"ib8-negative:{slug}:{case}".encode(),
+    )
+
+    with pytest.raises(ValueError, match=expected_reason):
+        binder.prepare(request)
+
+    assert store.by_idempotency(request.idempotency_key) is None
+    assert transport.last_persist is None
+    assert leases.snapshot() == before_lease_snapshot
+    assert leases.uses_consumed(lease_id) == 0
 
 
 @pytest.mark.parametrize("ocs_id", OCS_IDS)
@@ -378,10 +497,11 @@ def test_ib8_directional_isolation_pair(
         host=HOST,
         session_context="ib8-directional-isolation",
     )
+    foreign_authority_transport = FakeHazelTransport()
     with pytest.raises(HazelIntegrationError, match="authority_ref_mismatch"):
         HazelBoundContinuity(
             guard=authority_guard,
-            transport=FakeHazelTransport(),
+            transport=foreign_authority_transport,
         ).persist_state(
             run_id=authority_binding.run_id,
             expected_ocs=source_ocs,
@@ -392,6 +512,7 @@ def test_ib8_directional_isolation_pair(
             state={"forbidden": True},
             trace_id=f"trace:ib8:{pair}:foreign-authority",
         )
+    assert foreign_authority_transport.last_persist is None
 
     identity_guard = _guard(tmp_path, f"{pair}-identity")
     identity_binding = identity_guard.bind_active_identity(
