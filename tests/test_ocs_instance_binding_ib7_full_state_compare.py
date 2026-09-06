@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import Path
 from time import time
@@ -21,6 +21,32 @@ from app.profile_bindings.profiles import PROFILES
 from app.universal_kernel.governance import AuthorityLease, AuthorityLeaseManager
 from app.universal_kernel.hazel_continuity import HazelBoundContinuity
 from app.universal_kernel.identity import IdentityAuditLog, IdentityKernelGuard
+
+
+@dataclass(frozen=True, slots=True)
+class IB7FullStateComparison:
+    continuity_invariants_match: bool
+    generation_transition_valid: bool
+    business_state_match: bool
+    business_state_hash_match: bool
+    lineage_valid: bool
+    authority_context_valid: bool
+    namespace_continuity_valid: bool
+    excluded_fields_with_reason: tuple[str, ...]
+
+    @property
+    def overall_equivalent(self) -> bool:
+        return all(
+            (
+                self.continuity_invariants_match,
+                self.generation_transition_valid,
+                self.business_state_match,
+                self.business_state_hash_match,
+                self.lineage_valid,
+                self.authority_context_valid,
+                self.namespace_continuity_valid,
+            )
+        )
 
 
 class FakeHazelTransport:
@@ -286,3 +312,63 @@ def test_ib7_full_continuity_relevant_state_equivalence(tmp_path: Path) -> None:
     assert predecessor_after_replacement.status is InstanceStatus.REPLACED
     assert active_n1.status is InstanceStatus.ACTIVE
     assert predecessor_after_replacement.binding_id == active_n1.predecessor_binding_id
+
+    comparison = IB7FullStateComparison(
+        continuity_invariants_match=all(
+            (
+                checkpoint_n.organization_id == active_n1.organization_id,
+                checkpoint_n.mission_id == active_n1.mission_id,
+                checkpoint_n.ocs_id == active_n1.ocs_id,
+                checkpoint_n.run_id == active_n1.run_id,
+                checkpoint_n.profile_version == active_n1.profile_version,
+                checkpoint_n.profile_hash == active_n1.profile_hash,
+                checkpoint_n.identity_binding_hash == active_n1.identity_binding_hash,
+            )
+        ),
+        generation_transition_valid=all(
+            (
+                checkpoint_n.binding_id != active_n1.binding_id,
+                checkpoint_n.platform_instance_id != active_n1.platform_instance_id,
+                active_n1.generation == checkpoint_n.generation + 1,
+                checkpoint_n.lease_id != active_n1.lease_id,
+                active_n1.checkpoint_version == checkpoint_n.checkpoint_version + 1,
+                active_n1.checkpoint_hash != checkpoint_n.checkpoint_hash,
+                active_n1.hazel_event_hash != checkpoint_n.hazel_event_hash,
+                predecessor_after_replacement.status is InstanceStatus.REPLACED,
+                active_n1.status is InstanceStatus.ACTIVE,
+            )
+        ),
+        business_state_match=recovered_business_state == business_state,
+        business_state_hash_match=(
+            original_business_state_hash == recovered_business_state_hash
+        ),
+        lineage_valid=all(
+            (
+                active_n1.predecessor_binding_id == checkpoint_n.binding_id,
+                active_n1.causation_id == checkpoint_n.hazel_event_hash,
+                recovered_state["predecessor_hash"] == checkpoint_n.hazel_event_hash,
+                recovered_state["payload"]["recovered_from"] == checkpoint_n.binding_id,
+                recovered_payload["binding_id"] == checkpoint_n.binding_id,
+                recovered_payload["generation"] == checkpoint_n.generation,
+                recovered_payload["mission_id"] == checkpoint_n.mission_id,
+            )
+        ),
+        authority_context_valid=all(
+            (
+                checkpoint_n.authority_ref == active_n1.authority_ref,
+                checkpoint_n.scope == active_n1.scope,
+            )
+        ),
+        namespace_continuity_valid=all(
+            (
+                checkpoint_n.state_namespace == active_n1.state_namespace,
+                checkpoint_n.memory_namespace == active_n1.memory_namespace,
+            )
+        ),
+        excluded_fields_with_reason=(
+            "version: lifecycle/CAS version is transition-local and must advance",
+            "created_at/updated_at: generation-specific timestamps",
+            "request_hash/idempotency_key/correlation_id: generation-request-specific",
+        ),
+    )
+    assert comparison.overall_equivalent is True
