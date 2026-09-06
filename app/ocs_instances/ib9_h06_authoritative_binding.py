@@ -58,7 +58,7 @@ class IB9H06ReconciliationReceipt:
 
 
 class IB9H06AuthoritativeBindingRuntime:
-    """Initial IB10 facade over the authoritative binding/recovery services."""
+    """IB9 H-06 authoritative binding/reconciliation facade over existing services."""
 
     def __init__(
         self,
