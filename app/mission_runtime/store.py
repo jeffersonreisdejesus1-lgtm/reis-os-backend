@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from pathlib import Path
+from typing import Any
 from .contracts import BindingStatus, MissionSnapshot, MissionStatus, RepositoryEffectReceipt
 
 class MissionRuntimeStore:
@@ -52,7 +53,7 @@ class MissionRuntimeStore:
         return MissionSnapshot(row["mission_id"],row["organization_id"],row["ocs_id"],row["authority_ref"],row["state_namespace"],
             row["memory_namespace"],row["generation"],row["instance_id"],MissionStatus(row["status"]),row["checkpoint_version"],
             row["checkpoint_hash"],row["transcript_ref"],BindingStatus(row["binding_status"]),row["binding_evidence"],row["checkpoint_material_json"])
-    def claim_effect(self, mission_id: str, idempotency_key: str, *, generation: int, path: str, requested_hash: str):
+    def claim_effect(self, mission_id: str, idempotency_key: str, *, generation: int, path: str, requested_hash: str) -> tuple[str, str, str] | None:
         with self._connect() as c:
             c.execute("BEGIN IMMEDIATE")
             row=c.execute("SELECT status,path,requested_hash FROM effects WHERE mission_id=? AND idempotency_key=?",(mission_id,idempotency_key)).fetchone()
@@ -60,16 +61,16 @@ class MissionRuntimeStore:
             c.execute("INSERT INTO effects(mission_id,idempotency_key,generation,path,before_hash,after_hash,readback_hash,payload_json,status,requested_hash) VALUES(?,?,?,?,?,?,?,?,?,?)",
                 (mission_id,idempotency_key,generation,path,"","","",json.dumps({"content_hash":requested_hash},sort_keys=True),"PENDING",requested_hash))
             c.execute("COMMIT"); return None
-    def effect_claim(self, mission_id: str, key: str):
+    def effect_claim(self, mission_id: str, key: str) -> tuple[str, str, str]:
         with self._connect() as c:
             row=c.execute("SELECT status,path,requested_hash FROM effects WHERE mission_id=? AND idempotency_key=?",(mission_id,key)).fetchone()
         if row is None: raise KeyError(key)
         return str(row["status"]),str(row["path"]),str(row["requested_hash"])
-    def effect(self, mission_id: str, key: str):
+    def effect(self, mission_id: str, key: str) -> RepositoryEffectReceipt | None:
         with self._connect() as c: row=c.execute("SELECT * FROM effects WHERE mission_id=? AND idempotency_key=? AND status='APPLIED'",(mission_id,key)).fetchone()
         if row is None: return None
         return RepositoryEffectReceipt(row["mission_id"],row["idempotency_key"],row["generation"],row["path"],row["before_hash"],row["after_hash"],False,row["readback_hash"])
-    def pending_effects(self, mission_id: str):
+    def pending_effects(self, mission_id: str) -> list[dict[str, Any]]:
         with self._connect() as c: rows=c.execute("SELECT * FROM effects WHERE mission_id=? AND status='PENDING'",(mission_id,)).fetchall()
         return [dict(r) for r in rows]
     def apply_effect(self, receipt: RepositoryEffectReceipt, payload: dict[str,str]) -> None:
@@ -78,11 +79,11 @@ class MissionRuntimeStore:
                 (receipt.before_hash,receipt.after_hash,receipt.readback_hash,json.dumps(payload,sort_keys=True),receipt.mission_id,receipt.idempotency_key))
             if cur.rowcount != 1: raise ValueError("mission_effect_claim_not_pending")
             self._append_event(c,receipt.mission_id,"MATERIAL_EFFECT_APPLIED",{"idempotency_key":receipt.idempotency_key,"path":receipt.path,"after_hash":receipt.after_hash})
-    def fail_pending(self, mission_id: str, key: str, reason: str):
+    def fail_pending(self, mission_id: str, key: str, reason: str) -> None:
         with self._connect() as c:
             cur=c.execute("UPDATE effects SET status='FAILED',payload_json=? WHERE mission_id=? AND idempotency_key=? AND status='PENDING'",(json.dumps({"reason":reason}),mission_id,key))
             if cur.rowcount != 1: raise ValueError("mission_effect_claim_not_pending")
-    def effect_records(self, mission_id: str):
+    def effect_records(self, mission_id: str) -> list[dict[str, Any]]:
         with self._connect() as c: rows=c.execute("SELECT idempotency_key,generation,path,before_hash,after_hash,readback_hash,requested_hash FROM effects WHERE mission_id=? AND status='APPLIED' ORDER BY idempotency_key",(mission_id,)).fetchall()
         return [dict(r) for r in rows]
     def checkpoint_material_matches(self, mission_id: str) -> bool:
