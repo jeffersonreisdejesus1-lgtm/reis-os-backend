@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from dataclasses import replace
 
 import pytest
 
@@ -184,7 +185,7 @@ def test_round2_replacement_pending_recovers(tmp_path: Path) -> None:
     assert recovered.generation == 2
 
 def test_round2_multiprocess_claims_are_single(tmp_path: Path) -> None:
-    import multiprocessing
+    import multiprocessing.pool
     def claim(_: int) -> str:
         s = MissionRuntimeStore(tmp_path / "mission-runtime.sqlite3")
         try:
