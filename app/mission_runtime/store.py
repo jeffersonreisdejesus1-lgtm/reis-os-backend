@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
+
 import json
 import sqlite3
 from pathlib import Path
 
-from .contracts import BindingStatus, MissionSnapshot, MissionStatus, RepositoryEffectReceipt
+from .contracts import (
+    BindingStatus,
+    MissionSnapshot,
+    MissionStatus,
+    RepositoryEffectReceipt,
+)
 
 
 class MissionRuntimeStore:
