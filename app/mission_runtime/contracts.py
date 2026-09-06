@@ -12,6 +12,17 @@ class MissionStatus(StrEnum):
     CLOSED = "CLOSED"
 
 
+class BindingStatus(StrEnum):
+    UNKNOWN = "UNKNOWN"
+    VERIFIED = "VERIFIED"
+    HOLD = "HOLD"
+
+
+class EffectStatus(StrEnum):
+    PENDING = "PENDING"
+    APPLIED = "APPLIED"
+
+
 @dataclass(frozen=True)
 class MissionSnapshot:
     mission_id: str
@@ -26,6 +37,9 @@ class MissionSnapshot:
     checkpoint_version: int
     checkpoint_hash: str | None
     transcript_ref: str | None
+    binding_status: BindingStatus = BindingStatus.UNKNOWN
+    binding_evidence: str | None = None
+    checkpoint_material_json: str | None = None
 
 
 @dataclass(frozen=True)
@@ -38,3 +52,4 @@ class RepositoryEffectReceipt:
     after_hash: str
     duplicate_effect: bool
     readback_hash: str
+    status: EffectStatus = EffectStatus.APPLIED
