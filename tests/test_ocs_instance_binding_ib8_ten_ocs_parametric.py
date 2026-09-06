@@ -97,6 +97,7 @@ def _slug(ocs_id: str) -> str:
     return (
         ocs_id.lower()
         .replace("ê", "e")
+        .replace("é", "e")
         .replace("ý", "y")
         .replace("ó", "o")
         .replace("í", "i")
