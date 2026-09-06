@@ -9,6 +9,7 @@ from app.mission_runtime import (
     BindingStatus,
     MissionRuntime,
     MissionRuntimeStore,
+    MissionSnapshot,
     MissionStatus,
     RepositoryMaintenanceAdapter,
 )
@@ -32,8 +33,8 @@ def runtime(tmp_path: Path, validator=None) -> tuple[MissionRuntime, RepositoryM
     ), adapter
 
 
-def start(runtime_: MissionRuntime) -> MissionRuntime:
-    runtime_.start(
+def start(runtime_: MissionRuntime) -> MissionSnapshot:
+    return runtime_.start(
         mission_id=MISSION_ID,
         organization_id=ORG,
         ocs_id=OCS,
