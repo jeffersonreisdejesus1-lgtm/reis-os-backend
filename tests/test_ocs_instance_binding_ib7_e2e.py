@@ -339,4 +339,4 @@ def test_ib7_one_ocs_generational_e2e(tmp_path: Path) -> None:
     assert active_n.ocs_id == active_n1.ocs_id == "SOFIA"
     assert active_n.binding_id != active_n1.binding_id
     assert active_n.generation + 1 == active_n1.generation
-    assert transport.persist_calls == 2
+    assert transport.persist_calls == 3
