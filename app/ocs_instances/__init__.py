@@ -7,12 +7,22 @@ from app.ocs_instances.contracts import (
     InstanceStatus,
     PrepareInstanceRequest,
 )
+from app.ocs_instances.ib10 import (
+    IB10IntegrationRuntime,
+    IB10Receipt,
+    IB10Step,
+    IB10StopCondition,
+)
 from app.ocs_instances.service import OCSInstanceBinder
 from app.ocs_instances.store import InstanceBindingStore
 from app.ocs_instances.work_bridge import WorkInstanceBridge, WorkSpawnReceipt
 
 __all__ = [
     "BootstrapAck",
+    "IB10IntegrationRuntime",
+    "IB10Receipt",
+    "IB10Step",
+    "IB10StopCondition",
     "InstanceBinding",
     "InstanceBindingStore",
     "InstanceBootstrapEnvelope",
