@@ -290,7 +290,11 @@ def test_ib7_one_ocs_generational_e2e(tmp_path: Path) -> None:
         host=successor.host,
         authority_ref=successor.authority_ref,
     )
-    assert recovered_state["payload"]["recovered_payload"] == business_state
+    recovered_payload = recovered_state["payload"]["recovered_payload"]
+    assert recovered_payload["binding_id"] == checkpoint_n.binding_id
+    assert recovered_payload["generation"] == checkpoint_n.generation
+    assert recovered_payload["mission_id"] == checkpoint_n.mission_id
+    assert recovered_payload["state"] == business_state
 
     bridge_after_restart = WorkInstanceBridge(restarted_store)
     bound_n1 = bridge_after_restart.attach(
