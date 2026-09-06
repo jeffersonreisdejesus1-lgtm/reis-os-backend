@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -85,67 +86,138 @@ def _capability() -> IntegrationCapabilitySnapshot:
         readable_targets=frozenset({"repo:a"}),
         writable_targets=frozenset({"repo:a"}),
         canonical_source_roles=frozenset({"CODE_TRUTH"}),
+        capability_version="github-cap-v3",
+        validated_at=NOW - timedelta(seconds=30),
+        max_age_seconds=300,
     )
+
+
+def _request(**changes: object) -> IntegrationUseRequest:
+    values: dict[str, object] = {
+        "connector": "github",
+        "action": "write",
+        "target": "repo:a",
+        "source_role": "CODE_TRUTH",
+        "authority_ref": "mission-authority:1",
+        "capability_version": "github-cap-v3",
+        "write": True,
+    }
+    values.update(changes)
+    return IntegrationUseRequest(**values)  # type: ignore[arg-type]
 
 
 def test_r6_capability_prerequisites() -> None:
-    allowed = evaluate_integration_use(
-        _capability(),
-        IntegrationUseRequest(
-            connector="github",
-            action="write",
-            target="repo:a",
-            source_role="CODE_TRUTH",
-            authority_ref="mission-authority:1",
-            write=True,
-        ),
-    )
+    allowed = evaluate_integration_use(_capability(), _request(), now=NOW)
     assert allowed.decision is CapabilityDecision.ALLOW_ATTEMPT
     assert not allowed.material_effect_performed
     assert not allowed.grants_authority
 
     denied = evaluate_integration_use(
         _capability(),
-        IntegrationUseRequest(
-            connector="github",
-            action="write",
-            target="repo:a",
-            source_role="CODE_TRUTH",
-            authority_ref=None,
-            write=True,
-        ),
+        _request(authority_ref=None),
+        now=NOW,
     )
     assert denied.decision is CapabilityDecision.HOLD
     assert "authority_ref_required" in denied.reasons
 
 
+def test_r6_freshness_and_expiry_fail_closed() -> None:
+    future = evaluate_integration_use(
+        replace(_capability(), validated_at=NOW + timedelta(seconds=1)),
+        _request(),
+        now=NOW,
+    )
+    assert future.decision is CapabilityDecision.HOLD
+    assert "validated_at_in_future" in future.reasons
+
+    stale = evaluate_integration_use(
+        replace(_capability(), validated_at=NOW - timedelta(seconds=301)),
+        _request(),
+        now=NOW,
+    )
+    assert stale.decision is CapabilityDecision.HOLD
+    assert "capability_snapshot_stale" in stale.reasons
+
+    expired = evaluate_integration_use(
+        replace(_capability(), max_age_seconds=None, expires_at=NOW),
+        _request(),
+        now=NOW,
+    )
+    assert expired.decision is CapabilityDecision.HOLD
+    assert "capability_snapshot_expired" in expired.reasons
+
+    missing_policy = evaluate_integration_use(
+        replace(_capability(), max_age_seconds=None),
+        _request(),
+        now=NOW,
+    )
+    assert missing_policy.decision is CapabilityDecision.HOLD
+    assert "capability_expiry_policy_required" in missing_policy.reasons
+
+
+def test_r6_timezone_version_and_drift_fail_closed() -> None:
+    naive = evaluate_integration_use(
+        replace(_capability(), validated_at=NOW.replace(tzinfo=None)),
+        _request(),
+        now=NOW,
+    )
+    assert naive.decision is CapabilityDecision.HOLD
+    assert "validated_at_not_timezone_aware" in naive.reasons
+
+    mismatch = evaluate_integration_use(
+        _capability(),
+        _request(capability_version="github-cap-v2"),
+        now=NOW,
+    )
+    assert mismatch.decision is CapabilityDecision.HOLD
+    assert "capability_version_mismatch" in mismatch.reasons
+
+    drift = evaluate_integration_use(
+        replace(_capability(), drift_detected=True),
+        _request(),
+        now=NOW,
+    )
+    assert drift.decision is CapabilityDecision.HOLD
+    assert "capability_drift_detected" in drift.reasons
+
+    action_drift = evaluate_integration_use(
+        replace(_capability(), drifted_actions=frozenset({"write"})),
+        _request(),
+        now=NOW,
+    )
+    assert action_drift.decision is CapabilityDecision.HOLD
+    assert "action_drift_detected" in action_drift.reasons
+
+    target_drift = evaluate_integration_use(
+        replace(_capability(), drifted_targets=frozenset({"repo:a"})),
+        _request(),
+        now=NOW,
+    )
+    assert target_drift.decision is CapabilityDecision.HOLD
+    assert "target_drift_detected" in target_drift.reasons
+
+    role_drift = evaluate_integration_use(
+        replace(
+            _capability(),
+            drifted_source_roles=frozenset({"CODE_TRUTH"}),
+        ),
+        _request(),
+        now=NOW,
+    )
+    assert role_drift.decision is CapabilityDecision.HOLD
+    assert "source_role_drift_detected" in role_drift.reasons
+
+
 def test_r6_write_and_reconciliation_boundaries() -> None:
     promotion = evaluate_integration_use(
         _capability(),
-        IntegrationUseRequest(
-            connector="github",
-            action="write",
-            target="repo:a",
-            source_role="CODE_TRUTH",
-            authority_ref="mission-authority:1",
-            write=True,
-            promote=True,
-        ),
+        _request(promote=True),
+        now=NOW,
     )
     assert promotion.decision is CapabilityDecision.HOLD
     assert "capability_cannot_promote" in promotion.reasons
 
-    allowed = evaluate_integration_use(
-        _capability(),
-        IntegrationUseRequest(
-            connector="github",
-            action="write",
-            target="repo:a",
-            source_role="CODE_TRUTH",
-            authority_ref="mission-authority:1",
-            write=True,
-        ),
-    )
+    allowed = evaluate_integration_use(_capability(), _request(), now=NOW)
     partial = reconcile_receipt(
         allowed,
         effect_receipt_ref="receipt:1",
