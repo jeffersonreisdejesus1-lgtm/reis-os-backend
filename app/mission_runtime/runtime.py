@@ -49,6 +49,11 @@ class RepositoryMaintenanceAdapter:
                 os.close(fd)
                 fd = child
             return fd, parts[-1]
+        except OSError as exc:
+            os.close(fd)
+            if exc.errno in {getattr(os, "ELOOP", 40), getattr(os, "ENOTDIR", 20)}:
+                raise ValueError("repository_path_symlink") from exc
+            raise
         except Exception:
             os.close(fd)
             raise
