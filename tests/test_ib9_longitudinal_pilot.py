@@ -14,7 +14,6 @@ from app.mission_runtime import (
 )
 
 
-
 MISSION_ID = "mission:ib9:longitudinal-repository-maintenance"
 ORG = "org:reis-os"
 OCS = "SOFIA"
