@@ -95,5 +95,5 @@ class MissionRuntimeStore:
         current=self.effect_records(mission_id)
         return sorted(current,key=lambda x:x["idempotency_key"]) == sorted(expected,key=lambda x:x["idempotency_key"])
     @staticmethod
-    def _append_event(c, mission_id: str, event_type: str, payload: dict[str,object]) -> None:
+    def _append_event(c: sqlite3.Connection, mission_id: str, event_type: str, payload: dict[str, object]) -> None:
         c.execute("INSERT INTO events(mission_id,event_type,payload_json) VALUES(?,?,?)",(mission_id,event_type,json.dumps(payload,sort_keys=True)))
