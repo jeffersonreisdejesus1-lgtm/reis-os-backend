@@ -4,7 +4,13 @@ import json
 import sqlite3
 from pathlib import Path
 
-from .contracts import MissionSnapshot, MissionStatus, RepositoryEffectReceipt
+from .contracts import (
+    BindingStatus,
+    EffectStatus,
+    MissionSnapshot,
+    MissionStatus,
+    RepositoryEffectReceipt,
+)
 
 
 class MissionRuntimeStore:
@@ -33,7 +39,10 @@ class MissionRuntimeStore:
                     status TEXT NOT NULL,
                     checkpoint_version INTEGER NOT NULL,
                     checkpoint_hash TEXT,
-                    transcript_ref TEXT
+                    transcript_ref TEXT,
+                    binding_status TEXT NOT NULL DEFAULT 'UNKNOWN',
+                    binding_evidence TEXT,
+                    checkpoint_material_json TEXT
                 );
                 CREATE TABLE IF NOT EXISTS effects (
                     mission_id TEXT NOT NULL,
@@ -44,6 +53,8 @@ class MissionRuntimeStore:
                     after_hash TEXT NOT NULL,
                     readback_hash TEXT NOT NULL,
                     payload_json TEXT NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'APPLIED',
+                    requested_hash TEXT NOT NULL DEFAULT '',
                     PRIMARY KEY (mission_id, idempotency_key)
                 );
                 CREATE TABLE IF NOT EXISTS events (
@@ -54,12 +65,45 @@ class MissionRuntimeStore:
                 );
                 """
             )
+            columns = {
+                str(row["name"])
+                for row in connection.execute("PRAGMA table_info(missions)")
+            }
+            if "binding_status" not in columns:
+                connection.execute(
+                    "ALTER TABLE missions ADD COLUMN binding_status TEXT NOT NULL DEFAULT 'UNKNOWN'"
+                )
+            if "binding_evidence" not in columns:
+                connection.execute(
+                    "ALTER TABLE missions ADD COLUMN binding_evidence TEXT"
+                )
+            if "checkpoint_material_json" not in columns:
+                connection.execute(
+                    "ALTER TABLE missions ADD COLUMN checkpoint_material_json TEXT"
+                )
+            effect_columns = {
+                str(row["name"])
+                for row in connection.execute("PRAGMA table_info(effects)")
+            }
+            if "status" not in effect_columns:
+                connection.execute(
+                    "ALTER TABLE effects ADD COLUMN status TEXT NOT NULL DEFAULT 'APPLIED'"
+                )
+            if "requested_hash" not in effect_columns:
+                connection.execute(
+                    "ALTER TABLE effects ADD COLUMN requested_hash TEXT NOT NULL DEFAULT ''"
+                )
 
     def create(self, snapshot: MissionSnapshot) -> None:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO missions VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO missions(
+                    mission_id, organization_id, ocs_id, authority_ref,
+                    state_namespace, memory_namespace, generation, instance_id,
+                    status, checkpoint_version, checkpoint_hash, transcript_ref,
+                    binding_status, binding_evidence, checkpoint_material_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     snapshot.mission_id,
@@ -74,16 +118,16 @@ class MissionRuntimeStore:
                     snapshot.checkpoint_version,
                     snapshot.checkpoint_hash,
                     snapshot.transcript_ref,
+                    snapshot.binding_status.value,
+                    snapshot.binding_evidence,
+                    snapshot.checkpoint_material_json,
                 ),
             )
             self._append_event(
                 connection,
                 snapshot.mission_id,
                 "MISSION_CREATED",
-                {
-                    "generation": snapshot.generation,
-                    "instance_id": snapshot.instance_id,
-                },
+                {"generation": snapshot.generation, "instance_id": snapshot.instance_id},
             )
 
     def save(self, snapshot: MissionSnapshot, event_type: str) -> None:
@@ -92,7 +136,8 @@ class MissionRuntimeStore:
                 """
                 UPDATE missions
                 SET generation=?, instance_id=?, status=?, checkpoint_version=?,
-                    checkpoint_hash=?, transcript_ref=?
+                    checkpoint_hash=?, transcript_ref=?, binding_status=?,
+                    binding_evidence=?, checkpoint_material_json=?
                 WHERE mission_id=? AND organization_id=? AND ocs_id=?
                     AND authority_ref=?
                 """,
@@ -103,6 +148,9 @@ class MissionRuntimeStore:
                     snapshot.checkpoint_version,
                     snapshot.checkpoint_hash,
                     snapshot.transcript_ref,
+                    snapshot.binding_status.value,
+                    snapshot.binding_evidence,
+                    snapshot.checkpoint_material_json,
                     snapshot.mission_id,
                     snapshot.organization_id,
                     snapshot.ocs_id,
@@ -143,16 +191,55 @@ class MissionRuntimeStore:
             checkpoint_version=row["checkpoint_version"],
             checkpoint_hash=row["checkpoint_hash"],
             transcript_ref=row["transcript_ref"],
+            binding_status=BindingStatus(row["binding_status"]),
+            binding_evidence=row["binding_evidence"],
+            checkpoint_material_json=row["checkpoint_material_json"],
         )
 
-    def effect(
+    def claim_effect(
         self,
         mission_id: str,
         idempotency_key: str,
-    ) -> RepositoryEffectReceipt | None:
+        *,
+        generation: int,
+        path: str,
+        requested_hash: str,
+    ) -> tuple[str, str, str] | None:
+        with self._connect() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT status, path, requested_hash FROM effects "
+                "WHERE mission_id=? AND idempotency_key=?",
+                (mission_id, idempotency_key),
+            ).fetchone()
+            if row is not None:
+                connection.commit()
+                return str(row["status"]), str(row["path"]), str(row["requested_hash"])
+            connection.execute(
+                """
+                INSERT INTO effects(
+                    mission_id, idempotency_key, generation, path,
+                    before_hash, after_hash, readback_hash, payload_json,
+                    status, requested_hash
+                ) VALUES (?, ?, ?, ?, '', '', '', ?, 'PENDING', ?)
+                """,
+                (
+                    mission_id,
+                    idempotency_key,
+                    generation,
+                    path,
+                    json.dumps({"content_hash": requested_hash}, sort_keys=True),
+                    requested_hash,
+                ),
+            )
+            connection.commit()
+            return None
+
+    def effect(self, mission_id: str, idempotency_key: str) -> RepositoryEffectReceipt | None:
         with self._connect() as connection:
             row = connection.execute(
-                "SELECT * FROM effects WHERE mission_id=? AND idempotency_key=?",
+                "SELECT * FROM effects WHERE mission_id=? AND idempotency_key=? "
+                "AND status='APPLIED'",
                 (mission_id, idempotency_key),
             ).fetchone()
         if row is None:
@@ -168,33 +255,64 @@ class MissionRuntimeStore:
             readback_hash=row["readback_hash"],
         )
 
-    def record_effect(
+    def apply_effect(
         self,
         receipt: RepositoryEffectReceipt,
         payload: dict[str, str],
     ) -> None:
         with self._connect() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 """
-                INSERT INTO effects VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                UPDATE effects
+                SET before_hash=?, after_hash=?, readback_hash=?,
+                    payload_json=?, status='APPLIED'
+                WHERE mission_id=? AND idempotency_key=? AND status='PENDING'
                 """,
                 (
-                    receipt.mission_id,
-                    receipt.idempotency_key,
-                    receipt.generation,
-                    receipt.path,
                     receipt.before_hash,
                     receipt.after_hash,
                     receipt.readback_hash,
                     json.dumps(payload, sort_keys=True),
+                    receipt.mission_id,
+                    receipt.idempotency_key,
                 ),
             )
+            if cursor.rowcount != 1:
+                raise ValueError("mission_effect_claim_not_pending")
             self._append_event(
                 connection,
                 receipt.mission_id,
                 "MATERIAL_EFFECT_APPLIED",
-                {"idempotency_key": receipt.idempotency_key, "path": receipt.path},
+                {
+                    "idempotency_key": receipt.idempotency_key,
+                    "path": receipt.path,
+                    "after_hash": receipt.after_hash,
+                },
             )
+
+    def effect_records(self, mission_id: str) -> list[dict[str, str]]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT idempotency_key, generation, path, before_hash, after_hash, "
+                "readback_hash, requested_hash FROM effects "
+                "WHERE mission_id=? AND status='APPLIED' ORDER BY idempotency_key",
+                (mission_id,),
+            ).fetchall()
+        return [
+            {
+                "idempotency_key": str(row["idempotency_key"]),
+                "generation": str(row["generation"]),
+                "path": str(row["path"]),
+                "before_hash": str(row["before_hash"]),
+                "after_hash": str(row["after_hash"]),
+                "readback_hash": str(row["readback_hash"]),
+                "requested_hash": str(row["requested_hash"]),
+            }
+            for row in rows
+        ]
+
+    def checkpoint_effects_match(self, mission_id: str, records: list[dict[str, str]]) -> bool:
+        return self.effect_records(mission_id)[: len(records)] == records
 
     def event_types(self, mission_id: str) -> tuple[str, ...]:
         with self._connect() as connection:
