@@ -3,7 +3,11 @@ from types import SimpleNamespace
 import pytest
 
 from app.ocs_instances.contracts import InstanceStatus
-from app.ocs_instances.ib9_h06_authoritative_binding import IB9H06AuthoritativeBindingRuntime, IB9H06ReconciliationStep, IB9H06StopCondition
+from app.ocs_instances.ib9_h06_authoritative_binding import (
+    IB9H06AuthoritativeBindingRuntime,
+    IB9H06ReconciliationStep,
+    IB9H06StopCondition,
+)
 
 
 @pytest.mark.parametrize(
