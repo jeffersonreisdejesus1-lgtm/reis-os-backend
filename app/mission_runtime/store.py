@@ -80,7 +80,10 @@ class MissionRuntimeStore:
                 connection,
                 snapshot.mission_id,
                 "MISSION_CREATED",
-                {"generation": snapshot.generation, "instance_id": snapshot.instance_id},
+                {
+                    "generation": snapshot.generation,
+                    "instance_id": snapshot.instance_id,
+                },
             )
 
     def save(self, snapshot: MissionSnapshot, event_type: str) -> None:
@@ -90,7 +93,8 @@ class MissionRuntimeStore:
                 UPDATE missions
                 SET generation=?, instance_id=?, status=?, checkpoint_version=?,
                     checkpoint_hash=?, transcript_ref=?
-                WHERE mission_id=? AND organization_id=? AND ocs_id=? AND authority_ref=?
+                WHERE mission_id=? AND organization_id=? AND ocs_id=?
+                    AND authority_ref=?
                 """,
                 (
                     snapshot.generation,
@@ -141,7 +145,11 @@ class MissionRuntimeStore:
             transcript_ref=row["transcript_ref"],
         )
 
-    def effect(self, mission_id: str, idempotency_key: str) -> RepositoryEffectReceipt | None:
+    def effect(
+        self,
+        mission_id: str,
+        idempotency_key: str,
+    ) -> RepositoryEffectReceipt | None:
         with self._connect() as connection:
             row = connection.execute(
                 "SELECT * FROM effects WHERE mission_id=? AND idempotency_key=?",
