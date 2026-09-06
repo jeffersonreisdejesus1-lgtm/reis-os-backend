@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
+
 from pathlib import Path
 
 import pytest
@@ -11,6 +13,7 @@ from app.mission_runtime import (
     MissionStatus,
     RepositoryMaintenanceAdapter,
 )
+
 
 
 MISSION_ID = "mission:ib9:longitudinal-repository-maintenance"
