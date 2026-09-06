@@ -22,6 +22,8 @@ from app.universal_kernel.governance import AuthorityLease, AuthorityLeaseManage
 from app.universal_kernel.hazel_continuity import HazelBoundContinuity
 from app.universal_kernel.identity import IdentityAuditLog, IdentityKernelGuard
 
+# PR50 base-sync marker: intentionally no semantic effect on the IB7 proof.
+
 
 @dataclass(frozen=True, slots=True)
 class IB7FullStateComparison:
