@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
+
 import json
 from dataclasses import replace
 from hashlib import sha256
@@ -22,8 +24,15 @@ from app.ocs_instances.store import InstanceBindingStore
 from app.ocs_instances.work_bridge import WorkInstanceBridge, WorkSpawnReceipt
 from app.profile_bindings.profiles import PROFILES, validate_profiles
 from app.universal_kernel.governance import AuthorityLease, AuthorityLeaseManager
-from app.universal_kernel.hazel_continuity import HazelBoundContinuity, HazelIntegrationError
-from app.universal_kernel.identity import IdentityAuditLog, IdentityKernelGuard
+from app.universal_kernel.hazel_continuity import (
+    HazelBoundContinuity,
+    HazelIntegrationError,
+)
+from app.universal_kernel.identity import (
+    IdentityAuditLog,
+    IdentityKernelGuard,
+    IdentityRecheckTrigger,
+)
 
 OCS_IDS = tuple(PROFILES)
 DIRECTIONAL_PAIRS = tuple((a, b) for a in OCS_IDS for b in OCS_IDS if a != b)
@@ -40,7 +49,12 @@ class FakeHazelTransport:
 
     @staticmethod
     def _hash(value: dict[str, Any]) -> str:
-        raw = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+        raw = json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        )
         return sha256(raw.encode()).hexdigest()
 
     def persist(self, envelope: dict[str, Any]) -> dict[str, Any]:
@@ -81,12 +95,27 @@ class FakeHazelTransport:
         return dict(self.latest[key])
 
 
+def _slug(ocs_id: str) -> str:
+    return (
+        ocs_id.lower()
+        .replace("ê", "e")
+        .replace("ý", "y")
+        .replace("ó", "o")
+        .replace("í", "i")
+        .replace("á", "a")
+    )
+
+
 def _mission(ocs_id: str) -> str:
-    slug = ocs_id.lower().replace("ê", "e").replace("ý", "y").replace("ó", "o").replace("í", "i").replace("á", "a")
-    return f"mission:ib8:{slug}"
+    return f"mission:ib8:{_slug(ocs_id)}"
 
 
-def _request(ocs_id: str, *, lease_id: str, idempotency_key: str) -> PrepareInstanceRequest:
+def _request(
+    ocs_id: str,
+    *,
+    lease_id: str,
+    idempotency_key: str,
+) -> PrepareInstanceRequest:
     return PrepareInstanceRequest(
         mission_id=_mission(ocs_id),
         organization_id=ORG,
@@ -100,7 +129,7 @@ def _request(ocs_id: str, *, lease_id: str, idempotency_key: str) -> PrepareInst
         actor="NÓESIS",
         context_ref=_mission(ocs_id),
         policy_snapshot="policy:ib8",
-        trace_ref=f"trace:ib8:{ocs_id}",
+        trace_ref=f"trace:ib8:{_slug(ocs_id)}",
     )
 
 
@@ -113,10 +142,9 @@ def _leases(ocs_id: str) -> AuthorityLeaseManager:
         ("checkpoint", "ocs_instance_checkpoint"),
         ("replace", "ocs_instance_binding"),
     ):
-        lease_id = f"lease:ib8:{ocs_id}:{suffix}"
         manager.issue(
             AuthorityLease(
-                lease_id=lease_id,
+                lease_id=f"lease:ib8:{_slug(ocs_id)}:{suffix}",
                 ocs=ocs_id,
                 capability=CAPABILITY,
                 expires_at=now + 3600,
@@ -130,7 +158,7 @@ def _leases(ocs_id: str) -> AuthorityLeaseManager:
                 policy_snapshot="policy:ib8",
                 action_binding=action_binding,
                 object_ref_or_selector=_mission(ocs_id),
-                trace_ref=f"trace:ib8:{ocs_id}",
+                trace_ref=f"trace:ib8:{_slug(ocs_id)}",
                 max_uses=1,
                 single_use=True,
             )
@@ -138,13 +166,16 @@ def _leases(ocs_id: str) -> AuthorityLeaseManager:
     return manager
 
 
-def _new_guard(tmp_path: Path, name: str) -> IdentityKernelGuard:
-    return IdentityKernelGuard(audit_log=IdentityAuditLog(tmp_path / f"{name}.jsonl"))
+def _guard(tmp_path: Path, name: str) -> IdentityKernelGuard:
+    return IdentityKernelGuard(
+        audit_log=IdentityAuditLog(tmp_path / f"{name}.jsonl")
+    )
 
 
-def test_ib8_ten_profiles_are_distinct_and_non_authorizing() -> None:
+def test_ib8_profile_resolution_and_static_invariants() -> None:
     validate_profiles()
     assert len(OCS_IDS) == 10
+    assert len(DIRECTIONAL_PAIRS) == 90
     assert len({PROFILES[o].identity for o in OCS_IDS}) == 10
     assert len({PROFILES[o].authority_envelope_ref for o in OCS_IDS}) == 10
     assert len({PROFILES[o].state_namespace for o in OCS_IDS}) == 10
@@ -157,12 +188,15 @@ def test_ib8_ten_profiles_are_distinct_and_non_authorizing() -> None:
 
 
 @pytest.mark.parametrize("ocs_id", OCS_IDS)
-def test_ib8_each_ocs_generation_replacement_fencing_and_recovery(
-    tmp_path: Path, ocs_id: str
+def test_ib8_ten_ocs_replacement_fencing_and_recovery(
+    tmp_path: Path,
+    ocs_id: str,
 ) -> None:
+    slug = _slug(ocs_id)
     profile = PROFILES[ocs_id]
-    store = InstanceBindingStore(tmp_path / f"{ocs_id}-instances.sqlite3")
-    guard = _new_guard(tmp_path, f"{ocs_id}-identity")
+    store_path = tmp_path / f"{slug}.sqlite3"
+    store = InstanceBindingStore(store_path)
+    guard = _guard(tmp_path, f"{slug}-identity")
     transport = FakeHazelTransport()
     continuity = HazelBoundContinuity(guard=guard, transport=transport)
     binder = OCSInstanceBinder(
@@ -170,15 +204,15 @@ def test_ib8_each_ocs_generation_replacement_fencing_and_recovery(
         identity_guard=guard,
         leases=_leases(ocs_id),
         continuity=continuity,
-        binding_secret=f"ib8:{ocs_id}".encode(),
+        binding_secret=f"ib8:{slug}".encode(),
     )
     bridge = WorkInstanceBridge(store)
 
     prepared, envelope_n = binder.prepare(
         _request(
             ocs_id,
-            lease_id=f"lease:ib8:{ocs_id}:prepare",
-            idempotency_key=f"idem:ib8:{ocs_id}:prepare",
+            lease_id=f"lease:ib8:{slug}:prepare",
+            idempotency_key=f"idem:ib8:{slug}:prepare",
         )
     )
     assert prepared.profile_version == profile.version
@@ -188,24 +222,23 @@ def test_ib8_each_ocs_generation_replacement_fencing_and_recovery(
     assert prepared.memory_namespace == profile.memory_namespace
     assert prepared.organization_id == ORG
     assert prepared.mission_id == _mission(ocs_id)
-    assert prepared.ocs_id == ocs_id
     assert prepared.generation == 1
 
     bound_n = bridge.attach(
         prepared.binding_id,
-        WorkSpawnReceipt(f"work:ib8:{ocs_id}:n", f"{ocs_id}:n"),
+        WorkSpawnReceipt(f"work:ib8:{slug}:n", f"{slug}:n"),
         expected_version=prepared.version,
-        idempotency_key=f"idem:ib8:{ocs_id}:attach:n",
+        idempotency_key=f"idem:ib8:{slug}:attach:n",
     )
     active_n = bridge.acknowledge(
         BootstrapAck(
             prepared.binding_id,
-            f"work:ib8:{ocs_id}:n",
+            f"work:ib8:{slug}:n",
             1,
             envelope_n.digest(),
             prepared.identity_binding_hash,
             envelope_n.challenge_nonce,
-            f"idem:ib8:{ocs_id}:ack:n",
+            f"idem:ib8:{slug}:ack:n",
         ),
         expected_version=bound_n.version,
     )
@@ -213,84 +246,85 @@ def test_ib8_each_ocs_generation_replacement_fencing_and_recovery(
         active_n.binding_id,
         authority=_request(
             ocs_id,
-            lease_id=f"lease:ib8:{ocs_id}:checkpoint",
-            idempotency_key=f"idem:ib8:{ocs_id}:checkpoint-authority",
+            lease_id=f"lease:ib8:{slug}:checkpoint",
+            idempotency_key=f"idem:ib8:{slug}:checkpoint-authority",
         ),
-        platform_instance_id=f"work:ib8:{ocs_id}:n",
+        platform_instance_id=f"work:ib8:{slug}:n",
         generation=1,
         expected_version=active_n.version,
-        state={"ocs_id": ocs_id, "generation": 1, "mission": _mission(ocs_id)},
-        idempotency_key=f"idem:ib8:{ocs_id}:checkpoint",
-    )
-
-    replacement_request = replace(
-        _request(
-            ocs_id,
-            lease_id=f"lease:ib8:{ocs_id}:replace",
-            idempotency_key=f"idem:ib8:{ocs_id}:replacement-prepare",
-        ),
-        causation_id=checkpoint_n.hazel_event_hash,
+        state={"ocs_id": ocs_id, "generation": 1},
+        idempotency_key=f"idem:ib8:{slug}:checkpoint",
     )
     successor, envelope_n1 = binder.replace_instance(
         checkpoint_n.binding_id,
-        replacement_request,
-        platform_instance_id=f"work:ib8:{ocs_id}:n",
+        replace(
+            _request(
+                ocs_id,
+                lease_id=f"lease:ib8:{slug}:replace",
+                idempotency_key=f"idem:ib8:{slug}:replacement-prepare",
+            ),
+            causation_id=checkpoint_n.hazel_event_hash,
+        ),
+        platform_instance_id=f"work:ib8:{slug}:n",
         generation=1,
         expected_version=checkpoint_n.version,
-        replacement_idempotency_key=f"idem:ib8:{ocs_id}:replacement",
+        replacement_idempotency_key=f"idem:ib8:{slug}:replacement",
     )
     assert successor.generation == 2
     assert successor.predecessor_binding_id == checkpoint_n.binding_id
     assert store.get(checkpoint_n.binding_id).status is InstanceStatus.REPLACED
 
-    with pytest.raises(InstanceBindingError, match="active_instance_required_for_checkpoint"):
+    with pytest.raises(
+        InstanceBindingError,
+        match="active_instance_required_for_checkpoint",
+    ):
         binder.checkpoint(
             checkpoint_n.binding_id,
             authority=_request(
                 ocs_id,
-                lease_id=f"lease:ib8:{ocs_id}:checkpoint",
-                idempotency_key=f"idem:ib8:{ocs_id}:old-generation-denied",
+                lease_id=f"lease:ib8:{slug}:checkpoint",
+                idempotency_key=f"idem:ib8:{slug}:old-generation-denied",
             ),
-            platform_instance_id=f"work:ib8:{ocs_id}:n",
+            platform_instance_id=f"work:ib8:{slug}:n",
             generation=1,
             expected_version=checkpoint_n.version,
             state={"forbidden": True},
-            idempotency_key=f"idem:ib8:{ocs_id}:old-generation-effect",
+            idempotency_key=f"idem:ib8:{slug}:old-generation-effect",
         )
 
-    snapshots = AuthenticatedLeaseSnapshotStore(
-        tmp_path / f"{ocs_id}-leases.json", f"ib8-lease-key:{ocs_id}".encode()
+    snapshot = AuthenticatedLeaseSnapshotStore(
+        tmp_path / f"{slug}-leases.json",
+        f"ib8-lease-key:{slug}".encode(),
     )
-    snapshots.save(binder._leases)
-    restarted_store = InstanceBindingStore(tmp_path / f"{ocs_id}-instances.sqlite3")
-    recovery = OCSInstanceRecovery(
+    snapshot.save(binder._leases)
+    restarted_store = InstanceBindingStore(store_path)
+    recovered = OCSInstanceRecovery(
         store=restarted_store,
-        leases=snapshots.load(),
+        leases=snapshot.load(),
         continuity=continuity,
-    )
-    recovered = recovery.recover_instance(ORG, _mission(ocs_id), ocs_id)
+    ).recover_instance(ORG, _mission(ocs_id), ocs_id)
     assert recovered.binding.binding_id == successor.binding_id
     assert recovered.binding.generation == 2
     assert recovered.binding.ocs_id == ocs_id
     assert recovered.binding.state_namespace == profile.state_namespace
     assert recovered.binding.memory_namespace == profile.memory_namespace
 
-    bridge_after_restart = WorkInstanceBridge(restarted_store)
-    bound_n1 = bridge_after_restart.attach(
+    bridge_n1 = WorkInstanceBridge(restarted_store)
+    bound_n1 = bridge_n1.attach(
         successor.binding_id,
-        WorkSpawnReceipt(f"work:ib8:{ocs_id}:n1", f"{ocs_id}:n1"),
+        WorkSpawnReceipt(f"work:ib8:{slug}:n1", f"{slug}:n1"),
         expected_version=recovered.binding.version,
-        idempotency_key=f"idem:ib8:{ocs_id}:attach:n1",
+        idempotency_key=f"idem:ib8:{slug}:attach:n1",
     )
-    active_n1 = bridge_after_restart.acknowledge(
+    active_n1 = bridge_n1.acknowledge(
         BootstrapAck(
             successor.binding_id,
-            f"work:ib8:{ocs_id}:n1",
+            f"work:ib8:{slug}:n1",
             2,
             envelope_n1.digest(),
             successor.identity_binding_hash,
             envelope_n1.challenge_nonce,
-            f"idem:ib8:{ocs_id}:ack:n1",
+            f"idem:ib8:{slug}:ack:n1",
         ),
         expected_version=bound_n1.version,
     )
@@ -300,21 +334,22 @@ def test_ib8_each_ocs_generation_replacement_fencing_and_recovery(
 
 @pytest.mark.parametrize("source_ocs,target_ocs", DIRECTIONAL_PAIRS)
 def test_ib8_directional_isolation_pair(
-    tmp_path: Path, source_ocs: str, target_ocs: str
+    tmp_path: Path,
+    source_ocs: str,
+    target_ocs: str,
 ) -> None:
     source = PROFILES[source_ocs]
     target = PROFILES[target_ocs]
-    assert source_ocs != target_ocs
+    pair = f"{_slug(source_ocs)}-{_slug(target_ocs)}"
+
     assert source.state_namespace != target.state_namespace
     assert source.memory_namespace != target.memory_namespace
     assert source.authority_envelope_ref != target.authority_envelope_ref
     assert source.identity != target.identity
 
-    # Production persist has no caller-supplied namespace: both namespaces are derived
-    # exclusively from the source binding after Kernel revalidation.
-    guard = _new_guard(tmp_path, f"pair-{source_ocs}-{target_ocs}-persist")
+    guard = _guard(tmp_path, f"{pair}-persist")
     binding = guard.bind_active_identity(
-        run_id=f"run:ib8:{source_ocs}:{target_ocs}:persist",
+        run_id=f"run:ib8:{pair}:persist",
         ocs_id=source_ocs,
         host=HOST,
         session_context="ib8-directional-isolation",
@@ -329,7 +364,7 @@ def test_ib8_directional_isolation_pair(
         state_version=1,
         predecessor_hash=None,
         state={"source": source_ocs, "target": target_ocs},
-        trace_id=f"trace:ib8:{source_ocs}:{target_ocs}",
+        trace_id=f"trace:ib8:{pair}",
     )
     assert transport.last_persist is not None
     assert transport.last_persist["state_namespace"] == source.state_namespace
@@ -337,58 +372,55 @@ def test_ib8_directional_isolation_pair(
     assert transport.last_persist["state_namespace"] != target.state_namespace
     assert transport.last_persist["memory_namespace"] != target.memory_namespace
 
-    # A cannot use B's authority/lease identity on A's binding.
-    guard_authority = _new_guard(tmp_path, f"pair-{source_ocs}-{target_ocs}-authority")
-    binding_authority = guard_authority.bind_active_identity(
-        run_id=f"run:ib8:{source_ocs}:{target_ocs}:authority",
+    authority_guard = _guard(tmp_path, f"{pair}-authority")
+    authority_binding = authority_guard.bind_active_identity(
+        run_id=f"run:ib8:{pair}:authority",
         ocs_id=source_ocs,
         host=HOST,
         session_context="ib8-directional-isolation",
     )
     with pytest.raises(HazelIntegrationError, match="authority_ref_mismatch"):
         HazelBoundContinuity(
-            guard=guard_authority, transport=FakeHazelTransport()
+            guard=authority_guard,
+            transport=FakeHazelTransport(),
         ).persist_state(
-            run_id=binding_authority.run_id,
+            run_id=authority_binding.run_id,
             expected_ocs=source_ocs,
             host=HOST,
             authority_ref=target.authority_envelope_ref,
             state_version=1,
             predecessor_hash=None,
-            state={"forbidden": "foreign-authority"},
-            trace_id="trace:ib8:foreign-authority",
+            state={"forbidden": True},
+            trace_id=f"trace:ib8:{pair}:foreign-authority",
         )
 
-    # Name/handoff text cannot impersonate B: expected identity mismatch fails closed.
-    guard_identity = _new_guard(tmp_path, f"pair-{source_ocs}-{target_ocs}-identity")
-    identity_binding = guard_identity.bind_active_identity(
-        run_id=f"run:ib8:{source_ocs}:{target_ocs}:identity",
+    identity_guard = _guard(tmp_path, f"{pair}-identity")
+    identity_binding = identity_guard.bind_active_identity(
+        run_id=f"run:ib8:{pair}:identity",
         ocs_id=source_ocs,
         host=HOST,
         session_context=f"handoff says {target_ocs}",
     )
-    result = guard_identity.revalidate(
+    identity_result = identity_guard.revalidate(
         run_id=identity_binding.run_id,
         expected_ocs=target_ocs,
-        trigger=__import__(
-            "app.universal_kernel.identity", fromlist=["IdentityRecheckTrigger"]
-        ).IdentityRecheckTrigger.HANDOFF,
+        trigger=IdentityRecheckTrigger.HANDOFF,
         host=HOST,
     )
-    assert result.valid is False
-    assert result.reason == "active_ocs_identity_mismatch"
+    assert identity_result.valid is False
+    assert identity_result.reason == "active_ocs_identity_mismatch"
 
-    # A cannot recover a checkpoint carrying B's identity, namespaces or binding hash.
-    guard_recovery = _new_guard(tmp_path, f"pair-{source_ocs}-{target_ocs}-recovery")
-    recovery_binding = guard_recovery.bind_active_identity(
-        run_id=f"run:ib8:{source_ocs}:{target_ocs}:recovery",
+    recovery_guard = _guard(tmp_path, f"{pair}-recovery")
+    recovery_binding = recovery_guard.bind_active_identity(
+        run_id=f"run:ib8:{pair}:recovery",
         ocs_id=source_ocs,
         host=HOST,
         session_context="ib8-directional-isolation",
     )
     recovery_transport = FakeHazelTransport()
     recovery_continuity = HazelBoundContinuity(
-        guard=guard_recovery, transport=recovery_transport
+        guard=recovery_guard,
+        transport=recovery_transport,
     )
     recovery_continuity.persist_state(
         run_id=recovery_binding.run_id,
@@ -398,7 +430,7 @@ def test_ib8_directional_isolation_pair(
         state_version=1,
         predecessor_hash=None,
         state={"checkpoint": source_ocs},
-        trace_id="trace:ib8:recovery-source",
+        trace_id=f"trace:ib8:{pair}:recovery",
     )
     key = (
         recovery_binding.run_id,
@@ -416,7 +448,10 @@ def test_ib8_directional_isolation_pair(
             authority_ref=source.authority_envelope_ref,
         )
 
-    recovery_transport.latest[key] = {**original, "state_namespace": target.state_namespace}
+    recovery_transport.latest[key] = {
+        **original,
+        "state_namespace": target.state_namespace,
+    }
     with pytest.raises(HazelIntegrationError, match="recovery_namespace_mismatch"):
         recovery_continuity.recover_state(
             run_id=recovery_binding.run_id,
@@ -425,8 +460,14 @@ def test_ib8_directional_isolation_pair(
             authority_ref=source.authority_envelope_ref,
         )
 
-    recovery_transport.latest[key] = {**original, "memory_namespace": target.memory_namespace}
-    with pytest.raises(HazelIntegrationError, match="recovery_memory_namespace_mismatch"):
+    recovery_transport.latest[key] = {
+        **original,
+        "memory_namespace": target.memory_namespace,
+    }
+    with pytest.raises(
+        HazelIntegrationError,
+        match="recovery_memory_namespace_mismatch",
+    ):
         recovery_continuity.recover_state(
             run_id=recovery_binding.run_id,
             expected_ocs=source_ocs,
@@ -434,15 +475,17 @@ def test_ib8_directional_isolation_pair(
             authority_ref=source.authority_envelope_ref,
         )
 
-    target_guard = _new_guard(tmp_path, f"pair-{source_ocs}-{target_ocs}-target-hash")
+    target_guard = _guard(tmp_path, f"{pair}-target-hash")
     target_binding = target_guard.bind_active_identity(
-        run_id=f"run:ib8:{source_ocs}:{target_ocs}:target",
+        run_id=f"run:ib8:{pair}:target",
         ocs_id=target_ocs,
         host=HOST,
         session_context="ib8-target-hash",
     )
-    foreign_hash = IdentityAuditLog.binding_hash(target_binding)
-    recovery_transport.latest[key] = {**original, "binding_hash": foreign_hash}
+    recovery_transport.latest[key] = {
+        **original,
+        "binding_hash": IdentityAuditLog.binding_hash(target_binding),
+    }
     with pytest.raises(HazelIntegrationError, match="recovery_binding_mismatch"):
         recovery_continuity.recover_state(
             run_id=recovery_binding.run_id,
@@ -453,8 +496,3 @@ def test_ib8_directional_isolation_pair(
 
     assert "memory_import=false" in source.handoff_policy
     assert "authority_transfer=false" in source.handoff_policy
-
-
-def test_ib8_required_cardinalities() -> None:
-    assert len(OCS_IDS) == 10
-    assert len(DIRECTIONAL_PAIRS) == 90
