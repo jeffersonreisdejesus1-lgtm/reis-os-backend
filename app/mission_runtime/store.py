@@ -1,4 +1,4 @@
-# ruff: noqa: E501
+# ruff: noqa: E501,I001,E701,E702
 from __future__ import annotations
 import json
 import sqlite3
