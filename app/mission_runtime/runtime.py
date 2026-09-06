@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+# ruff: noqa: E501
+
 import json
 from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
-from typing import Callable
+from collections.abc import Callable
 
-from .contracts import BindingStatus, MissionSnapshot, MissionStatus, RepositoryEffectReceipt
+from .contracts import (
+    BindingStatus,
+    MissionSnapshot,
+    MissionStatus,
+    RepositoryEffectReceipt,
+)
 from .store import MissionRuntimeStore
 
 
