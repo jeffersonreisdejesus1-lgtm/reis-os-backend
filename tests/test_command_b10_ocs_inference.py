@@ -107,3 +107,17 @@ def test_cupuwa_module_preserves_ouro_prata_isolation() -> None:
     assert module["prata"]["canonical_state_write"] is False
     assert module["shared_inference_fabric"]["shared_generic_engine"] is True
     assert module["epistemic_boundary"]["prata_failure_is_ouro_failure"] is False
+
+
+def test_metrics_are_non_promoting_and_unknown_is_not_pass() -> None:
+    module = cupuwa_inspired_module_contract()
+    assert module["metric_policy"]["no_single_metric_can_promote"] is True
+    assert module["metric_policy"]["no_metric_can_override_evidence"] is True
+    for metric in module["metrics"]:
+        assert metric["source_ref"]
+        assert metric["measurement_method"]
+        assert metric["measurement_version"]
+        assert metric["completeness"] == "UNKNOWN"
+        assert metric["unknown_semantics"] == "UNKNOWN_IS_NOT_ZERO_OR_PASS"
+        assert metric["can_promote"] is False
+        assert metric["can_close_quality_gate_alone"] is False
