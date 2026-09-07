@@ -4,10 +4,10 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
+from app.governance_refactor.api import router as governance_router
 from app.governance_refactor.contracts import CapabilityClass, IntegrationCapabilityRecord
 from app.governance_refactor.projections import GovernanceCommandViews
 from app.governance_refactor.scoped_store import ScopedGovernanceStore
-from app.main import app
 
 NOW = datetime(2026, 9, 7, 3, 45, tzinfo=UTC)
 
@@ -160,11 +160,11 @@ def test_capability_projection_is_tenant_scoped_and_unknown_is_not_zero(
     assert foreign["items"] == []
 
 
-def test_command_capability_endpoint_is_read_only_get_surface() -> None:
+def test_capability_router_exposes_read_only_get_surface() -> None:
     matching = [
         route
-        for route in app.routes
-        if getattr(route, "path", None) == "/v1/command/governance/capabilities"
+        for route in governance_router.routes
+        if getattr(route, "path", None) == "/capabilities"
     ]
     assert len(matching) == 1
     assert matching[0].methods == {"GET"}
