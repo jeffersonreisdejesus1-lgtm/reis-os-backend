@@ -8,6 +8,7 @@ on:
       - 'app/ocsx_pretrial/**'
       - 'formal/ocsx/preparation/**'
       - 'tests/test_ocsx_pretrial_enforcement.py'
+      - 'tests/test_ocsx_pretrial_evidence.py'
       - 'scripts/run_ocsx_pretrial_enforcement.py'
       - 'scripts/validate_ocsx_pretrial_package.py'
       - '.github/workflows/ocsx-pretrial-enforcement.yml'
@@ -35,13 +36,13 @@ jobs:
         run: python scripts/validate_ocsx_pretrial_package.py
 
       - name: Ruff focused harness
-        run: ruff check app/ocsx_pretrial tests/test_ocsx_pretrial_enforcement.py scripts/run_ocsx_pretrial_enforcement.py scripts/validate_ocsx_pretrial_package.py
+        run: ruff check app/ocsx_pretrial tests/test_ocsx_pretrial_enforcement.py tests/test_ocsx_pretrial_evidence.py scripts/run_ocsx_pretrial_enforcement.py scripts/validate_ocsx_pretrial_package.py
 
       - name: Mypy focused harness
         run: mypy --strict app/ocsx_pretrial scripts/run_ocsx_pretrial_enforcement.py scripts/validate_ocsx_pretrial_package.py
 
-      - name: Adversarial enforcement tests
-        run: pytest -q tests/test_ocsx_pretrial_enforcement.py
+      - name: Adversarial enforcement and evidence tests
+        run: pytest -q tests/test_ocsx_pretrial_enforcement.py tests/test_ocsx_pretrial_evidence.py
 
       - name: Generate deterministic evidence
         run: |
@@ -52,7 +53,9 @@ jobs:
             | tee evidence/ocsx/pretrial/enforcement-result.json
           sha256sum \
             app/ocsx_pretrial/harness.py \
+            app/ocsx_pretrial/evidence.py \
             tests/test_ocsx_pretrial_enforcement.py \
+            tests/test_ocsx_pretrial_evidence.py \
             scripts/run_ocsx_pretrial_enforcement.py \
             scripts/validate_ocsx_pretrial_package.py \
             formal/ocsx/preparation/OCSX-PAIRED-TASKSET-001.json \
