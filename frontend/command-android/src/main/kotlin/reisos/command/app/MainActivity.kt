@@ -1,7 +1,6 @@
 package reisos.command.app
 
 import android.os.Bundle
-import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
@@ -98,14 +97,18 @@ class MainActivity : AppCompatActivity() {
         })
 
         ProductSliceScenario.primaryRouteIds().forEach { routeId ->
-            val target = ProductSliceScenario.screen(routeId)
-            root.addView(Button(this).apply {
-                text = target.title
-                contentDescription = "Open ${target.title}"
-                minHeight = dp(48)
-                isAllCaps = false
-                setOnClickListener { navigate(routeId) }
-            })
+            addRouteButton(root, routeId)
+        }
+
+        root.addView(TextView(this).apply {
+            text = "All longitudinal surfaces"
+            textSize = 17f
+            setPadding(0, dp(14), 0, dp(4))
+            contentDescription = "All longitudinal surfaces"
+        })
+
+        ProductSliceScenario.screens.forEach { screen ->
+            addRouteButton(root, screen.routeId)
         }
 
         root.addView(MaterialDivider(this).apply { setPadding(0, dp(18), 0, dp(8)) })
@@ -131,6 +134,17 @@ class MainActivity : AppCompatActivity() {
         }
 
         setContentView(scroll)
+    }
+
+    private fun addRouteButton(root: LinearLayout, routeId: String) {
+        val target = ProductSliceScenario.screen(routeId)
+        root.addView(Button(this).apply {
+            text = "${target.routeId} · ${target.title}"
+            contentDescription = "Open ${target.title}"
+            minHeight = dp(48)
+            isAllCaps = false
+            setOnClickListener { navigate(routeId) }
+        })
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
