@@ -1,0 +1,31 @@
+name: REIS OS Command B10 Productization
+
+on:
+  pull_request:
+    paths:
+      - 'app/command/**'
+      - 'app/main.py'
+      - 'tests/test_command_b10_ocs_inference.py'
+      - 'docs/COMMAND-B10-CUPUWA-OCS-AI-ARCHITECTURE-001.md'
+      - '.github/workflows/command-b10-productization.yml'
+
+jobs:
+  command-b10:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev]'
+      - name: Run Command B10 product and architecture regressions
+        run: >-
+          pytest -q
+          tests/test_command_b10_ocs_inference.py
+          tests/test_command_ib6_instance_views.py
+          tests/test_governance_refactor_v02_capability_seats.py
+          tests/test_governance_refactor_v02_control_plane.py
+          tests/test_reis_os_chat_runtime.py
+          tests/test_reis_os_execution_plane.py
+          tests/test_reis_os_execution_plane_adversarial.py
