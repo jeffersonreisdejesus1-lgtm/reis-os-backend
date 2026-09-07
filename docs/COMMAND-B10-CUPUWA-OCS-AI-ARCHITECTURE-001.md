@@ -290,8 +290,24 @@ B10_FRONTEND_STRATEGY = REUSE_AND_EVOLVE
 NEW_FRONTEND_STACK = NOT_REQUIRED_AT_THIS_STAGE
 ```
 
-The B10 branch now carries an evolved copy at the same logical path, adapted to current auth/organization contracts, `/v1/command/cockpit`, OURO/PRATA and OCS/AI planning. This is an evolutionary delta, not a rewrite.
+The B10 branch carries an evolved copy at the same logical path, adapted to current auth/organization contracts, `/v1/command/cockpit`, OURO/PRATA and OCS/AI planning. This is an evolutionary delta, not a rewrite.
+
+## 13. UX / accessibility assessment boundary
+
+The B10 frontend now includes a keyboard-visible skip link, explicit field labels, `aria-live` status feedback, labelled navigation, `aria-current` state, focus-visible treatment, 44px minimum button targets, keyboard Enter on login, and focus transfer on primary navigation.
+
+Automated contract tests assert these critical accessibility properties together with epistemic labels `FATO`, `INFERÊNCIA` and `AÇÃO PROPOSTA`.
+
+Assessment status:
+
+```text
+A-B10-FRONTEND = PASS
+A-B10-UX = PASS_WITH_RESERVATIONS
+```
+
+Reservation: this assessment proves code-level accessibility/interaction contracts and regression coverage; it does not substitute for real-device assistive-technology/manual usability validation.
 
 `LIVE_PROVIDER_MODEL_INFERENCE = NOT_YET_PROVEN`
 `FRONTEND_IMPLEMENTATION = MATERIALIZED_CANDIDATE`
-`UX_ACCESSIBILITY_ASSURANCE = PENDING`
+`UX_ACCESSIBILITY_ASSURANCE = PASS_WITH_RESERVATIONS`
+`FINAL_INDEPENDENT_ASSURANCE = PENDING`
