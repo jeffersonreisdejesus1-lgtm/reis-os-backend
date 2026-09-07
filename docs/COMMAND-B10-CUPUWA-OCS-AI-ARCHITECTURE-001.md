@@ -2,12 +2,13 @@
 
 DOCUMENT_ID: `COMMAND-B10-CUPUWA-OCS-AI-ARCHITECTURE-001`
 STATUS: `IMPLEMENTATION_CANDIDATE`
-MODE: `ADDITIVE_PRODUCTIZATION`
+MODE: `EVOLUTIONARY_PRODUCTIZATION`
 BASELINE: `IB10_REVISED_CLOSED_WITH_RESERVATIONS`
+LEGACY_UI_BASELINE: `feature/reis-os-command-v0.1-observar/app/command/frontend/index.html`
 
 ## 0. Purpose
 
-Materialize Command B10 as a product/control surface over existing REIS OS state while adding a CUPUWA-inspired module with an OURO/PRATA split and a shared OCS-aware inference fabric.
+Materialize Command B10 as a Founder-exclusive product/control surface over existing REIS OS state, evolve the historical Command OBSERVAR frontend instead of discarding it, and add a CUPUWA-inspired management module with OURO/PRATA plus a shared OCS-aware inference fabric.
 
 This tranche does not create a new institutional source of truth and does not make model inference authoritative.
 
@@ -24,7 +25,55 @@ This tranche does not create a new institutional source of truth and does not ma
 `VERIFIED != ASSURED`
 `UI_DOES_NOT_CREATE_AUTHORITY`
 
-## 2. Product architecture
+## 2. Metaarquitetura
+
+```text
+FOUNDER INTENT
+→ COMMAND FOUNDER EXPERIENCE
+→ CORE OPERATIONAL OBSERVATORY
+   → operations / missions
+   → 10 OCS identities
+   → gates / evidence / assurance
+   → instances / lineage / recovery
+   → capability / seat health
+→ CUPUWA-INSPIRED MANAGEMENT MODULE
+   → OURO: deterministic operational truth/readback
+   → PRATA: intelligence / inference / augmentation
+→ SHARED OCS INFERENCE FABRIC
+   → GENERAL_AI | OCS_SPECIALIST | ROUTED_OCS | TOOL_ASSISTED | AUTHORITY_GATED | HOLD
+→ TOOL / HOST / PROVIDER CAPABILITY BOUNDARY
+→ AUTHORITY / POLICY GATE
+→ KERNEL / HAZEL / EXECUTION PATH WHEN MATERIAL ACTION IS AUTHORIZED
+→ RECEIPT + READBACK + EVIDENCE
+→ COMMAND PROJECTION
+→ FOUNDER DECISION WHEN RESERVED
+```
+
+### Metaarquitetural invariants
+
+```text
+OLD_COMMAND_OBSERVAR = LEGACY_PRESENTATION_BASELINE
+B10 = EVOLUTIONARY_DELTA
+NO_REWRITE_BY_FASHION = TRUE
+REUSE_LEGACY_FRONTEND_WHERE_COMPATIBLE = TRUE
+LEGACY_BRANCH_REMAINS_UNTOUCHED = TRUE
+
+COMMAND = PROJECTION + BOUNDED_CONTROL_SURFACE
+COMMAND != INSTITUTIONAL_SOR
+COMMAND != PROMOTION_DECIDER
+
+OCS_GENERIC_INFERENCE_FABRIC != OCS
+MODEL != OCS
+HOST != OCS
+INFERENCE != AUTHORITY
+
+OURO_TRUTH_DOES_NOT_DEPEND_ON_PRATA = TRUE
+PRATA_FAILURE != OURO_FAILURE
+```
+
+The historical OBSERVAR baseline already proved a useful presentation direction: private access, summary-first situation/attention/blockers/decisions/assurance, provenance on demand and read-oriented conversation. B10 keeps that lineage while replacing obsolete API/auth assumptions and extending the surface with current cockpit, ten-OCS identity, recovery, OURO/PRATA and OCS/AI planning.
+
+## 3. Product architecture
 
 ```text
 COMMAND
@@ -32,7 +81,7 @@ COMMAND
 │   ├── institution
 │   ├── 10 OCS profiles
 │   ├── missions / operations
-│   ├── gates / evidence
+│   ├── gates / evidence / assurance
 │   ├── instances / lineage
 │   ├── recovery center
 │   ├── capability / federated-seat health
@@ -59,7 +108,7 @@ COMMAND
 
 `PRATA_FAILURE != OURO_FAILURE`
 
-## 3. Shared OCS inference fabric
+## 4. Shared OCS inference fabric
 
 One shared mechanism is reused by every module and every OCS.
 
@@ -87,142 +136,79 @@ The engine is not an OCS. A bound execution under an OCS profile is an OCS-level
 - `AUTHORITY_GATED` — may prepare/recommend an action but cannot execute until policy/authority/receipt gates pass.
 - `HOLD` — unsafe, ambiguous, unavailable or structurally invalid request.
 
-### Out-of-scope behavior
-
-Out-of-specialty is not an error. General harmless tasks may fall back to `GENERAL_AI`. Material actions do not fall back around authority.
-
-Anti-loop invariants:
+Out-of-specialty is not an error. Harmless general tasks may fall back to `GENERAL_AI`; material actions cannot bypass authority through fallback.
 
 `MAX_ROUTING_HOPS = 2`
 `SAME_REQUEST_SAME_OCS_REENTRY = PROHIBITED`
 `NO_VALID_SPECIALIST_ROUTE → GENERAL_AI | HOLD`
 
-## 4. OURO behavior
+## 5. OURO / PRATA behavior
 
-OURO may expose facts and deterministic projections and may ask PRATA for explanations, summaries or anomaly suggestions. OURO does not depend on inference for truth.
+### OURO
+OURO exposes facts and deterministic projections and may ask PRATA for explanations, summaries or anomaly suggestions. It never depends on inference for truth.
 
-Allowed inference over OURO:
-- explain;
-- summarize;
-- compare;
-- detect anomaly;
-- suggest next action.
+Allowed advisory inference: explain, summarize, compare, detect anomaly, suggest next action.
 
-Prohibited direct path:
+`INFERENCE → CANONICAL_STATE_WRITE = PROHIBITED`
 
-`INFERENCE → CANONICAL_STATE_WRITE`
-
-## 5. PRATA behavior
-
-PRATA is the first-class intelligence layer:
-- general assistance;
-- OCS specialist reasoning;
-- cross-OCS routing;
-- tool/source retrieval;
-- provider/model invocation when capability is materially available;
-- planning and automation preparation.
+### PRATA
+PRATA is the first-class intelligence layer: general assistance, OCS specialist reasoning, cross-OCS routing, tool/source retrieval, recommendations, automation preparation and provider/model invocation when capability is materially available.
 
 PRATA may propose but cannot self-grant authority or promotion.
 
-## 6. Metrics architecture
+## 6. Diagnostic instrumentation
 
-Metrics are diagnostic and cannot create PASS, authority or promotion.
+The earlier speech-to-text reference to “métrica” was not the requested top-level artifact; the requested artifact is this metaarquitetura. Diagnostic metrics remain subordinate instrumentation only.
 
-Every metric record MUST carry:
+Every diagnostic metric record carries `SOURCE_REF`, `MEASUREMENT_METHOD`, `MEASUREMENT_VERSION`, `OBSERVED_AT`, `WINDOW`, `COMPLETENESS`, `UNKNOWN_SEMANTICS`.
 
-```text
-SOURCE_REF
-MEASUREMENT_METHOD
-MEASUREMENT_VERSION
-OBSERVED_AT
-WINDOW
-COMPLETENESS
-UNKNOWN_SEMANTICS
-```
+`NO_SINGLE_METRIC_CAN_PROMOTE`
+`NO_SINGLE_METRIC_CAN_CLOSE_QUALITY_GATE`
+`NO_METRIC_CAN_OVERRIDE_EVIDENCE`
+`NO_METRIC_CAN_SUPPRESS_REQUIRED_ESCALATION`
 
-Anti-Goodhart rules:
-
-```text
-NO_SINGLE_METRIC_CAN_PROMOTE
-NO_SINGLE_METRIC_CAN_CLOSE_QUALITY_GATE
-NO_METRIC_CAN_OVERRIDE_EVIDENCE
-NO_METRIC_CAN_SUPPRESS_REQUIRED_ESCALATION
-```
-
-### M1 — Core independence
-- `ouro_available_when_prata_unavailable_rate` target = 100%
-- `prata_failure_causing_ouro_failure` target = 0
-
-### M2 — Routing correctness
-- `request_route_resolved_rate`
-- `general_fallback_rate`
-- `specialist_route_rate`
-- `invalid_ocs_hold_rate`
-- `routing_loop_count` target = 0
-- `routing_hops_p95` target <= 2
-
-### M3 — Authority safety
-- `direct_inference_state_write_count` target = 0
-- `authority_bypass_count` target = 0
-- `self_promotion_count` target = 0
-- `material_action_without_receipt_count` target = 0
-
-### M4 — Epistemic clarity
-- `responses_with_mode_label_rate` target = 100%
-- `responses_with_provenance_boundary_rate` target = 100%
-- `unknown_as_healthy_count` target = 0
-- `inference_as_fact_misclassification_count` target = 0
-
-### M5 — Capability/tool behavior
-- `tool_request_without_capability_attempt_count` target = 0
-- `source_access_model_invocation_conflation_count` target = 0
-- `live_model_invocation_without_adapter_receipt_count` target = 0
-
-### M6 — Product quality
-- cockpit/module endpoint latency p50/p95;
-- accessibility findings by severity;
-- mobile one-hand critical-flow completion;
-- stale projection exposure rate;
-- recovery/readback success rate.
+Safety diagnostics include: OURO availability under PRATA failure, routing loops/hops, authority bypass, direct inference writes, self-promotion, missing receipts, inference/fact confusion and source-access/model-invocation conflation.
 
 ## 7. Pipeline
 
 ```text
 B10-AR0 RECOVER + FREEZE BASELINE
-→ B10-AR1 PRODUCT / INFORMATION ARCHITECTURE
-→ B10-AR2 OURO / PRATA MODULE CONTRACT
-→ B10-AR3 OCS INFERENCE FABRIC
-→ B10-AR4 TOOL + HOST / PROVIDER CAPABILITY BOUNDARY
-→ B10-AR5 BOUNDED CONTROL SURFACE
-→ B10-AR6 METRICS + OBSERVABILITY
-→ B10-AR7 E2E / NEGATIVE / IDEMPOTENCY / RECOVERY
-→ B10-AR8 UX + ACCESSIBILITY ASSESSMENT
-→ B10-AR9 EXACT-HEAD FREEZE
-→ B10-AR10 ADVERSARIAL / FEDERATED ASSURANCE
+→ B10-AR1 METAARCHITECTURE + LEGACY BASELINE RECONCILIATION
+→ B10-AR2 PRODUCT / INFORMATION ARCHITECTURE
+→ B10-AR3 OURO / PRATA MODULE CONTRACT
+→ B10-AR4 OCS INFERENCE FABRIC
+→ B10-AR5 TOOL + HOST / PROVIDER CAPABILITY BOUNDARY
+→ B10-AR6 BOUNDED CONTROL + FRONTEND EVOLUTION
+→ B10-AR7 OBSERVABILITY / DIAGNOSTIC INSTRUMENTATION
+→ B10-AR8 E2E / NEGATIVE / IDEMPOTENCY / RECOVERY
+→ B10-AR9 UX + ACCESSIBILITY ASSESSMENT
+→ B10-AR10 EXACT-HEAD FREEZE
+→ B10-AR11 ADVERSARIAL / FEDERATED ASSURANCE
 → PROMOTION READINESS
 → FOUNDER APPROVAL
 ```
 
 ## 8. Action plan
 
-1. Preserve existing Command projections and IB6 instance/recovery views.
-2. Add aggregate cockpit without new persistence.
-3. Add CUPUWA-inspired module descriptor and OURO/PRATA contract.
-4. Add shared OCS inference planning policy.
-5. Add general-assistance fallback and anti-loop routing.
-6. Add tool/source capability requirement for retrieval tasks.
-7. Keep material actions authority-gated.
-8. Add metrics definitions with anti-Goodhart metadata.
-9. Add negative tests for authority bypass, invalid OCS, loops and PRATA isolation.
-10. Run Command, governance, Chat Runtime, Execution Plane, Hazel and StateCore regressions.
-11. Run UX/accessibility assessment when a frontend surface exists.
-12. Freeze exact HEAD.
-13. Run independent adversarial/federated assurance.
-14. Founder approval remains an explicit reserved act.
+1. Preserve IB6/current Command projections and the historical OBSERVAR branch unchanged.
+2. Reuse the old single-file responsive frontend as the presentation seed.
+3. Replace obsolete cookie/session and old `/command/*` assumptions with current bearer/org/cockpit contracts.
+4. Preserve summary-first, private Founder experience, provenance awareness and mobile responsiveness.
+5. Add aggregate cockpit without new persistence.
+6. Add ten-OCS view and identity boundary.
+7. Add CUPUWA-inspired OURO/PRATA experience.
+8. Add shared OCS inference planning policy, general fallback and anti-loop routing.
+9. Require actual tool/source capability for retrieval and actual provider adapter evidence for live model invocation.
+10. Keep material actions authority-gated.
+11. Run negative tests for authority bypass, invalid OCS, loops and PRATA isolation.
+12. Run Command, governance, Chat Runtime, Execution Plane, Hazel and StateCore regressions.
+13. Run frontend/interaction/accessibility assessment.
+14. Freeze exact HEAD and run independent adversarial/federated assurance.
+15. Founder approval remains an explicit reserved act.
 
 ## 9. Gate architecture
 
-The current REIS OS gate grammar remains canonical. B10 does not create a parallel macro-gate system.
+The current REIS OS gate grammar remains canonical; B10 creates no parallel macro-gate system.
 
 ```text
 G0 — EXECUTION GATE
@@ -232,50 +218,38 @@ G3 — PROMOTION READINESS GATE
 G4 — FOUNDER APPROVAL GATE
 ```
 
-Flow:
-
-```text
-MATERIAL BUILD
-→ DOMAIN ASSESSMENTS AS_REQUIRED
-→ EVIDENCE AGGREGATION
-→ TECHNICAL QA / CONFORMANCE
-→ INDEPENDENT ASSURANCE IF_REQUIRED
-→ PROMOTION READINESS
-→ FOUNDER APPROVAL
-```
-
-B10-specific claims are assessments/micro-gates inside this grammar, not new institutional macro-gates:
-
-- `A-B10-BASELINE` — exact base/readback and no parallel SoR.
-- `A-B10-PROJECTION` — cockpit composes existing sources; UNKNOWN is not healthy/zero.
-- `A-B10-OURO-PRATA` — PRATA can fail without breaking OURO; inference creates no canonical truth.
-- `A-B10-INFERENCE` — response modes, invalid OCS and anti-loop behavior are bounded.
-- `A-B10-CAPABILITY` — source access and model invocation stay distinct; unavailable capability is not fabricated.
+B10-specific assessments inside that grammar:
+- `A-B10-BASELINE` — exact base/readback, legacy baseline provenance, no parallel SoR.
+- `A-B10-PROJECTION` — cockpit composes existing sources; UNKNOWN stays UNKNOWN.
+- `A-B10-OURO-PRATA` — PRATA failure does not break OURO; inference creates no canonical truth.
+- `A-B10-INFERENCE` — response modes, invalid OCS and anti-loop behavior bounded.
+- `A-B10-CAPABILITY` — source access and model invocation distinct; unavailable capability not fabricated.
 - `A-B10-AUTHORITY` — preparation cannot bypass authority/promotion/receipt/readback.
+- `A-B10-FRONTEND` — evolved legacy baseline is served, mobile-responsive and aligned with current contracts.
 - `A-B10-E2E` — regressions, isolation, idempotency, fencing and recovery.
-- `A-B10-UX` — mobile/interaction/accessibility assessment when a frontend exists.
+- `A-B10-UX` — Founder-critical flows, accessibility and epistemic clarity.
 
-Each material assessment declares evidence, verifier, verdict and routing. No receipt means no accepted state transition.
+Every material assessment declares evidence, verifier, verdict and routing. No receipt means no accepted state transition.
 
 ## 10. Delivery agenda
 
-### Architecture agenda
+### Metaarquitetura / arquitetura
 1. current architectural state;
-2. closed/open components;
-3. active gate + assessments;
-4. material conflicts/evidence;
-5. readiness status;
-6. next architecture/action.
+2. baseline lineage and reused/replaced pieces;
+3. closed/open components;
+4. active gate + assessments;
+5. material conflicts/evidence;
+6. readiness + next action.
 
-### Operational agenda
+### Operational
 1. repository / exact HEAD;
 2. implementation delta;
-3. tests / CI;
-4. blockers / reservations;
-5. assurance state;
-6. next action.
+3. frontend/backend integration state;
+4. tests / CI;
+5. blockers / reservations;
+6. assurance / next action.
 
-### Founder agenda
+### Founder
 1. where are we?;
 2. what was proven?;
 3. what remains a reservation?;
@@ -285,7 +259,11 @@ Each material assessment declares evidence, verifier, verdict and routing. No re
 
 ## 11. Source-of-truth boundary
 
+- code / technical provenance: GitHub;
+- visual specification: Figma when explicitly designated;
 - institutional mission/identity/authority: existing REIS OS canonical stores/contracts;
+- Kernel: runtime authority boundary;
+- Hazel: continuity/recovery;
 - Execution Plane: bounded execution ledger;
 - governance candidate store: governance/evidence overlay;
 - Command: projection + bounded control surface;
@@ -293,12 +271,27 @@ Each material assessment declares evidence, verifier, verdict and routing. No re
 
 No direct UI, model or inference output becomes institutional truth without the existing execution/authority/evidence path.
 
-## 12. Current productization boundary
+## 12. Frontend baseline decision
 
-The repository currently materializes backend/control contracts and APIs. No distinct Command frontend codebase or previously frozen frontend stack was located in the accessible repositories/artifacts at this point. Therefore:
+The previous `FRONTEND_PRODUCT_EXPERIENCE = NOT_YET_PROVEN` statement was superseded by source discovery.
 
-`BACKEND_CONTROL_CONTRACT = MATERIALIZABLE`
-`FRONTEND_PRODUCT_EXPERIENCE = NOT_YET_PROVEN`
-`UX_ACCESSIBILITY_GATE = HOLD_UNTIL_FRONTEND_SURFACE_EXISTS`
+Material evidence now establishes:
+- historical branch `feature/reis-os-command-v0.1-observar` still exists;
+- `app/command/frontend/index.html` is a real responsive private Command UI baseline;
+- the historical app served it through `/` and `/command-ui`;
+- the historical presentation tests enforced read-only/provenance behavior.
 
-Creating a new frontend repository/stack is a material architecture decision and is not silently inferred from backend productization.
+Decision:
+
+```text
+OLD_COMMAND_FRONTEND = PRESERVED_AS_HISTORICAL_BASELINE
+OLD_BRANCH_MUTATION = FALSE
+B10_FRONTEND_STRATEGY = REUSE_AND_EVOLVE
+NEW_FRONTEND_STACK = NOT_REQUIRED_AT_THIS_STAGE
+```
+
+The B10 branch now carries an evolved copy at the same logical path, adapted to current auth/organization contracts, `/v1/command/cockpit`, OURO/PRATA and OCS/AI planning. This is an evolutionary delta, not a rewrite.
+
+`LIVE_PROVIDER_MODEL_INFERENCE = NOT_YET_PROVEN`
+`FRONTEND_IMPLEMENTATION = MATERIALIZED_CANDIDATE`
+`UX_ACCESSIBILITY_ASSURANCE = PENDING`
