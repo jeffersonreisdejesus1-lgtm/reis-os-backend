@@ -217,6 +217,80 @@ class GovernanceCommandViews:
             "epistemic_boundary": self._boundary(),
         }
 
+    def capability_health(
+        self,
+        *,
+        organization_id: str,
+        now: datetime | None = None,
+    ) -> dict[str, Any]:
+        """Read-only capability/seat projection.
+
+        Source access and model invocation are deliberately counted separately.
+        A host/seat label alone never increments live-model-invokable.
+        """
+        self._validate_request(organization_id, CandidateFilter(), 0, 100)
+        health = self._health()
+        if health != "available":
+            return {
+                "items": [],
+                "summary": {
+                    "total": None,
+                    "federated_seats": None,
+                    "source_access_validated": None,
+                    "host_adapters_available": None,
+                    "live_model_invokable": None,
+                    "machine_receipt_supported": None,
+                },
+                "source": self._source(health),
+                "epistemic_boundary": self._boundary(),
+            }
+        rows = self._query(
+            """
+            SELECT r.* FROM governance_candidate_records r
+            JOIN governance_candidate_scopes s
+              ON s.record_type=r.record_type
+             AND s.record_id=r.record_id
+             AND s.schema_version=r.schema_version
+            WHERE s.organization_id=?
+              AND r.record_type='IntegrationCapabilityRecord'
+              AND r.schema_version=?
+            ORDER BY r.position ASC
+            """,
+            (organization_id, SCHEMA_VERSION),
+        )
+        items = [self._record(row, now=now) for row in rows]
+        payloads = [item["payload"] for item in items]
+
+        def _live(payload: dict[str, Any]) -> bool:
+            return bool(
+                payload.get("live_model_invocation_status") == "AVAILABLE"
+                and payload.get("host_adapter_available", False)
+                and payload.get("machine_verifiable_receipt", False)
+                and payload.get("model_invoke_capabilities", [])
+            )
+
+        return {
+            "items": items,
+            "summary": {
+                "total": len(items),
+                "federated_seats": sum(
+                    1 for p in payloads if p.get("capability_class") == "FEDERATED_SEAT"
+                ),
+                "source_access_validated": sum(
+                    1 for p in payloads if p.get("source_access_validated", False)
+                ),
+                "host_adapters_available": sum(
+                    1 for p in payloads if p.get("host_adapter_available", False)
+                ),
+                "live_model_invokable": sum(1 for p in payloads if _live(p)),
+                "machine_receipt_supported": sum(
+                    1 for p in payloads if p.get("machine_verifiable_receipt", False)
+                ),
+            },
+            "source": self._source(health),
+            "epistemic_boundary": self._boundary(),
+        }
+
     def _record(self, row: sqlite3.Row, *, now: datetime | None) -> dict[str, Any]:
         payload_json = str(row["payload_json"])
         self._verify_hash(payload_json, str(row["payload_hash"]))
