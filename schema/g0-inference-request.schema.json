@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reis-os://schemas/g0-inference-request/1.0.0",
+  "title": "REIS OS G0 InferenceRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "message_kind",
+    "type",
+    "correlation_id",
+    "causation_id",
+    "idempotency_key",
+    "aggregate_id",
+    "payload_version",
+    "payload"
+  ],
+  "properties": {
+    "message_kind": {"const": "Command"},
+    "type": {"const": "inference.requested.v1"},
+    "correlation_id": {"type": "string", "minLength": 1},
+    "causation_id": {"type": ["string", "null"]},
+    "idempotency_key": {"type": "string", "minLength": 1},
+    "aggregate_id": {"type": "string", "minLength": 1},
+    "payload_version": {"const": "1.0.0"},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ocs_id",
+        "task_class",
+        "modalities",
+        "max_image_px",
+        "max_audio_sec",
+        "context_class",
+        "context_hash",
+        "vision_backend",
+        "audio_backend",
+        "tool_intent",
+        "budget_ref"
+      ],
+      "properties": {
+        "ocs_id": {"type": "string", "minLength": 1},
+        "task_class": {"type": "string", "minLength": 1},
+        "modalities": {
+          "type": "array",
+          "items": {"enum": ["TEXT", "IMAGE", "AUDIO"]},
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "max_image_px": {"type": "integer", "minimum": 0},
+        "max_audio_sec": {"type": "integer", "minimum": 0},
+        "context_class": {
+          "enum": ["PUBLIC", "MISSION", "RECEIPT", "LOG", "PII", "CANONICAL_SECRET"]
+        },
+        "context_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "vision_backend": {"enum": ["GPU", "CPU", "OFF"]},
+        "audio_backend": {"enum": ["CPU", "OFF"]},
+        "tool_intent": {
+          "type": "array",
+          "items": {"type": "string"},
+          "uniqueItems": true
+        },
+        "budget_ref": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}
