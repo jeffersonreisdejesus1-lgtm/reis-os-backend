@@ -51,6 +51,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun render() {
         val spec = ProductSliceScenario.screen(navigator.currentRouteId)
+        val contentItems = ProductDataCatalog.itemsFor(spec.routeId)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -90,6 +91,14 @@ class MainActivity : AppCompatActivity() {
             text = spec.summary
             textSize = 16f
             setTextIsSelectable(true)
+        })
+
+        root.addView(TextView(this).apply {
+            text = contentItems.joinToString(prefix = "\nOperational content\n• ", separator = "\n• ")
+            textSize = 15f
+            setTextIsSelectable(true)
+            contentDescription = "Operational content for ${spec.title}"
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
         })
 
         root.addView(TextView(this).apply {
@@ -133,6 +142,7 @@ class MainActivity : AppCompatActivity() {
             }
             textSize = 13f
             setTextIsSelectable(true)
+            contentDescription = "Runtime boundaries closed"
         })
 
         val scroll = ScrollView(this).apply {
