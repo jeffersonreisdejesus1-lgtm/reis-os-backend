@@ -1,0 +1,30 @@
+plugins {
+    id 'com.android.application'
+}
+
+def commandUrl = providers.gradleProperty('COMMAND_URL')
+    .orElse('https://command.reis-os.invalid/command-ui')
+    .get()
+
+android {
+    namespace 'br.com.reisos.command'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'br.com.reisos.command'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '0.1.0'
+        buildConfigField 'String', 'COMMAND_URL', '"' + commandUrl.replace('"', '\\"') + '"'
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

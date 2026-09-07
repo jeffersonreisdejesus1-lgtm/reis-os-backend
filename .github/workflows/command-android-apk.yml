@@ -1,0 +1,52 @@
+name: REIS OS Command Android APK
+
+on:
+  pull_request:
+    branches:
+      - noesis/command-b10-control-plane-productization
+    paths:
+      - 'command-android/**'
+      - 'tests/test_command_android_wrapper.py'
+      - '.github/workflows/command-android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wrapper-contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install repository dev environment
+        run: python -m pip install -e '.[dev]'
+      - name: Android wrapper contract tests
+        run: python -m pytest tests/test_command_android_wrapper.py -q
+
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Assemble debug APK
+        run: gradle -p command-android :app:assembleDebug --stacktrace
+      - name: Package SHA-256 receipt
+        run: |
+          cd command-android/app/build/outputs/apk/debug
+          sha256sum app-debug.apk | tee app-debug.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reis-os-command-android-debug-apk
+          if-no-files-found: error
+          path: |
+            command-android/app/build/outputs/apk/debug/app-debug.apk
+            command-android/app/build/outputs/apk/debug/app-debug.apk.sha256
