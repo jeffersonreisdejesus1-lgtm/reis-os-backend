@@ -63,6 +63,14 @@ class RoutingState(StrEnum):
     HOLD = "HOLD"
 
 
+class CapabilityClass(StrEnum):
+    CONNECTOR = "CONNECTOR"
+    MCP = "MCP"
+    HOST_ADAPTER = "HOST_ADAPTER"
+    PROVIDER_ENDPOINT = "PROVIDER_ENDPOINT"
+    FEDERATED_SEAT = "FEDERATED_SEAT"
+
+
 @dataclass(frozen=True, slots=True)
 class SourceLink:
     source_type: str
@@ -363,6 +371,15 @@ class IntegrationCapabilityRecord:
     capability_version: str
     source_links: SourceLinks
     provenance_refs: Refs
+    capability_class: CapabilityClass = CapabilityClass.CONNECTOR
+    seat_ref: str | None = None
+    host_ref: str | None = None
+    model_invoke_capabilities: Refs = ()
+    source_access_status: str = "UNKNOWN"
+    live_model_invocation_status: str = "UNKNOWN"
+    host_adapter_available: bool = False
+    machine_verifiable_receipt: bool = False
+    source_access_validated: bool = False
     schema_version: str = SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -379,6 +396,13 @@ class IntegrationCapabilityRecord:
             self.capability_version,
         )
         _aware(self.last_validated_at)
+        if self.live_model_invocation_status == "AVAILABLE":
+            if not self.host_adapter_available:
+                raise ValueError("live_model_invocation_requires_host_adapter")
+            if not self.model_invoke_capabilities:
+                raise ValueError("live_model_invocation_requires_capability")
+            if not self.machine_verifiable_receipt:
+                raise ValueError("live_model_invocation_requires_machine_receipt")
 
 
 @dataclass(frozen=True, slots=True)
