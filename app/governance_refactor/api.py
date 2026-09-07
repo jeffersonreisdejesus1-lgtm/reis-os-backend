@@ -106,3 +106,19 @@ async def governance_summary(
         )
     except GovernanceProjectionError as exc:
         raise _error(exc) from exc
+
+
+@router.get("/capabilities")
+async def capability_health(
+    command_read_access: CommandReadAccess,
+    institution_organization_id: CommandInstitutionOrganizationId,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> dict[str, Any]:
+    """Read-only capability/integration/federated-seat health projection."""
+    try:
+        return await run_in_threadpool(
+            _views(settings).capability_health,
+            organization_id=str(institution_organization_id),
+        )
+    except GovernanceProjectionError as exc:
+        raise _error(exc) from exc

@@ -26,6 +26,13 @@ class IntegrationCapabilitySnapshot:
     drifted_actions: frozenset[str] = field(default_factory=frozenset)
     drifted_targets: frozenset[str] = field(default_factory=frozenset)
     drifted_source_roles: frozenset[str] = field(default_factory=frozenset)
+    capability_class: str = "CONNECTOR"
+    seat_ref: str | None = None
+    host_ref: str | None = None
+    source_access_validated: bool = False
+    model_invocation_available: bool = False
+    provider_adapter_validated: bool = False
+    machine_receipt_supported: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +45,8 @@ class IntegrationUseRequest:
     capability_version: str | None = None
     write: bool = False
     promote: bool = False
+    source_access_required: bool = False
+    model_invoke: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +64,11 @@ def evaluate_integration_use(
     *,
     now: datetime | None = None,
 ) -> IntegrationUseDecision:
-    """Validate current capability prerequisites before any external material effect."""
+    """Validate current capability prerequisites before any external material effect.
+
+    Source access and model invocation are independent capability dimensions. A
+    visible seat/host label never proves either one.
+    """
     evaluation_time = now or datetime.now(UTC)
     reasons: list[str] = []
 
@@ -116,6 +129,18 @@ def evaluate_integration_use(
         reasons.append("target_not_readable")
     if request.source_role not in snapshot.canonical_source_roles:
         reasons.append("source_role_not_confirmed")
+
+    if request.source_access_required and not snapshot.source_access_validated:
+        reasons.append("source_access_not_validated")
+
+    if request.model_invoke:
+        if not snapshot.model_invocation_available:
+            reasons.append("model_invocation_not_available")
+        if not snapshot.provider_adapter_validated:
+            reasons.append("provider_adapter_not_validated")
+        if not snapshot.machine_receipt_supported:
+            reasons.append("machine_receipt_not_supported")
+
     if request.promote:
         reasons.append("capability_cannot_promote")
 
