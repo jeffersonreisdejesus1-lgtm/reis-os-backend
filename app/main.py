@@ -1,13 +1,16 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI
+from fastapi.responses import FileResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.api.routes import router as auth_router
 from app.command.api.instance_routes import router as command_instance_router
+from app.command.api.product_routes import router as command_product_router
 from app.command.api.routes import router as command_router
 from app.governance_refactor.api import router as governance_refactor_router
 from app.governance_refactor.schema import migrate_governance_candidate_store
@@ -22,6 +25,7 @@ from app.workspaces.api.routes import router as workspaces_router
 
 settings = get_settings()
 configure_logging(settings.log_level)
+COMMAND_UI = Path(__file__).resolve().parent / "command" / "frontend" / "index.html"
 
 
 @asynccontextmanager
@@ -40,7 +44,15 @@ app.include_router(projects_router)
 app.include_router(tasks_router)
 app.include_router(command_router)
 app.include_router(command_instance_router)
+app.include_router(command_product_router)
 app.include_router(governance_refactor_router)
+
+
+@app.get("/", include_in_schema=False)
+@app.get("/command-ui", include_in_schema=False)
+async def command_ui() -> FileResponse:
+    """Serve the B10 Command UI evolved from the historical OBSERVAR baseline."""
+    return FileResponse(COMMAND_UI)
 
 
 @app.get("/health", tags=["system"])
