@@ -23,7 +23,7 @@ jobs:
           python-version: '3.12'
       - run: python -m pip install --upgrade pip
       - run: pip install -e '.[dev]'
-      - name: Run governance baseline and v0.2 delta
+      - name: Run governance baseline, v0.2 delta and runtime/control-plane regressions
         run: >-
           pytest -q
           tests/test_governance_refactor_r2_r3.py
@@ -32,3 +32,7 @@ jobs:
           tests/test_governance_refactor_r5_r7.py
           tests/test_governance_refactor_v02_capability_seats.py
           tests/test_governance_refactor_v02_control_plane.py
+          tests/test_reis_os_chat_runtime.py
+          tests/test_reis_os_execution_plane.py
+          tests/test_reis_os_execution_plane_adversarial.py
+          tests/test_command_ib6_instance_views.py
