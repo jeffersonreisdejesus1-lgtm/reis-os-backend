@@ -53,4 +53,16 @@ class ProductDataCatalogChecks {
     fun homeFactsNeverClaimRuntimeMutation() {
         assertTrue(ProductDataCatalog.homeFacts.any { it.contains("0 caminhos de mutação do Kernel") })
     }
+
+    @Test
+    fun systemCatalogSeparatesAvailabilityFromFreshness() {
+        val command = ProductDataCatalog.systems.single { it.id == "COMMAND" }
+        assertEquals("AVAILABLE", command.availability)
+        assertEquals(ProductSemanticState.STALE, command.freshness)
+    }
+
+    @Test
+    fun evidenceCatalogDoesNotContainAssuredClaims() {
+        assertFalse(ProductDataCatalog.evidence.any { it.validation == "ASSURED" })
+    }
 }
