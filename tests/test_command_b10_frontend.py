@@ -31,6 +31,24 @@ def test_b10_frontend_preserves_epistemic_labels_and_no_direct_state_write() -> 
     assert "canonical_state_write" in html
 
 
+def test_b10_frontend_accessibility_contract() -> None:
+    html = Path(COMMAND_UI).read_text(encoding="utf-8")
+
+    assert 'lang="pt-BR"' in html
+    assert 'href="#main-content"' in html
+    assert 'aria-label="Navegação principal do Command"' in html
+    assert 'aria-current="page"' in html
+    assert 'aria-live="polite"' in html
+    assert 'role="status"' in html
+    assert '<span class="field-label">E-mail</span>' in html
+    assert '<span class="field-label">Senha</span>' in html
+    assert '<span class="field-label">Organização</span>' in html
+    assert '<span class="field-label">Pergunta ou solicitação</span>' in html
+    assert 'button:focus-visible' in html
+    assert 'min-height:44px' in html
+    assert 'tabindex="-1"' in html
+
+
 def test_b10_frontend_is_served_on_legacy_compatible_routes() -> None:
     routes = {
         route.path: set(getattr(route, "methods", set()) or set())
