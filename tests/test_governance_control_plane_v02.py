@@ -41,9 +41,9 @@ def evidence(object_ref: str = "pr:57") -> EvidenceRef:
     )
 
 
-def test_quality_pass_without_evidence_is_non_promotable(tmp_path):
+def test_quality_pass_without_existing_evidence_is_non_promotable(tmp_path):
     s = service(tmp_path)
-    with pytest.raises(ValueError, match="quality_pass_requires_evidence"):
+    with pytest.raises(ValueError, match="quality_pass_requires_existing_evidence"):
         s.add_quality_assessment(
             QualityAssessment(
                 assessment_id="qa:missing",
@@ -52,7 +52,21 @@ def test_quality_pass_without_evidence_is_non_promotable(tmp_path):
                 applicable=True,
                 verdict=QualityVerdict.PASS,
                 assessor_ref="AGORA",
-                evidence_ids=(),
+                evidence_ids=("ev:missing",),
+            )
+        )
+
+
+def test_assurance_pass_without_existing_evidence_is_rejected(tmp_path):
+    s = service(tmp_path)
+    with pytest.raises(ValueError, match="assurance_pass_requires_existing_evidence"):
+        s.add_assurance(
+            AssuranceRecord(
+                assurance_id="as:missing",
+                object_ref="pr:57",
+                assurer_ref="GROK",
+                verdict=AssuranceVerdict.PASS,
+                evidence_ids=("ev:missing",),
             )
         )
 
@@ -109,6 +123,25 @@ def test_metrics_never_create_readiness_or_founder_decision(tmp_path):
     assert "quality_assessment_missing" in result.open_blockers
 
 
+def test_metric_without_source_must_remain_unknown(tmp_path):
+    s = service(tmp_path)
+    with pytest.raises(ValueError, match="metric_without_source_must_be_unknown"):
+        s.add_metric(
+            MetricObservation(
+                metric_id="metric:unsourced",
+                object_ref="pr:57",
+                metric_name="elapsed_seconds",
+                value=1,
+                source_ref=None,
+                measurement_method="unknown",
+                measurement_version="v1",
+                observed_at="2026-09-07T03:00:00Z",
+                window="mission",
+                completeness=EvidenceCompleteness.COMPLETE,
+            )
+        )
+
+
 def test_founder_decision_requires_explicit_founder_actor_and_readiness(tmp_path):
     s = service(tmp_path)
     s.derive_readiness(readiness_id="ready:not-ready", object_ref="pr:57", assurance_required=False)
@@ -124,6 +157,22 @@ def test_founder_decision_requires_explicit_founder_actor_and_readiness(tmp_path
     s.record_founder_decision(decision, actor_role="FOUNDER")
     records = s.ledger.records(object_ref="pr:57", record_type="FOUNDER_DECISION")
     assert len(records) == 1
+
+
+def test_founder_cannot_approve_release_when_readiness_is_not_ready(tmp_path):
+    s = service(tmp_path)
+    s.derive_readiness(readiness_id="ready:not-ready", object_ref="pr:57", assurance_required=True)
+    with pytest.raises(ValueError, match="founder_approval_requires_ready_for_review"):
+        s.record_founder_decision(
+            FounderDecision(
+                decision_id="founder:approve-too-early",
+                object_ref="pr:57",
+                decision=FounderDecisionValue.APPROVE_FOR_RELEASE,
+                founder_actor_ref="FOUNDER",
+                decided_at="2026-09-07T03:05:00Z",
+            ),
+            actor_role="FOUNDER",
+        )
 
 
 def test_governance_records_are_idempotent_but_divergence_conflicts(tmp_path):
