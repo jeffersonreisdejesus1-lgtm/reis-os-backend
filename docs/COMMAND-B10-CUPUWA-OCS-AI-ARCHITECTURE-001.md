@@ -7,7 +7,7 @@ BASELINE: `IB10_REVISED_CLOSED_WITH_RESERVATIONS`
 
 ## 0. Purpose
 
-Materialize Command B10 as a product surface over existing REIS OS state while adding a CUPUWA-inspired module with an OURO/PRATA split and a shared OCS-aware inference fabric.
+Materialize Command B10 as a product/control surface over existing REIS OS state while adding a CUPUWA-inspired module with an OURO/PRATA split and a shared OCS-aware inference fabric.
 
 This tranche does not create a new institutional source of truth and does not make model inference authoritative.
 
@@ -128,6 +128,27 @@ PRATA may propose but cannot self-grant authority or promotion.
 
 Metrics are diagnostic and cannot create PASS, authority or promotion.
 
+Every metric record MUST carry:
+
+```text
+SOURCE_REF
+MEASUREMENT_METHOD
+MEASUREMENT_VERSION
+OBSERVED_AT
+WINDOW
+COMPLETENESS
+UNKNOWN_SEMANTICS
+```
+
+Anti-Goodhart rules:
+
+```text
+NO_SINGLE_METRIC_CAN_PROMOTE
+NO_SINGLE_METRIC_CAN_CLOSE_QUALITY_GATE
+NO_METRIC_CAN_OVERRIDE_EVIDENCE
+NO_METRIC_CAN_SUPPRESS_REQUIRED_ESCALATION
+```
+
 ### M1 — Core independence
 - `ouro_available_when_prata_unavailable_rate` target = 100%
 - `prata_failure_causing_ouro_failure` target = 0
@@ -175,10 +196,11 @@ B10-AR0 RECOVER + FREEZE BASELINE
 → B10-AR5 BOUNDED CONTROL SURFACE
 → B10-AR6 METRICS + OBSERVABILITY
 → B10-AR7 E2E / NEGATIVE / IDEMPOTENCY / RECOVERY
-→ B10-AR8 UX + ACCESSIBILITY REVIEW
+→ B10-AR8 UX + ACCESSIBILITY ASSESSMENT
 → B10-AR9 EXACT-HEAD FREEZE
 → B10-AR10 ADVERSARIAL / FEDERATED ASSURANCE
-→ FOUNDER PROMOTION DECISION
+→ PROMOTION READINESS
+→ FOUNDER APPROVAL
 ```
 
 ## 8. Action plan
@@ -190,61 +212,57 @@ B10-AR0 RECOVER + FREEZE BASELINE
 5. Add general-assistance fallback and anti-loop routing.
 6. Add tool/source capability requirement for retrieval tasks.
 7. Keep material actions authority-gated.
-8. Add metrics definitions and read-only health projection.
+8. Add metrics definitions with anti-Goodhart metadata.
 9. Add negative tests for authority bypass, invalid OCS, loops and PRATA isolation.
 10. Run Command, governance, Chat Runtime, Execution Plane, Hazel and StateCore regressions.
-11. Freeze exact HEAD.
-12. Run independent adversarial assurance.
+11. Run UX/accessibility assessment when a frontend surface exists.
+12. Freeze exact HEAD.
+13. Run independent adversarial/federated assurance.
+14. Founder approval remains an explicit reserved act.
 
 ## 9. Gate architecture
 
-Four levels are preserved:
+The current REIS OS gate grammar remains canonical. B10 does not create a parallel macro-gate system.
 
-- `L0 MICRO_GATE`
-- `L1 OPERATION_GATE`
-- `L2 PHASE_GATE`
-- `L3 PROGRAM_PROMOTION_GATE`
+```text
+G0 — EXECUTION GATE
+G1 — TECHNICAL QUALITY GATE
+G2 — INDEPENDENT ASSURANCE GATE (CONDITIONAL / POLICY-BOUND)
+G3 — PROMOTION READINESS GATE
+G4 — FOUNDER APPROVAL GATE
+```
 
-`ONE_MICRO_GATE = ONE_MATERIAL_CLAIM + ONE_BOUNDED_TRANSITION + ONE_EVIDENCE_PACKAGE`
+Flow:
 
-### G-B10-0 — Baseline integrity
-PASS when base SHA/readback is exact and no hidden parallel SoR is introduced.
+```text
+MATERIAL BUILD
+→ DOMAIN ASSESSMENTS AS_REQUIRED
+→ EVIDENCE AGGREGATION
+→ TECHNICAL QA / CONFORMANCE
+→ INDEPENDENT ASSURANCE IF_REQUIRED
+→ PROMOTION READINESS
+→ FOUNDER APPROVAL
+```
 
-### G-B10-1 — Product projection
-PASS when cockpit composes existing sources only and UNKNOWN is not converted to healthy/zero.
+B10-specific claims are assessments/micro-gates inside this grammar, not new institutional macro-gates:
 
-### G-B10-2 — OURO/PRATA isolation
-PASS when PRATA can be absent/failed without breaking OURO and no inference creates canonical truth.
+- `A-B10-BASELINE` — exact base/readback and no parallel SoR.
+- `A-B10-PROJECTION` — cockpit composes existing sources; UNKNOWN is not healthy/zero.
+- `A-B10-OURO-PRATA` — PRATA can fail without breaking OURO; inference creates no canonical truth.
+- `A-B10-INFERENCE` — response modes, invalid OCS and anti-loop behavior are bounded.
+- `A-B10-CAPABILITY` — source access and model invocation stay distinct; unavailable capability is not fabricated.
+- `A-B10-AUTHORITY` — preparation cannot bypass authority/promotion/receipt/readback.
+- `A-B10-E2E` — regressions, isolation, idempotency, fencing and recovery.
+- `A-B10-UX` — mobile/interaction/accessibility assessment when a frontend exists.
 
-### G-B10-3 — OCS inference fabric
-PASS when GENERAL_AI, OCS_SPECIALIST, TOOL_ASSISTED, AUTHORITY_GATED and HOLD are deterministic at the policy boundary; invalid OCS and routing loops fail closed.
-
-### G-B10-4 — Capability/tool boundary
-PASS when source access and model invocation are independent and unavailable tool/provider capability cannot be fabricated.
-
-### G-B10-5 — Material-action authority
-PASS when action preparation cannot bypass authority, promotion or receipt/readback requirements.
-
-### G-B10-6 — E2E / negative / recovery
-PASS when regressions, tenant isolation, idempotency, fencing and recovery remain green.
-
-### G-B10-7 — UX/accessibility
-PASS when critical mobile flows remain comprehensible, one-hand friendly and accessible.
-
-### G-B10-8 — Exact-head independent assurance
-PASS/PASS_WITH_RESERVATIONS only on exact frozen HEAD with material blockers = 0.
-
-### G-B10-9 — Founder promotion
-Founder-reserved explicit act only. No software metric can auto-pass this gate.
-
-Every gate declares `on_pass`, `on_fail`, `on_hold`, `on_indeterminate` and emits a receipt before state transition.
+Each material assessment declares evidence, verifier, verdict and routing. No receipt means no accepted state transition.
 
 ## 10. Delivery agenda
 
 ### Architecture agenda
 1. current architectural state;
 2. closed/open components;
-3. active gate/micro-gate;
+3. active gate + assessments;
 4. material conflicts/evidence;
 5. readiness status;
 6. next architecture/action.
@@ -261,7 +279,7 @@ Every gate declares `on_pass`, `on_fail`, `on_hold`, `on_indeterminate` and emit
 1. where are we?;
 2. what was proven?;
 3. what remains a reservation?;
-4. who owns the next gate?;
+4. who owns the next assessment/gate?;
 5. is Founder action required?;
 6. what happens next?
 
@@ -274,3 +292,13 @@ Every gate declares `on_pass`, `on_fail`, `on_hold`, `on_indeterminate` and emit
 - OCS inference fabric: cognitive/planning capability, not canonical persistence.
 
 No direct UI, model or inference output becomes institutional truth without the existing execution/authority/evidence path.
+
+## 12. Current productization boundary
+
+The repository currently materializes backend/control contracts and APIs. No distinct Command frontend codebase or previously frozen frontend stack was located in the accessible repositories/artifacts at this point. Therefore:
+
+`BACKEND_CONTROL_CONTRACT = MATERIALIZABLE`
+`FRONTEND_PRODUCT_EXPERIENCE = NOT_YET_PROVEN`
+`UX_ACCESSIBILITY_GATE = HOLD_UNTIL_FRONTEND_SURFACE_EXISTS`
+
+Creating a new frontend repository/stack is a material architecture decision and is not silently inferred from backend productization.
