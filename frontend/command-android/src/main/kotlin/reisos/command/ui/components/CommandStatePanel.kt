@@ -9,12 +9,13 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import reisos.command.contracts.EpistemicState
 import reisos.command.contracts.FreshnessState
+import reisos.command.ui.accessibility.commandStateDescription
 
 /**
  * Real Android View component for synthetic-only Command UI rehearsal.
  *
  * It never creates authority, dispatches intents, or writes canonical state.
- * State meaning is carried by text + shape/layout semantics; color is optional.
+ * State meaning is carried by text + layout semantics; color is optional.
  */
 class CommandStatePanel @JvmOverloads constructor(
     context: Context,
@@ -31,7 +32,6 @@ class CommandStatePanel @JvmOverloads constructor(
         gravity = Gravity.START
         minimumHeight = dp(48)
         setPadding(dp(16), dp(12), dp(16), dp(12))
-        isImportantForAccessibility = true
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
 
         titleView.setTypeface(titleView.typeface, Typeface.BOLD)
@@ -45,22 +45,14 @@ class CommandStatePanel @JvmOverloads constructor(
         titleView.text = model.title
         stateView.text = "Estado: ${model.epistemicState.name}"
         freshnessView.text = "Atualidade: ${model.freshness.name}"
-        evidenceView.text = when {
-            model.evidenceLabel != null -> "Evidência: ${model.evidenceLabel}"
-            else -> "Evidência: não comprovada"
-        }
-
-        val syntheticMarker = if (model.synthetic) "Dados sintéticos. " else ""
-        contentDescription = buildString {
-            append(syntheticMarker)
-            append(model.title)
-            append(". Estado ")
-            append(model.epistemicState.name)
-            append(". Atualidade ")
-            append(model.freshness.name)
-            append(". ")
-            append(evidenceView.text)
-        }
+        evidenceView.text = "Evidência: ${model.evidenceLabel ?: "não comprovada"}"
+        contentDescription = commandStateDescription(
+            title = model.title,
+            epistemicState = model.epistemicState,
+            freshness = model.freshness,
+            evidenceLabel = model.evidenceLabel,
+            synthetic = model.synthetic,
+        )
     }
 
     private fun dp(value: Int): Int =
