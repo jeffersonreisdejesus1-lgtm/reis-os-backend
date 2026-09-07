@@ -1,39 +1,43 @@
-# REIS OS Command — non-runtime Android frontend
+# REIS OS Command Android — Longitudinal Product Slice
 
-Status: `NON_RUNTIME_SYNTHETIC_UI_COMPONENTS`
+This module is an **executable Android application slice** for the REIS OS Command cockpit.
 
-This directory materializes the Íris frontend for REIS OS Command against `COMMAND-AGORA-PRELIMINARY-BACKEND-CONTRACTS-001` and `COMMAND-IRIS-FRONTEND-IMPLEMENTATION-CONTRACT-001`.
+## What this slice proves
 
-It intentionally contains no live transport, Postgres, Atlas, L5, AI runtime, Kernel mutation, or production wiring.
+- Android application module with package `com.reisos.command`.
+- Launcher Activity and cold-start shell.
+- Deterministic navigation across S0–S9.
+- Explicit CURRENT / PARTIAL / STALE / UNKNOWN / HOLD / DENY / NOT_PROVEN semantics.
+- Synthetic fixture boundaries remain visible in the UI.
+- EXECUTED never becomes VERIFIED without matching readback.
+- UNKNOWN progress never becomes a fabricated percentage.
+- Unknown graph relations produce HOLD rather than canonical causal acceptance.
+- OCS instance state with missing generation remains PARTIAL.
+- Back navigation is local to the synthetic application shell.
+- CI runs lint, unit tests, longitudinal invariant suites, and produces a debug APK.
 
-Hard boundaries:
+## What this slice does not prove
 
-- `UI_DOES_NOT_CREATE_AUTHORITY`
-- `UI_TAP != CANONICAL_MUTATION`
-- `PROJECTION != SOURCE_OF_TRUTH`
-- `SYNTHETIC_FIXTURE != INSTITUTIONAL_STATE`
-- `REQUESTED != EXECUTED != VERIFIED != ASSURED`
-- `UNKNOWN != ZERO`
-- `STALE != CURRENT`
-- `NO_DATA != HEALTHY`
+- Live backend connectivity.
+- Postgres persistence.
+- Real Atlas/L5 hydration.
+- AI runtime integration.
+- Kernel mutation or authority creation.
+- Production readiness.
+- Real-device accessibility, TalkBack traversal, focus order on device, or device contrast validation.
 
-Prepared layers:
+## Institutional boundary
 
-- `contracts` — typed preliminary projection/envelope models used by the UI boundary;
-- `ui_state` — explicit screen-state grammar;
-- `adapters` — safe projection-to-UI mappings;
-- `navigation` — S0–S9 route contract;
-- `fixtures` — synthetic-only scenarios with mandatory fixture metadata;
-- `ui/components` — real Android `View` components with text-first state semantics and accessibility descriptions;
-- `ui/screens` — Android S0 synthetic rehearsal surface;
-- `tests` — deterministic contract checks.
+`COMMAND_PROJECTION != SOURCE_OF_TRUTH`
 
-This folder is now a standalone Android library build target through `settings.gradle.kts` and `build.gradle.kts`. The material Android layer currently proves only source-level component structure. It does **not** prove device behavior, TalkBack traversal, contrast, dynamic text, one-hand use, or production readiness.
+`UI_DOES_NOT_CREATE_AUTHORITY`
 
-Dédala reservation remains frozen:
+`EXECUTED != VERIFIED`
 
-- `COMMAND_GRAPH_RELATION = PRELIMINARY_PROJECTION_ENUM`
-- `COMMAND_GRAPH_RELATION != ATLAS_EDGE_VOCAB`
-- `REAL_UI_ACCESSIBILITY = NOT_PROVEN`
+`VERIFIED != ASSURED`
 
-No file under this module may claim runtime availability or real institutional data.
+`UNKNOWN != ZERO`
+
+`STALE != CURRENT`
+
+The product slice is intentionally synthetic so that product behavior can be exercised longitudinally without opening authority, persistence, or runtime boundaries prematurely.
