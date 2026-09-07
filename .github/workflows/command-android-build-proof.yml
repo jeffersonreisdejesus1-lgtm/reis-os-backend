@@ -1,0 +1,43 @@
+name: Command Android Build Proof
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/command-android/**'
+      - '.github/workflows/command-android-build-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-build-proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Compile and test Command Android module
+        run: |
+          gradle --no-daemon -p frontend/command-android testDebugUnitTest assembleDebug
+
+      - name: Assert debug AAR exists
+        run: |
+          test -f frontend/command-android/build/outputs/aar/command-android-debug.aar || \
+          test -n "$(find frontend/command-android/build/outputs/aar -maxdepth 1 -name '*-debug.aar' -print -quit)"
