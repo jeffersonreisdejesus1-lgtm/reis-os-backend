@@ -68,7 +68,7 @@ class InteractionIdentityReadback:
 
 
 class InteractionIdentityEnforcer:
-    """Fail-closed boundary for self-identity assertions in conversational/UI surfaces."""
+    """Fail closed when an interaction surface asserts its OCS identity."""
 
     EVIDENCE_SOURCE = "kernel_identity_binding_readback"
 
