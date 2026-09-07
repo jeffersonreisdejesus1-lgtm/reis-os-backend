@@ -22,7 +22,9 @@ from app.universal_kernel.interaction_identity import (
         IdentityClaimSource.INTERNAL_CONFIG,
     ],
 )
-def test_claim_source_never_proves_identity_without_binding(source: IdentityClaimSource) -> None:
+def test_claim_source_never_proves_identity_without_binding(
+    source: IdentityClaimSource,
+) -> None:
     result = InteractionIdentityEnforcer(IdentityKernelGuard()).readback(
         run_id="run:unbound",
         claimed_ocs="ÍRIS",
@@ -84,7 +86,7 @@ def test_verified_binding_releases_canonical_identity_fields() -> None:
     )
 
 
-def test_wrong_conversational_identity_claim_holds_and_discloses_no_canonical_id() -> None:
+def test_wrong_claim_holds_and_discloses_no_canonical_id() -> None:
     guard = IdentityKernelGuard()
     guard.bind_active_identity(
         run_id="run:noesis",
