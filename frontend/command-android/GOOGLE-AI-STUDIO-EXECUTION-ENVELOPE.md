@@ -4,11 +4,19 @@ MISSION: COMMAND_ANDROID_PRODUCT_SLICE_E2E_001
 EXECUTION_ENGINE: GOOGLE_AI_STUDIO / GEMINI
 REPOSITORY: jeffersonreisdejesus1-lgtm/reis-os-backend
 BRANCH: dedala/command-android-e2e-longitudinal-001
-EXPECTED_HEAD: 17005f8846e5f144eff95460b05d2f4623f0eefa
+HEAD_POLICY: RESOLVE_CURRENT_PR_HEAD_AT_EXECUTION
 
 ## Objective
 
 Execute and falsify the complete Command Android longitudinal product slice in one run. Do not decompose this into microgates. Return one final evidence package and one verdict.
+
+## Exact-head rule
+
+Before execution, resolve the current HEAD SHA of PR #75 / branch `dedala/command-android-e2e-longitudinal-001` from GitHub and record it as `EXECUTION_HEAD`.
+
+The checked-out repository must exactly match `EXECUTION_HEAD`. If it does not, STOP with `HEAD_MISMATCH`.
+
+Do not execute against an older commit merely because it appears in this envelope's history.
 
 ## Hard boundaries
 
@@ -23,7 +31,7 @@ Execute and falsify the complete Command Android longitudinal product slice in o
 
 ## Required repository checks
 
-1. Confirm the checked-out commit exactly matches EXPECTED_HEAD. If not, STOP with `HEAD_MISMATCH`.
+1. Confirm the checked-out commit exactly matches `EXECUTION_HEAD`.
 2. Confirm `frontend/command-android/build.gradle.kts` uses `com.android.application`.
 3. Confirm application id is `com.reisos.command`.
 4. Confirm `AndroidManifest.xml` exposes `reisos.command.app.MainActivity` as MAIN/LAUNCHER.
@@ -100,7 +108,7 @@ Return exactly one structured result containing:
 
 ```text
 MISSION=COMMAND_ANDROID_PRODUCT_SLICE_E2E_001
-HEAD=<exact sha>
+HEAD=<EXECUTION_HEAD>
 GRADLE_BUILD=<PASS|FAIL>
 LINT=<PASS|FAIL>
 UNIT_TESTS=<PASS|FAIL>
