@@ -27,6 +27,8 @@ Materialize the execution substrate below the REIS OS chat/command runtime so OC
 `AUXILIARY_CREATION_DOES_NOT_CREATE_A_NEW_OCS`
 `AUXILIARY_AGENT_AUTHORITY ⊆ PARENT_OCS_MISSION_AUTHORITY`
 
+Direct auxiliary/task-specialist materialization must inherit parent mission, OCS identity, host/provider, authority reference, state namespace, memory namespace and lease. A caller cannot construct a foreign-OCS auxiliary by supplying a parent pointer alone.
+
 ## Material lifecycle
 
 `MATERIALIZE → ACTIVE → EXECUTE → RECEIPT`
@@ -50,13 +52,24 @@ Provider connectivity itself remains adapter-dependent. Naming a host never prov
 
 The visible chat surface does not need to physically host multiple agents. It can remain the command surface while execution occurs in workers managed by this plane and receipts return to the same mission.
 
-## Durability
+## Durability and source-of-truth boundary
 
-SQLite-backed instance registry and execution receipts provide durable material identity, fencing state and idempotent readback. The chat transcript is not the source of truth.
+SQLite-backed execution records provide durable instance/worker lifecycle state, fencing state, execution receipts and idempotent readback for this plane.
+
+This store is a **bounded execution ledger**, not a replacement institutional source of truth for mission authority or canonical OCS binding.
+
+`EXECUTION_PLANE_STORE != INSTITUTIONAL_AUTHORITY_SOR`
+
+`EXECUTION_PLANE_STORE != MISSION_JOURNAL`
+
+`COMMAND != SOURCE_OF_TRUTH`
+
+Canonical mission/authority/binding semantics remain governed by their existing institutional stores/contracts; this plane consumes bounded authority inputs and records execution-local state/receipts. The chat transcript is not a source of truth.
 
 ## Non-claims
 
 - No native ChatGPT same-tab spawn is claimed.
 - No Grok/Claude API connectivity is claimed without a real provider adapter.
 - No provider access is fabricated by this layer.
+- No new institutional authority is created by the execution ledger.
 - No IB10 or Command B10 behavior is started.
