@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "receipt_id": "01JEXAMPLE0000000000000000",
+  "input_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "output_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "privacy_decision": "ALLOW_LOCAL",
+  "receipt_hash": "sha256:c0d29b772dabd9bb7e76d643674813eafe0f6e22d11221a677e1aa49d739c515",
+  "ocs_id": "SOFIA",
+  "model_id": "none",
+  "trace_id": "00000000000000000000000000000000",
+  "terminal_state": "RECEIPTED"
+}
