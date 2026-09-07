@@ -92,6 +92,14 @@ class InteractionIdentityEnforcer:
                 claim_source=claim_source,
             )
 
+        if host is None:
+            return InteractionIdentityReadback(
+                status=InteractionIdentityStatus.UNVERIFIED,
+                reason="interaction_host_context_required",
+                run_id=run_id,
+                claim_source=claim_source,
+            )
+
         expected_ocs = binding.ocs_id if claimed_ocs is None else claimed_ocs
         try:
             verified = self._guard.require_valid(
