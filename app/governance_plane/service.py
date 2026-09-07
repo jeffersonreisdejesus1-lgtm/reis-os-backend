@@ -7,6 +7,7 @@ from .contracts import (
     EvidenceFreshness,
     EvidenceRef,
     FounderDecision,
+    FounderDecisionValue,
     MetricObservation,
     PromotionReadiness,
     QualityAssessment,
@@ -24,20 +25,38 @@ class GovernanceService:
     def add_evidence(self, record: EvidenceRef) -> None:
         self.ledger.append(record_type="EVIDENCE", record_id=record.evidence_id, object_ref=record.object_ref, record=record)
 
+    def _require_evidence_refs(self, *, object_ref: str, evidence_ids: tuple[str, ...], error: str) -> None:
+        known = {
+            r["record_id"]
+            for r in self.ledger.records(object_ref=object_ref, record_type="EVIDENCE")
+        }
+        if not evidence_ids or any(evidence_id not in known for evidence_id in evidence_ids):
+            raise ValueError(error)
+
     def add_quality_assessment(self, record: QualityAssessment) -> None:
-        if record.applicable and not record.evidence_ids and record.verdict in {
+        if record.applicable and record.verdict in {
             QualityVerdict.PASS,
             QualityVerdict.PASS_WITH_RESERVATIONS,
         }:
-            raise ValueError("quality_pass_requires_evidence")
+            self._require_evidence_refs(
+                object_ref=record.object_ref,
+                evidence_ids=record.evidence_ids,
+                error="quality_pass_requires_existing_evidence",
+            )
         self.ledger.append(record_type="QUALITY", record_id=record.assessment_id, object_ref=record.object_ref, record=record)
 
     def add_assurance(self, record: AssuranceRecord) -> None:
-        if record.verdict.value.startswith("PASS") and not record.evidence_ids:
-            raise ValueError("assurance_pass_requires_evidence")
+        if record.verdict.value.startswith("PASS"):
+            self._require_evidence_refs(
+                object_ref=record.object_ref,
+                evidence_ids=record.evidence_ids,
+                error="assurance_pass_requires_existing_evidence",
+            )
         self.ledger.append(record_type="ASSURANCE", record_id=record.assurance_id, object_ref=record.object_ref, record=record)
 
     def add_metric(self, record: MetricObservation) -> None:
+        if record.source_ref is None and record.completeness is not EvidenceCompleteness.UNKNOWN:
+            raise ValueError("metric_without_source_must_be_unknown")
         self.ledger.append(record_type="METRIC", record_id=record.metric_id, object_ref=record.object_ref, record=record)
 
     def add_refactor_event(self, record: RefactorEvent) -> None:
@@ -98,4 +117,10 @@ class GovernanceService:
         readiness = self.ledger.records(object_ref=record.object_ref, record_type="READINESS")
         if not readiness:
             raise ValueError("founder_decision_requires_readiness_record")
+        latest = readiness[-1]["payload"]
+        if record.decision in {
+            FounderDecisionValue.APPROVE_FOR_RELEASE,
+            FounderDecisionValue.APPROVE_WITH_EXPLICIT_RESERVATIONS,
+        } and latest["status"] != ReadinessStatus.READY_FOR_FOUNDER_REVIEW.value:
+            raise ValueError("founder_approval_requires_ready_for_review")
         self.ledger.append(record_type="FOUNDER_DECISION", record_id=record.decision_id, object_ref=record.object_ref, record=record)
