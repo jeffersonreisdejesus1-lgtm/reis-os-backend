@@ -9,37 +9,48 @@ import android.widget.TextView
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.divider.MaterialDivider
-import java.util.ArrayDeque
 import reisos.command.BuildConfig
 
 class MainActivity : AppCompatActivity() {
-    private val history = ArrayDeque<String>()
-    private var currentRouteId: String = "S0_HOME"
+    companion object {
+        private const val STATE_ROUTE = "command.route"
+        private const val STATE_HISTORY = "command.history"
+    }
+
+    private lateinit var navigator: ProductNavigator
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        navigator = ProductNavigator(
+            startRouteId = savedInstanceState?.getString(STATE_ROUTE) ?: "S0_HOME",
+            priorHistory = savedInstanceState?.getStringArrayList(STATE_HISTORY).orEmpty(),
+        )
+
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
-                if (history.isEmpty()) {
-                    finish()
-                } else {
-                    currentRouteId = history.removeLast()
+                if (navigator.back()) {
                     render()
+                } else {
+                    finish()
                 }
             }
         })
         render()
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        val snapshot = navigator.snapshot()
+        outState.putString(STATE_ROUTE, snapshot.currentRouteId)
+        outState.putStringArrayList(STATE_HISTORY, ArrayList(snapshot.history))
+        super.onSaveInstanceState(outState)
+    }
+
     private fun navigate(routeId: String) {
-        if (routeId == currentRouteId) return
-        history.addLast(currentRouteId)
-        currentRouteId = routeId
-        render()
+        if (navigator.navigate(routeId)) render()
     }
 
     private fun render() {
-        val spec = ProductSliceScenario.screen(currentRouteId)
+        val spec = ProductSliceScenario.screen(navigator.currentRouteId)
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -96,9 +107,7 @@ class MainActivity : AppCompatActivity() {
             contentDescription = "Primary navigation"
         })
 
-        ProductSliceScenario.primaryRouteIds().forEach { routeId ->
-            addRouteButton(root, routeId)
-        }
+        ProductSliceScenario.primaryRouteIds().forEach { routeId -> addRouteButton(root, routeId) }
 
         root.addView(TextView(this).apply {
             text = "All longitudinal surfaces"
@@ -107,9 +116,7 @@ class MainActivity : AppCompatActivity() {
             contentDescription = "All longitudinal surfaces"
         })
 
-        ProductSliceScenario.screens.forEach { screen ->
-            addRouteButton(root, screen.routeId)
-        }
+        ProductSliceScenario.screens.forEach { screen -> addRouteButton(root, screen.routeId) }
 
         root.addView(MaterialDivider(this).apply { setPadding(0, dp(18), 0, dp(8)) })
 
