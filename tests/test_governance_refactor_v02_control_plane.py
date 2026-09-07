@@ -164,7 +164,8 @@ def test_capability_router_exposes_read_only_get_surface() -> None:
     matching = [
         route
         for route in governance_router.routes
-        if getattr(route, "path", None) == "/capabilities"
+        if getattr(route, "path", None)
+        == "/v1/command/governance/capabilities"
     ]
     assert len(matching) == 1
     assert matching[0].methods == {"GET"}
