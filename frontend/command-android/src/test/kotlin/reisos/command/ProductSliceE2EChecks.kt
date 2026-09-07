@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import reisos.command.app.ProductNavigator
 import reisos.command.app.ProductSemanticState
 import reisos.command.app.ProductSliceScenario
 
@@ -11,7 +12,7 @@ class ProductSliceE2EChecks {
     @Test
     fun productSliceCoversS0ThroughS9ExactlyOnce() {
         val ids = ProductSliceScenario.screens.map { it.routeId }
-        assertEquals((0..9).map { "S${it}_" }.size, ids.size)
+        assertEquals(10, ids.size)
         assertEquals(10, ids.toSet().size)
         (0..9).forEach { index -> assertTrue(ids.any { it.startsWith("S${index}_") }) }
     }
@@ -44,6 +45,35 @@ class ProductSliceE2EChecks {
         assertFalse(b.aiRuntime)
         assertFalse(b.kernelMutation)
         assertEquals("SYNTHETIC_UI_FIXTURE", b.sourceClass)
+    }
+
+    @Test
+    fun navigationTraversesAllTenSurfacesAndCanRewind() {
+        val navigator = ProductNavigator()
+        val routeIds = ProductSliceScenario.screens.map { it.routeId }
+
+        routeIds.drop(1).forEach { routeId -> assertTrue(navigator.navigate(routeId)) }
+        assertEquals("S9_CONVERSATION", navigator.currentRouteId)
+        assertEquals(routeIds.dropLast(1), navigator.snapshot().history)
+
+        repeat(routeIds.size - 1) { assertTrue(navigator.back()) }
+        assertEquals("S0_HOME", navigator.currentRouteId)
+        assertFalse(navigator.back())
+    }
+
+    @Test
+    fun navigationSnapshotRestoresCurrentRouteAndHistory() {
+        val original = ProductNavigator()
+        original.navigate("S1_OPERATIONS")
+        original.navigate("S2_OPERATION_DETAIL")
+        val snapshot = original.snapshot()
+
+        val restored = ProductNavigator(snapshot.currentRouteId, snapshot.history)
+        assertEquals("S2_OPERATION_DETAIL", restored.currentRouteId)
+        assertTrue(restored.back())
+        assertEquals("S1_OPERATIONS", restored.currentRouteId)
+        assertTrue(restored.back())
+        assertEquals("S0_HOME", restored.currentRouteId)
     }
 
     @Test
