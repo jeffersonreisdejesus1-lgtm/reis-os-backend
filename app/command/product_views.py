@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from app.command.application import list_ocs_profiles
+from app.command.cupuwa_module import cupuwa_inspired_module_contract
 from app.command.instance_views import CommandInstanceViews, InstanceFilter
 from app.command.read_models import CommandReadModels
 from app.governance_refactor.projections import GovernanceCommandViews
@@ -87,6 +88,7 @@ class CommandProductViews:
             "instances": instance_page,
             "recovery_center": recovery,
             "capabilities": capabilities,
+            "cupuwa_inspired_module": cupuwa_inspired_module_contract(),
             "epistemic_boundary": {
                 "command_is_source_of_truth": False,
                 "command_is_promotion_decider": False,
@@ -95,5 +97,6 @@ class CommandProductViews:
                 "verified_is_assured": False,
                 "unknown_is_zero": False,
                 "ui_creates_authority": False,
+                "inference_is_authority": False,
             },
         }
