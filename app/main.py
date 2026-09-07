@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.api.routes import router as auth_router
 from app.command.api.instance_routes import router as command_instance_router
+from app.command.api.product_routes import router as command_product_router
 from app.command.api.routes import router as command_router
 from app.governance_refactor.api import router as governance_refactor_router
 from app.governance_refactor.schema import migrate_governance_candidate_store
@@ -40,6 +41,7 @@ app.include_router(projects_router)
 app.include_router(tasks_router)
 app.include_router(command_router)
 app.include_router(command_instance_router)
+app.include_router(command_product_router)
 app.include_router(governance_refactor_router)
 
 
