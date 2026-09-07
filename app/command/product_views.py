@@ -55,9 +55,15 @@ class CommandProductViews:
         ocs_items = [
             {
                 "slug": item.slug,
-                "name": item.name,
-                "mission": item.mission,
-                "capabilities": list(item.capabilities),
+                "ocs_id": item.ocs_id,
+                "identity": item.identity,
+                "specialty": item.specialty,
+                "support_capabilities": list(item.support_capabilities),
+                "allowed_action_classes": list(item.allowed_action_classes),
+                "denied_action_classes": list(item.denied_action_classes),
+                "authority_envelope_ref": item.authority_envelope_ref,
+                "namespaces": item.namespaces.model_dump(),
+                "source": item.source.model_dump(),
             }
             for item in ocs_profiles.items
         ]
