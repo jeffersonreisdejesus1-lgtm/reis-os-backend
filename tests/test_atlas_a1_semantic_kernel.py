@@ -3,12 +3,12 @@ from pathlib import Path
 import pytest
 
 from app.command.atlas_semantic import (
+    CATALOG_SCOPE_ID,
+    NORMALIZATION_VERSION,
     AntiThesisRule,
     AtlasSemanticError,
-    CATALOG_SCOPE_ID,
     Decision,
     EdgeType,
-    NORMALIZATION_VERSION,
     Severity,
     aggregate_path_severities,
     load_yaml,
