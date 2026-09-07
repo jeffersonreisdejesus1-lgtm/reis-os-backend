@@ -1,0 +1,76 @@
+name: Cognitive Reality Live Pilot
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "experiments/cognitive_reality/**"
+      - ".github/workflows/cognitive-reality-live.yml"
+  workflow_dispatch:
+
+jobs:
+  live-pilot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      GEMINI_API_KEY_RAW: ${{ secrets.GEMINI_API_KEY }}
+      COG_TEST_MODEL: gemini-3.6-flash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configurar Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Preparar segredo de runtime
+        shell: bash
+        run: |
+          CLEAN_KEY="$(printf '%s' "$GEMINI_API_KEY_RAW" | tr -d '\r\n')"
+          if [ -z "$CLEAN_KEY" ]; then
+            echo "GEMINI_API_KEY repository secret is not configured."
+            exit 2
+          fi
+          echo "::add-mask::$CLEAN_KEY"
+          printf 'GEMINI_API_KEY=%s\n' "$CLEAN_KEY" >> "$GITHUB_ENV"
+
+      - name: Preparar evidências
+        run: mkdir -p artifacts/cognitive-reality-live
+
+      - name: Executar piloto live
+        run: |
+          python -m experiments.cognitive_reality.gemini_runner \
+            --tasks experiments/cognitive_reality/tasks.json \
+            --out artifacts/cognitive-reality-live \
+            --limit 1 \
+            --conditions mono sham multi_isolated mesh population
+
+      - name: Analisar traces
+        run: |
+          python -m experiments.cognitive_reality.analyze \
+            artifacts/cognitive-reality-live/results.jsonl \
+            > artifacts/cognitive-reality-live/report.json
+
+      - name: Registrar metadados
+        if: always()
+        run: |
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "run_id=${GITHUB_RUN_ID}"
+            echo "run_attempt=${GITHUB_RUN_ATTEMPT}"
+            echo "provider=gemini"
+            echo "model=${COG_TEST_MODEL}"
+            echo "timestamp=$(date --utc --iso-8601=seconds)"
+          } > artifacts/cognitive-reality-live/execution.txt
+
+      - name: Enviar evidências
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cognitive-reality-live-pilot
+          path: artifacts/cognitive-reality-live/
+          if-no-files-found: warn
