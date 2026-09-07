@@ -26,9 +26,8 @@ class ExecutionPlaneStore:
               host TEXT NOT NULL, provider TEXT NOT NULL, role TEXT NOT NULL, generation INTEGER NOT NULL,
               authority_ref TEXT NOT NULL, state_namespace TEXT NOT NULL, memory_namespace TEXT NOT NULL,
               parent_instance_id TEXT, lease_id TEXT NOT NULL, state TEXT NOT NULL);
-            CREATE UNIQUE INDEX IF NOT EXISTS active_identity
-              ON execution_instances(mission_id,ocs_id,host,role,generation)
-              WHERE state='ACTIVE';
+            CREATE INDEX IF NOT EXISTS execution_instance_lookup
+              ON execution_instances(mission_id,ocs_id,host,role,state,generation);
             CREATE TABLE IF NOT EXISTS execution_receipts(
               mission_id TEXT NOT NULL, idempotency_key TEXT NOT NULL, request_hash TEXT NOT NULL,
               receipt_json TEXT NOT NULL, PRIMARY KEY(mission_id,idempotency_key));
@@ -61,7 +60,7 @@ class ExecutionPlaneStore:
     def active(self, mission_id: str, ocs_id: str, host: str, role: InstanceRole) -> ExecutionInstance | None:
         with self._connect() as c:
             row = c.execute(
-                "SELECT instance_id FROM execution_instances WHERE mission_id=? AND ocs_id=? AND host=? AND role=? AND state='ACTIVE' ORDER BY generation DESC LIMIT 1",
+                "SELECT instance_id FROM execution_instances WHERE mission_id=? AND ocs_id=? AND host=? AND role=? AND state='ACTIVE' ORDER BY generation DESC,rowid DESC LIMIT 1",
                 (mission_id, ocs_id, host, role.value),
             ).fetchone()
         return None if row is None else self.load_instance(str(row["instance_id"]))
