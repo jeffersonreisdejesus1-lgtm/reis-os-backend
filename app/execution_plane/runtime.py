@@ -52,8 +52,26 @@ class ExecutionPlane:
     ) -> ExecutionInstance:
         if host not in self.worker_factories:
             raise ValueError("host_worker_factory_unavailable")
-        if role in {InstanceRole.AUXILIARY, InstanceRole.TASK_SPECIALIST} and not parent_instance_id:
-            raise ValueError("auxiliary_parent_required")
+
+        if role in {InstanceRole.AUXILIARY, InstanceRole.TASK_SPECIALIST}:
+            if not parent_instance_id:
+                raise ValueError("auxiliary_parent_required")
+            parent = self.store.load_instance(parent_instance_id)
+            if parent.state is not InstanceState.ACTIVE:
+                raise ValueError("parent_not_active")
+            inherited_identity = (
+                mission_id == parent.mission_id
+                and ocs_id == parent.ocs_id
+                and host == parent.host
+                and provider == parent.provider
+                and authority_ref == parent.authority_ref
+                and state_namespace == parent.state_namespace
+                and memory_namespace == parent.memory_namespace
+                and lease_id == parent.lease_id
+            )
+            if not inherited_identity:
+                raise ValueError("auxiliary_parent_identity_mismatch")
+
         instance = ExecutionInstance(
             instance_id=self._instance_id(mission_id, ocs_id, host, role, generation),
             mission_id=mission_id,
