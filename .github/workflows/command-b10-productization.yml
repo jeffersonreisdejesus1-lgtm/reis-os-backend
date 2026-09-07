@@ -6,6 +6,7 @@ on:
       - 'app/command/**'
       - 'app/main.py'
       - 'tests/test_command_b10_ocs_inference.py'
+      - 'tests/test_command_b10_frontend.py'
       - 'docs/COMMAND-B10-CUPUWA-OCS-AI-ARCHITECTURE-001.md'
       - '.github/workflows/command-b10-productization.yml'
 
@@ -23,6 +24,7 @@ jobs:
         run: >-
           pytest -q
           tests/test_command_b10_ocs_inference.py
+          tests/test_command_b10_frontend.py
           tests/test_command_ib6_instance_views.py
           tests/test_governance_refactor_v02_capability_seats.py
           tests/test_governance_refactor_v02_control_plane.py
