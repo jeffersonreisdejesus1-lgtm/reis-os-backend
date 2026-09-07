@@ -3,18 +3,40 @@ from __future__ import annotations
 from typing import Any
 
 
+METRIC_SOURCE_REF = "command-b10://cupuwa-ocs-ai"
+MEASUREMENT_VERSION = "b10-metrics-v1"
+
+
+def _metric(metric_id: str, *, kind: str, target: Any = None, target_max: Any = None) -> dict[str, Any]:
+    return {
+        "id": metric_id,
+        "kind": kind,
+        "target": target,
+        "target_max": target_max,
+        "source_ref": METRIC_SOURCE_REF,
+        "measurement_method": "event_or_projection_derived",
+        "measurement_version": MEASUREMENT_VERSION,
+        "observed_at": None,
+        "window": None,
+        "completeness": "UNKNOWN",
+        "unknown_semantics": "UNKNOWN_IS_NOT_ZERO_OR_PASS",
+        "can_promote": False,
+        "can_close_quality_gate_alone": False,
+    }
+
+
 METRIC_SPECS: tuple[dict[str, Any], ...] = (
-    {"id": "ouro_available_when_prata_unavailable_rate", "target": 1.0, "kind": "ratio"},
-    {"id": "prata_failure_causing_ouro_failure", "target": 0, "kind": "count"},
-    {"id": "routing_loop_count", "target": 0, "kind": "count"},
-    {"id": "routing_hops_p95", "target_max": 2, "kind": "count"},
-    {"id": "direct_inference_state_write_count", "target": 0, "kind": "count"},
-    {"id": "authority_bypass_count", "target": 0, "kind": "count"},
-    {"id": "self_promotion_count", "target": 0, "kind": "count"},
-    {"id": "material_action_without_receipt_count", "target": 0, "kind": "count"},
-    {"id": "responses_with_mode_label_rate", "target": 1.0, "kind": "ratio"},
-    {"id": "source_access_model_invocation_conflation_count", "target": 0, "kind": "count"},
-    {"id": "live_model_invocation_without_adapter_receipt_count", "target": 0, "kind": "count"},
+    _metric("ouro_available_when_prata_unavailable_rate", target=1.0, kind="ratio"),
+    _metric("prata_failure_causing_ouro_failure", target=0, kind="count"),
+    _metric("routing_loop_count", target=0, kind="count"),
+    _metric("routing_hops_p95", target_max=2, kind="count"),
+    _metric("direct_inference_state_write_count", target=0, kind="count"),
+    _metric("authority_bypass_count", target=0, kind="count"),
+    _metric("self_promotion_count", target=0, kind="count"),
+    _metric("material_action_without_receipt_count", target=0, kind="count"),
+    _metric("responses_with_mode_label_rate", target=1.0, kind="ratio"),
+    _metric("source_access_model_invocation_conflation_count", target=0, kind="count"),
+    _metric("live_model_invocation_without_adapter_receipt_count", target=0, kind="count"),
 )
 
 
@@ -74,6 +96,12 @@ def cupuwa_inspired_module_contract() -> dict[str, Any]:
             ],
         },
         "metrics": [dict(item) for item in METRIC_SPECS],
+        "metric_policy": {
+            "no_single_metric_can_promote": True,
+            "no_single_metric_can_close_quality_gate": True,
+            "no_metric_can_override_evidence": True,
+            "no_metric_can_suppress_required_escalation": True,
+        },
         "epistemic_boundary": {
             "input_is_inference": False,
             "inference_is_command": False,
