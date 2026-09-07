@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import replace
 from hashlib import sha256
 from typing import Any, Protocol
 
@@ -77,15 +76,18 @@ class ExecutionPlane:
         self,
         *,
         parent_instance_id: str,
+        auxiliary_key: str,
         role: InstanceRole = InstanceRole.AUXILIARY,
     ) -> ExecutionInstance:
         if role not in {InstanceRole.AUXILIARY, InstanceRole.TASK_SPECIALIST}:
             raise ValueError("invalid_auxiliary_role")
+        if not auxiliary_key:
+            raise ValueError("auxiliary_key_required")
         parent = self.store.load_instance(parent_instance_id)
         if parent.state is not InstanceState.ACTIVE:
             raise ValueError("parent_not_active")
         generation = parent.generation
-        suffix = sha256(f"{parent.instance_id}:{role.value}".encode()).hexdigest()[:12]
+        suffix = sha256(f"{parent.instance_id}:{role.value}:{auxiliary_key}".encode()).hexdigest()[:16]
         instance = ExecutionInstance(
             instance_id=f"aux:{suffix}:{generation}",
             mission_id=parent.mission_id,
@@ -163,7 +165,10 @@ class ExecutionPlane:
 
         worker = self._workers.get(target.instance_id)
         if worker is None:
-            worker = self.worker_factories[target.host](target)
+            factory = self.worker_factories.get(target.host)
+            if factory is None:
+                raise ValueError("host_worker_factory_unavailable")
+            worker = factory(target)
             self._workers[target.instance_id] = worker
         correlation_id = "exec:" + sha256(f"{request.mission_id}:{request.idempotency_key}:{request_hash}".encode()).hexdigest()[:24]
         output = worker.execute(target, request.payload, correlation_id)
