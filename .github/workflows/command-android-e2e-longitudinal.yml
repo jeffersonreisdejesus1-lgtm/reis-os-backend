@@ -56,7 +56,7 @@ jobs:
       - name: Assert longitudinal suites executed
         run: |
           set -euo pipefail
-          for suite in LongitudinalFlowChecks ProductSliceE2EChecks; do
+          for suite in LongitudinalFlowChecks ProductSliceE2EChecks ProductDataCatalogChecks; do
             report="frontend/command-android/build/test-results/testDebugUnitTest/TEST-reisos.command.${suite}.xml"
             test -f "$report"
             grep -q 'failures="0"' "$report"
@@ -86,8 +86,13 @@ jobs:
           PACKAGE=com.reisos.command
           LAUNCHER=reisos.command.app.MainActivity
           S0_S9_MODELLED=true
+          TEN_OCS_ROSTER_MODELLED=true
+          OPERATION_CATALOG_MODELLED=true
+          EVIDENCE_CATALOG_MODELLED=true
+          SYSTEM_CATALOG_MODELLED=true
           NAVIGATION_RESTORE_TESTED=true
           LONGITUDINAL_FLOW_TESTED=true
+          PRODUCT_CATALOG_TESTED=true
           LINT_REPORT_PRESENT=true
           APK_BADGING_VERIFIED=true
           INTERNET_PERMISSION=false
