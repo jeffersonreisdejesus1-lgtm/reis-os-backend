@@ -6,8 +6,10 @@ on:
       - dedala/ocsx-assurance-repair-001
     paths:
       - 'app/ocsx_pretrial/**'
+      - 'formal/ocsx/preparation/**'
       - 'tests/test_ocsx_pretrial_enforcement.py'
       - 'scripts/run_ocsx_pretrial_enforcement.py'
+      - 'scripts/validate_ocsx_pretrial_package.py'
       - '.github/workflows/ocsx-pretrial-enforcement.yml'
   workflow_dispatch:
 
@@ -29,11 +31,14 @@ jobs:
       - name: Install focused test tools
         run: python -m pip install 'pytest>=8.4,<9.0' 'ruff>=0.12,<1.0' 'mypy>=1.17,<2.0'
 
+      - name: Validate frozen pretrial package
+        run: python scripts/validate_ocsx_pretrial_package.py
+
       - name: Ruff focused harness
-        run: ruff check app/ocsx_pretrial tests/test_ocsx_pretrial_enforcement.py scripts/run_ocsx_pretrial_enforcement.py
+        run: ruff check app/ocsx_pretrial tests/test_ocsx_pretrial_enforcement.py scripts/run_ocsx_pretrial_enforcement.py scripts/validate_ocsx_pretrial_package.py
 
       - name: Mypy focused harness
-        run: mypy --strict app/ocsx_pretrial scripts/run_ocsx_pretrial_enforcement.py
+        run: mypy --strict app/ocsx_pretrial scripts/run_ocsx_pretrial_enforcement.py scripts/validate_ocsx_pretrial_package.py
 
       - name: Adversarial enforcement tests
         run: pytest -q tests/test_ocsx_pretrial_enforcement.py
@@ -41,12 +46,19 @@ jobs:
       - name: Generate deterministic evidence
         run: |
           mkdir -p evidence/ocsx/pretrial
+          python scripts/validate_ocsx_pretrial_package.py \
+            | tee evidence/ocsx/pretrial/package-validation.txt
           python scripts/run_ocsx_pretrial_enforcement.py \
             | tee evidence/ocsx/pretrial/enforcement-result.json
           sha256sum \
             app/ocsx_pretrial/harness.py \
             tests/test_ocsx_pretrial_enforcement.py \
             scripts/run_ocsx_pretrial_enforcement.py \
+            scripts/validate_ocsx_pretrial_package.py \
+            formal/ocsx/preparation/OCSX-PAIRED-TASKSET-001.json \
+            formal/ocsx/preparation/OCSX-OUTCOME-CLASSIFICATION-CONTRACT-001.md \
+            formal/ocsx/preparation/OCSX-REPRODUCIBILITY-MANIFEST-001.md \
+            evidence/ocsx/pretrial/package-validation.txt \
             evidence/ocsx/pretrial/enforcement-result.json \
             > evidence/ocsx/pretrial/SHA256SUMS
           git rev-parse HEAD > evidence/ocsx/pretrial/SOURCE_HEAD.txt
