@@ -86,7 +86,7 @@ def test_verified_binding_releases_canonical_identity_fields() -> None:
     )
 
 
-def test_valid_binding_without_host_is_unverified_and_discloses_no_canonical_identity() -> None:
+def test_valid_binding_without_host_is_unverified_and_hides_identity() -> None:
     guard = IdentityKernelGuard()
     guard.bind_active_identity(
         run_id="run:host-omitted",
