@@ -39,10 +39,19 @@ jobs:
       - name: Assert lint evidence
         run: test -f frontend/command-android/build/reports/lint-results-debug.html
 
-      - name: Assert executable debug APK
+      - name: Assert executable debug APK and launchable activity
+        id: apk
         run: |
           set -euo pipefail
-          find frontend/command-android/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit | grep -q .
+          module='frontend/command-android'
+          apk="$(find "$module/build/outputs/apk/debug" -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          test -n "$apk"
+          aapt="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -1)"
+          test -n "$aapt"
+          "$aapt" dump badging "$apk" | tee "$module/build/apk-badging.txt"
+          grep -q "package: name='com.reisos.command'" "$module/build/apk-badging.txt"
+          grep -q "launchable-activity: name='reisos.command.app.MainActivity'" "$module/build/apk-badging.txt"
+          echo "apk=$apk" >> "$GITHUB_OUTPUT"
 
       - name: Assert longitudinal suites executed
         run: |
@@ -65,6 +74,44 @@ jobs:
             echo 'Unexpected INTERNET permission in synthetic offline slice' >&2
             exit 1
           fi
+
+      - name: Emit longitudinal evidence receipt
+        run: |
+          set -euo pipefail
+          out='frontend/command-android/build/longitudinal-evidence-receipt.txt'
+          cat > "$out" <<EOF
+          MISSION=COMMAND_ANDROID_PRODUCT_SLICE_E2E_001
+          HEAD_SHA=${GITHUB_SHA}
+          EXECUTABLE_ANDROID_APPLICATION=true
+          PACKAGE=com.reisos.command
+          LAUNCHER=reisos.command.app.MainActivity
+          S0_S9_MODELLED=true
+          NAVIGATION_RESTORE_TESTED=true
+          LONGITUDINAL_FLOW_TESTED=true
+          LINT_REPORT_PRESENT=true
+          APK_BADGING_VERIFIED=true
+          INTERNET_PERMISSION=false
+          LIVE_BACKEND=false
+          POSTGRES=false
+          REAL_ATLAS_L5=false
+          AI_RUNTIME=false
+          KERNEL_MUTATION=false
+          PRODUCTION_READINESS_NOT_PROVEN=true
+          REAL_DEVICE_ACCESSIBILITY_NOT_PROVEN=true
+          EOF
+          cat "$out"
+
+      - name: Upload longitudinal evidence package
+        uses: actions/upload-artifact@v4
+        with:
+          name: command-android-product-slice-${{ github.sha }}
+          if-no-files-found: error
+          path: |
+            ${{ steps.apk.outputs.apk }}
+            frontend/command-android/build/apk-badging.txt
+            frontend/command-android/build/longitudinal-evidence-receipt.txt
+            frontend/command-android/build/reports/lint-results-debug.html
+            frontend/command-android/build/test-results/testDebugUnitTest/*.xml
 
       - name: Boundary declaration
         run: |
