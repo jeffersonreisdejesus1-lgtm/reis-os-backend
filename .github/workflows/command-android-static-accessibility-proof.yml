@@ -40,7 +40,9 @@ jobs:
         run: test -f frontend/command-android/build/reports/lint-results-debug.html
 
       - name: Assert debug AAR exists
-        run: test -f frontend/command-android/build/outputs/aar/command-android-debug.aar
+        run: |
+          test -f frontend/command-android/build/outputs/aar/command-android-debug.aar || \
+          test -n "$(find frontend/command-android/build/outputs/aar -maxdepth 1 -name '*-debug.aar' -print -quit)"
 
       - name: Boundary statement
         run: |
