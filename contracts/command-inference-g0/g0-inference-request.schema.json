@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reis-os://schemas/inference-request/1.0.0",
+  "title": "InferenceRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "ocs_id", "input_hash", "privacy_class"],
+  "properties": {
+    "schema_version": { "const": "1.0.0" },
+    "request_id": { "type": "string", "minLength": 8 },
+    "ocs_id": { "type": "string", "minLength": 1 },
+    "input_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "privacy_class": {
+      "enum": ["PUBLIC", "INTERNAL", "CONFIDENTIAL", "PII", "CANONICAL_SECRET"]
+    },
+    "model_id": { "type": "string" },
+    "trace_id": { "type": "string" }
+  }
+}
