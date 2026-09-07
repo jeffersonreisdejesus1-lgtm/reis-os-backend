@@ -54,18 +54,24 @@ jobs:
             grep -q 'errors="0"' "$report"
           done
 
-      - name: Assert launcher materialized
+      - name: Assert launcher and offline boundary
         run: |
           set -euo pipefail
-          grep -q 'android.intent.action.MAIN' frontend/command-android/src/main/AndroidManifest.xml
-          grep -q 'android.intent.category.LAUNCHER' frontend/command-android/src/main/AndroidManifest.xml
+          manifest='frontend/command-android/src/main/AndroidManifest.xml'
+          grep -q 'android.intent.action.MAIN' "$manifest"
+          grep -q 'android.intent.category.LAUNCHER' "$manifest"
           grep -q 'com.android.application' frontend/command-android/build.gradle.kts
+          if grep -q 'android.permission.INTERNET' "$manifest"; then
+            echo 'Unexpected INTERNET permission in synthetic offline slice' >&2
+            exit 1
+          fi
 
       - name: Boundary declaration
         run: |
           echo 'COMMAND_ANDROID_PRODUCT_SLICE_E2E_001=true'
           echo 'EXECUTABLE_ANDROID_APPLICATION=true'
           echo 'SYNTHETIC_END_TO_END_ONLY=true'
+          echo 'INTERNET_PERMISSION=false'
           echo 'LIVE_BACKEND=false'
           echo 'POSTGRES=false'
           echo 'REAL_ATLAS_L5=false'
