@@ -86,6 +86,34 @@ def test_verified_binding_releases_canonical_identity_fields() -> None:
     )
 
 
+def test_valid_binding_without_host_is_unverified_and_discloses_no_canonical_identity() -> None:
+    guard = IdentityKernelGuard()
+    guard.bind_active_identity(
+        run_id="run:host-omitted",
+        ocs_id="ÍRIS",
+        host="ChatGPT",
+        session_context="session:host-omitted",
+    )
+
+    result = InteractionIdentityEnforcer(guard).readback(
+        run_id="run:host-omitted",
+        claimed_ocs="ÍRIS",
+        claim_source=IdentityClaimSource.USER,
+    )
+
+    assert result.status is InteractionIdentityStatus.UNVERIFIED
+    assert result.reason == "interaction_host_context_required"
+    assert not result.canonical_identity_disclosable
+    assert result.ocs_canonical_name is None
+    assert result.ocs_id is None
+    assert result.binding_hash is None
+    assert result.evidence_source is None
+    assert "ocs_canonical_name" not in result.to_public_dict()
+    assert "ocs_id" not in result.to_public_dict()
+    assert "binding_hash" not in result.to_public_dict()
+    assert "evidence_source" not in result.to_public_dict()
+
+
 def test_wrong_claim_holds_and_discloses_no_canonical_id() -> None:
     guard = IdentityKernelGuard()
     guard.bind_active_identity(
