@@ -1,0 +1,32 @@
+name: REIS OS Governance Refactor v0.2
+
+on:
+  pull_request:
+    paths:
+      - 'app/governance_refactor/**'
+      - 'tests/test_governance_refactor_r2_r3.py'
+      - 'tests/test_governance_refactor_r4.py'
+      - 'tests/test_governance_refactor_r4_api.py'
+      - 'tests/test_governance_refactor_r5_r7.py'
+      - 'tests/test_governance_refactor_v02_capability_seats.py'
+      - 'docs/META-ARQ-REIS-OS-ENGINEERING-QUALITY-GOVERNANCE-REFACTOR-002.md'
+      - '.github/workflows/governance-refactor-v02.yml'
+
+jobs:
+  governance-refactor-v02:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev]'
+      - name: Run governance baseline and v0.2 delta
+        run: >-
+          pytest -q
+          tests/test_governance_refactor_r2_r3.py
+          tests/test_governance_refactor_r4.py
+          tests/test_governance_refactor_r4_api.py
+          tests/test_governance_refactor_r5_r7.py
+          tests/test_governance_refactor_v02_capability_seats.py
