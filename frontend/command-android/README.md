@@ -2,19 +2,35 @@
 
 This module is an **executable Android application slice** for the REIS OS Command cockpit.
 
-## What this slice proves
+## What this slice proves structurally
 
 - Android application module with package `com.reisos.command`.
-- Launcher Activity and cold-start shell.
+- Launcher Activity and cold-start entrypoint structure.
 - Deterministic navigation across S0–S9.
+- Local back navigation and recreation-state restoration.
+- Primary navigation across S0/S1/S3/S7/S9 plus access to all ten surfaces.
 - Explicit CURRENT / PARTIAL / STALE / UNKNOWN / HOLD / DENY / NOT_PROVEN semantics.
 - Synthetic fixture boundaries remain visible in the UI.
+- Institutional product catalog with all ten OCS names, synthetic operations, evidence records, and system projections.
 - EXECUTED never becomes VERIFIED without matching readback.
 - UNKNOWN progress never becomes a fabricated percentage.
 - Unknown graph relations produce HOLD rather than canonical causal acceptance.
 - OCS instance state with missing generation remains PARTIAL.
-- Back navigation is local to the synthetic application shell.
-- CI runs lint, unit tests, longitudinal invariant suites, and produces a debug APK.
+- Offline manifest boundary: no INTERNET permission.
+- CI is designed to run lint, unit tests, longitudinal invariant suites, APK assembly, package/launcher inspection, and an evidence receipt bound to the exact Git SHA.
+
+## Longitudinal surfaces
+
+- S0 — institutional situation
+- S1 — operations
+- S2 — operation detail / receipt-readback semantics
+- S3 — ten-OCS directory
+- S4 — OCS detail / incomplete instance semantics
+- S5 — causal map / unknown relation HOLD
+- S6 — evidence validation
+- S7 — evolution projection
+- S8 — system availability/freshness
+- S9 — conversation/context boundary
 
 ## What this slice does not prove
 
@@ -24,6 +40,7 @@ This module is an **executable Android application slice** for the REIS OS Comma
 - AI runtime integration.
 - Kernel mutation or authority creation.
 - Production readiness.
+- Successful build on the current PR HEAD while GitHub-hosted runners remain unallocated.
 - Real-device accessibility, TalkBack traversal, focus order on device, or device contrast validation.
 
 ## Institutional boundary
@@ -40,4 +57,8 @@ This module is an **executable Android application slice** for the REIS OS Comma
 
 `STALE != CURRENT`
 
-The product slice is intentionally synthetic so that product behavior can be exercised longitudinally without opening authority, persistence, or runtime boundaries prematurely.
+`HANDOFF_DOES_NOT_TRANSFER_AUTHORITY`
+
+`CAPABILITY != AUTHORITY`
+
+The product slice is intentionally synthetic so product behavior can be exercised longitudinally without opening authority, persistence, or runtime boundaries prematurely.
