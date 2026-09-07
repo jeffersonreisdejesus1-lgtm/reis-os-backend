@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import json
+import math
+import unicodedata
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from enum import Enum
-import hashlib
-import math
-from typing import Any, Mapping, Sequence
-import unicodedata
+from enum import StrEnum
+from typing import Any
 
 import yaml
 
@@ -14,14 +16,14 @@ CATALOG_SCOPE_ID = "reis-os/control-plane/physiology-atlas/v0"
 NORMALIZATION_VERSION = "atlas-semantic-v1"
 
 
-class EdgeType(str, Enum):
+class EdgeType(StrEnum):
     COMPOSES = "COMPOSES"
     REQUIRES = "REQUIRES"
     GOVERNED_BY = "GOVERNED_BY"
     EVIDENCED_BY = "EVIDENCED_BY"
 
 
-class Severity(str, Enum):
+class Severity(StrEnum):
     FAIL = "FAIL"
     HOLD = "HOLD"
     DEGRADE = "DEGRADE"
@@ -38,7 +40,7 @@ SEVERITY_RANK: dict[Severity, int] = {
 }
 
 
-class Decision(str, Enum):
+class Decision(StrEnum):
     ALLOW = "ALLOW"
     DENY = "DENY"
 
@@ -104,8 +106,6 @@ def _encode(value: Any) -> str:
         return _canonical_number(value)
     if isinstance(value, str):
         normalized = unicodedata.normalize("NFC", value)
-        import json
-
         return json.dumps(normalized, ensure_ascii=False, separators=(",", ":"))
     if isinstance(value, Mapping):
         pairs: list[tuple[str, Any]] = []
@@ -114,7 +114,10 @@ def _encode(value: Any) -> str:
                 raise AtlasSemanticError("catalog map keys must be strings")
             pairs.append((unicodedata.normalize("NFC", key), child))
         pairs.sort(key=lambda item: item[0].encode("utf-8"))
-        return "{" + ",".join(f"{_encode(key)}:{_encode(child)}" for key, child in pairs) + "}"
+        encoded_pairs = ",".join(
+            f"{_encode(key)}:{_encode(child)}" for key, child in pairs
+        )
+        return "{" + encoded_pairs + "}"
     if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray, str)):
         return "[" + ",".join(_encode(item) for item in value) + "]"
     raise AtlasSemanticError(f"unsupported catalog value: {type(value).__name__}")
