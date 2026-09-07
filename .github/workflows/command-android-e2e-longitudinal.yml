@@ -56,7 +56,7 @@ jobs:
       - name: Assert longitudinal suites executed
         run: |
           set -euo pipefail
-          for suite in LongitudinalFlowChecks ProductSliceE2EChecks ProductDataCatalogChecks ProductJourneyChecks; do
+          for suite in LongitudinalFlowChecks ProductSliceE2EChecks ProductDataCatalogChecks ProductJourneyChecks DecisionLifecycleChecks; do
             report="frontend/command-android/build/test-results/testDebugUnitTest/TEST-reisos.command.${suite}.xml"
             test -f "$report"
             grep -q 'failures="0"' "$report"
@@ -96,6 +96,11 @@ jobs:
           FOUNDER_OBSERVATION_JOURNEY_TESTED=true
           OCS_INSPECTION_JOURNEY_TESTED=true
           EVIDENCE_CROSSING_REQUIRED=true
+          DECISION_LIFECYCLE_TESTED=true
+          AUTHORIZATION_REQUIRES_AUTHORITY_REF=true
+          VERIFICATION_REQUIRES_READBACK=true
+          ASSURANCE_REQUIRES_EVIDENCE=true
+          EXECUTED_CANNOT_SKIP_TO_ASSURED=true
           LINT_REPORT_PRESENT=true
           APK_BADGING_VERIFIED=true
           INTERNET_PERMISSION=false
