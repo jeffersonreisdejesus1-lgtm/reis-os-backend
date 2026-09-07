@@ -13,7 +13,7 @@ permissions:
 jobs:
   longitudinal-command-proof:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -33,30 +33,43 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Longitudinal build, lint, unit and flow proof
+      - name: Longitudinal product-slice build, lint, unit and flow proof
         run: gradle --no-daemon -p frontend/command-android lintDebug testDebugUnitTest assembleDebug
 
       - name: Assert lint evidence
         run: test -f frontend/command-android/build/reports/lint-results-debug.html
 
-      - name: Assert debug artifact
+      - name: Assert executable debug APK
         run: |
           set -euo pipefail
-          find frontend/command-android/build/outputs/aar -maxdepth 1 -type f -name '*-debug.aar' -print -quit | grep -q .
+          find frontend/command-android/build/outputs/apk/debug -maxdepth 1 -type f -name '*.apk' -print -quit | grep -q .
 
-      - name: Assert longitudinal test executed
+      - name: Assert longitudinal suites executed
         run: |
           set -euo pipefail
-          test -f frontend/command-android/build/test-results/testDebugUnitTest/TEST-reisos.command.LongitudinalFlowChecks.xml
-          grep -q 'failures="0"' frontend/command-android/build/test-results/testDebugUnitTest/TEST-reisos.command.LongitudinalFlowChecks.xml
+          for suite in LongitudinalFlowChecks ProductSliceE2EChecks; do
+            report="frontend/command-android/build/test-results/testDebugUnitTest/TEST-reisos.command.${suite}.xml"
+            test -f "$report"
+            grep -q 'failures="0"' "$report"
+            grep -q 'errors="0"' "$report"
+          done
+
+      - name: Assert launcher materialized
+        run: |
+          set -euo pipefail
+          grep -q 'android.intent.action.MAIN' frontend/command-android/src/main/AndroidManifest.xml
+          grep -q 'android.intent.category.LAUNCHER' frontend/command-android/src/main/AndroidManifest.xml
+          grep -q 'com.android.application' frontend/command-android/build.gradle.kts
 
       - name: Boundary declaration
         run: |
-          echo 'COMMAND_ANDROID_E2E_LONGITUDINAL_001=true'
+          echo 'COMMAND_ANDROID_PRODUCT_SLICE_E2E_001=true'
+          echo 'EXECUTABLE_ANDROID_APPLICATION=true'
           echo 'SYNTHETIC_END_TO_END_ONLY=true'
           echo 'LIVE_BACKEND=false'
           echo 'POSTGRES=false'
           echo 'REAL_ATLAS_L5=false'
           echo 'AI_RUNTIME=false'
           echo 'KERNEL_MUTATION=false'
+          echo 'PRODUCTION_READINESS_NOT_PROVEN=true'
           echo 'REAL_DEVICE_ACCESSIBILITY_NOT_PROVEN=true'
