@@ -6,21 +6,21 @@ mirror_authority: derived_noncanonical
 
 # Mirror Sync Status
 
-Last attempt (UTC): 2026-09-07T16:31:22.169353+00:00
+Last attempt (UTC): 2026-09-07T20:38:03.743798+00:00
 
 Successful pages: 0
 Failed pages: 11
 
 ## Failures
 
-- **Nóesis**: `Notion API 401 for /pages/3c9d31bc-7b67-815f-99f6-d31bc49a0a92: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"462e13ef-ddd4-4f70-a7bb-fcb3fa65a85c"}`
-- **Dédala**: `Notion API 401 for /pages/3c9d31bc-7b67-81d1-a02f-fe2a6e21ecfa: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"31d81028-ae58-43b4-b63f-1133b4e5dd6d"}`
-- **Sýnesis**: `Notion API 401 for /pages/3c9d31bc-7b67-816f-b7b2-d56f4a408ec6: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"4a57c1f2-4546-4af6-9090-b0eb1c88bdd6"}`
-- **Íris**: `Notion API 401 for /pages/3c9d31bc-7b67-81f3-94b4-d0502d282ac6: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"6c53bd94-0b20-45b8-8d57-6366c90a87ae"}`
-- **Lyra**: `Notion API 401 for /pages/3c9d31bc-7b67-812c-9e35-f539331ad7b7: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"7728d8d1-2b2b-4f6c-9950-8e1e70089716"}`
-- **Sofia**: `Notion API 401 for /pages/3c9d31bc-7b67-81c3-bb79-e17ebe2017e6: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"d03df13b-ce9a-4354-b9d9-9f5962959a6d"}`
-- **Mêtis**: `Notion API 401 for /pages/3c9d31bc-7b67-8189-8614-e8f9fc0e6dac: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"f2d70e4a-6f7e-4cf5-9d15-9397d6a5fac8"}`
-- **Ágora**: `Notion API 401 for /pages/3c9d31bc-7b67-81fa-8e5c-f952171f5c2b: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"b3ec5c35-a798-4568-b5ce-f0c59cfc46e3"}`
-- **Auri**: `Notion API 401 for /pages/3c9d31bc-7b67-812f-be12-f20a86077669: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"df9db645-cb63-47a6-88b0-690127baeb77"}`
-- **Synergeia**: `Notion API 401 for /pages/3c9d31bc-7b67-81c4-adc3-efa9da150537: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"ae236fc8-0a93-4c86-8d98-bfaa9b2dfbdd"}`
-- **Institucional**: `Notion API 401 for /pages/3cad31bc-7b67-8177-9aef-c4eb3c4ddfd7: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"f3dd06bb-d299-41b9-90e6-fc013ed74b3e"}`
+- **Nóesis**: `Notion API 401 for /pages/3c9d31bc-7b67-815f-99f6-d31bc49a0a92: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"d5273df4-b79c-4062-94af-eac82a908722"}`
+- **Dédala**: `Notion API 401 for /pages/3c9d31bc-7b67-81d1-a02f-fe2a6e21ecfa: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"10f3f0e6-f773-43c7-9fb4-8d2d166e870f"}`
+- **Sýnesis**: `Notion API 401 for /pages/3c9d31bc-7b67-816f-b7b2-d56f4a408ec6: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"0b6097cd-af07-4504-a063-8abb993be033"}`
+- **Íris**: `Notion API 401 for /pages/3c9d31bc-7b67-81f3-94b4-d0502d282ac6: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"b272f5ec-100c-423c-abbb-a211a5a53f8b"}`
+- **Lyra**: `Notion API 401 for /pages/3c9d31bc-7b67-812c-9e35-f539331ad7b7: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"00247596-134c-4db5-a5fa-226b72f0fb84"}`
+- **Sofia**: `Notion API 401 for /pages/3c9d31bc-7b67-81c3-bb79-e17ebe2017e6: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"731dd910-1a34-446f-bf38-25d4232a4f56"}`
+- **Mêtis**: `Notion API 401 for /pages/3c9d31bc-7b67-8189-8614-e8f9fc0e6dac: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"b9c5e36c-d4e9-4cbf-89c2-b9ee8033cbbe"}`
+- **Ágora**: `Notion API 401 for /pages/3c9d31bc-7b67-81fa-8e5c-f952171f5c2b: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"e4bbaef7-fe55-4ef0-8f9c-3a0e16672573"}`
+- **Auri**: `Notion API 401 for /pages/3c9d31bc-7b67-812f-be12-f20a86077669: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"0eaaec3f-b452-48bc-9371-e7bbac09325d"}`
+- **Synergeia**: `Notion API 401 for /pages/3c9d31bc-7b67-81c4-adc3-efa9da150537: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"32041941-0b45-4765-8b57-18005efcd0cb"}`
+- **Institucional**: `Notion API 401 for /pages/3cad31bc-7b67-8177-9aef-c4eb3c4ddfd7: {"object":"error","status":401,"code":"unauthorized","message":"API token is invalid.","request_id":"6dbff029-a059-40fc-aeb7-bb3f4512ddb2"}`
