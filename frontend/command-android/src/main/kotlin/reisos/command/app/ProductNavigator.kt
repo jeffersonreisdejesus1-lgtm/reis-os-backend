@@ -11,10 +11,21 @@ class ProductNavigator(
     startRouteId: String = "S0_HOME",
     priorHistory: List<String> = emptyList(),
 ) {
-    private val history = ArrayDeque<String>().apply { priorHistory.forEach(::addLast) }
+    private val history = ArrayDeque<String>().apply {
+        priorHistory.forEach { addLast(it) }
+    }
 
     var currentRouteId: String = startRouteId
         private set
+
+    init {
+        require(ProductSliceScenario.screens.any { it.routeId == currentRouteId }) {
+            "Unknown Command start route: $currentRouteId"
+        }
+        require(priorHistory.all { prior -> ProductSliceScenario.screens.any { it.routeId == prior } }) {
+            "Unknown Command route in navigation history"
+        }
+    }
 
     fun navigate(routeId: String): Boolean {
         if (routeId == currentRouteId) return false
