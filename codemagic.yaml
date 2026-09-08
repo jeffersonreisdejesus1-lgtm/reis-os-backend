@@ -34,11 +34,16 @@ workflows:
           echo "APK=$APK"
           find frontend/command-android -type f -path '*/build/test-results/*/*.xml' | sort | tee codemagic-artifacts/junit-xml-list.txt
           JUNIT_COUNT=0
+          : > codemagic-artifacts/junit-verdict.txt
           while IFS= read -r report; do
             rel="${report#frontend/command-android/}"
             mkdir -p "codemagic-artifacts/junit/$(dirname "$rel")"
             cp "$report" "codemagic-artifacts/junit/$rel"
             JUNIT_COUNT=$((JUNIT_COUNT + 1))
+            grep -Eq 'failures="0"' "$report"
+            grep -Eq 'errors="0"' "$report"
+            ! grep -Eq 'failures="[1-9]|errors="[1-9]' "$report"
+            printf '%s failures=0 errors=0\n' "$rel" | tee -a codemagic-artifacts/junit-verdict.txt
           done < <(find frontend/command-android -type f -path '*/build/test-results/*/*.xml' | sort)
           printf 'JUNIT_XML_COUNT=%s\n' "$JUNIT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
           for suite in AccessibilitySemanticsChecks ContractChecks DecisionLifecycleChecks LongitudinalFlowChecks ProductDataCatalogChecks ProductJourneyChecks ProductSliceE2EChecks; do
