@@ -1,11 +1,10 @@
-package reisos.command
+package reisos.command.app
 
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.OnBackPressedCallback
 import com.google.android.material.divider.MaterialDivider
-import reisos.command.app.*
 
 class MainActivity : AppCompatActivity() {
     private lateinit var nav: ProductNavigator
