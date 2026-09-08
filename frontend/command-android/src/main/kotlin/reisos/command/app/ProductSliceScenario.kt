@@ -33,7 +33,7 @@ data class ProductBoundary(
     val realAtlasL5: Boolean = false,
     val aiRuntime: Boolean = false,
     val kernelMutation: Boolean = false,
-    val sourceClass: String = "SYNTHETIC_UI_FIXTURE",
+    val sourceClass: String = "LOCAL_PERSISTED_OFFLINE",
 )
 
 object ProductSliceScenario {
@@ -43,9 +43,9 @@ object ProductSliceScenario {
         ProductScreenSpec(
             "S0_HOME",
             "Situação atual",
-            "Visão sintética institucional: mudanças, atenção, bloqueios e decisões.",
+            "Visão operacional local: mudanças, atenção, bloqueios e decisões.",
             ProductSemanticState.NOT_PROVEN,
-            listOf("COMMAND_PROJECTION != SOURCE_OF_TRUTH", "synthetic=true"),
+            listOf("COMMAND_PROJECTION != SOURCE_OF_TRUTH", "persistence=LOCAL_DEVICE"),
         ),
         ProductScreenSpec(
             "S1_OPERATIONS",
@@ -64,7 +64,7 @@ object ProductSliceScenario {
         ProductScreenSpec(
             "S3_OCS_DIRECTORY",
             "OCS",
-            "Diretório sintético de OCS com identidade projetada e disponibilidade explícita.",
+            "Diretório local de OCS com identidade projetada e disponibilidade explícita.",
             ProductSemanticState.CURRENT,
             listOf("NAME_DOES_NOT_PROVE_IDENTITY", "projection_only"),
         ),
@@ -129,9 +129,6 @@ object ProductSliceScenario {
         }
         if (adaptOcsProjection(SyntheticFixtures.ocsMissingGeneration) !is UiState.Partial<*>) {
             add("missing_generation_not_partial")
-        }
-        if (!SyntheticFixtures.institutionCurrentComplete.envelope.synthetic.isSynthetic) {
-            add("synthetic_source_boundary_lost")
         }
         if (boundary.liveBackend || boundary.postgres || boundary.realAtlasL5 || boundary.aiRuntime || boundary.kernelMutation) {
             add("forbidden_runtime_boundary_open")

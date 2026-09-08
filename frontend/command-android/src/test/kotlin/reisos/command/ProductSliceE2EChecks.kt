@@ -44,7 +44,7 @@ class ProductSliceE2EChecks {
         assertFalse(b.realAtlasL5)
         assertFalse(b.aiRuntime)
         assertFalse(b.kernelMutation)
-        assertEquals("SYNTHETIC_UI_FIXTURE", b.sourceClass)
+        assertEquals("LOCAL_PERSISTED_OFFLINE", b.sourceClass)
     }
 
     @Test
