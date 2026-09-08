@@ -5,6 +5,14 @@ on:
     paths:
       - 'frontend/command-android/**'
       - '.github/workflows/command-android-build-proof.yml'
+      - 'codemagic.yaml'
+  push:
+    branches:
+      - 'dedala/command-android-e2e-longitudinal-001'
+    paths:
+      - 'frontend/command-android/**'
+      - '.github/workflows/command-android-build-proof.yml'
+      - 'codemagic.yaml'
   workflow_dispatch:
 
 permissions:
@@ -22,11 +30,25 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle 8.14.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.14.1'
+
       - name: Material executor preflight
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ github.event_name }}" = "workflow_dispatch" || test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
+          test "${{ github.event_name }}" = "workflow_dispatch" || test "${{ github.event_name }}" = "push" || test "$(git rev-parse HEAD)" = "${{ github.event.pull_request.head.sha }}"
           java -version 2>&1 | tee java-version.txt
           java -version 2>&1 | grep -q '"17'
           git --version | tee git-version.txt
@@ -34,10 +56,13 @@ jobs:
           test -n "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           sdk_root="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
           test -d "$sdk_root"
-          aapt_path="$(find "$sdk_root/build-tools" -type f -name aapt -print -quit)"
-          test -n "$aapt_path"
-          "$aapt_path" version | tee aapt-version.txt
-          printf 'HEAD=%s\nBRANCH=%s\nRUNNER=%s\n' "$(git rev-parse HEAD)" "$(git branch --show-current)" "${RUNNER_NAME}" | tee executor-receipt.txt
+          aapt_path="$(find "$sdk_root/build-tools" -type f -name aapt -print -quit || true)"
+          if [ -z "$aapt_path" ]; then
+            echo "WARN: aapt not in build-tools yet; assemble will install build-tools"
+          else
+            "$aapt_path" version | tee aapt-version.txt
+          fi
+          printf 'HEAD=%s\nEVENT=%s\nRUNNER=%s\n' "$(git rev-parse HEAD)" "${{ github.event_name }}" "${RUNNER_NAME}" | tee executor-receipt.txt
 
       - name: Verify Command source contract
         shell: bash
@@ -73,7 +98,8 @@ jobs:
           test "${#apks[@]}" -eq 1
           apk="${apks[0]}"
           sdk_root="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
-          aapt_path="$(find "$sdk_root/build-tools" -type f -name aapt -print -quit)"
+          aapt_path="$(find "$sdk_root/build-tools" -type f -name aapt -print | sort -V | tail -1)"
+          test -n "$aapt_path"
           "$aapt_path" dump badging "$apk" | tee apk-badging.txt
           grep -q "package: name='com.reisos.command'" apk-badging.txt
           grep -q "launchable-activity: name='reisos.command.app.MainActivity'" apk-badging.txt
