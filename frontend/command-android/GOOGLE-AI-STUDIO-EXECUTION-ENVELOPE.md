@@ -4,19 +4,25 @@ MISSION: COMMAND_ANDROID_PRODUCT_SLICE_E2E_001
 EXECUTION_ENGINE: GOOGLE_AI_STUDIO / GEMINI
 REPOSITORY: jeffersonreisdejesus1-lgtm/reis-os-backend
 BRANCH: dedala/command-android-e2e-longitudinal-001
-HEAD_POLICY: RESOLVE_CURRENT_PR_HEAD_AT_EXECUTION
+HEAD_RESOLUTION: resolve current PR #75 head at execution time
 
 ## Objective
 
 Execute and falsify the complete Command Android longitudinal product slice in one run. Do not decompose this into microgates. Return one final evidence package and one verdict.
 
-## Exact-head rule
+## Local preflight already executed from this seat
 
-Before execution, resolve the current HEAD SHA of PR #75 / branch `dedala/command-android-e2e-longitudinal-001` from GitHub and record it as `EXECUTION_HEAD`.
+The following source-derived pure-Kotlin longitudinal checks were materially executed with `kotlinc` against the current modeled rules before handoff to the Android executor:
 
-The checked-out repository must exactly match `EXECUTION_HEAD`. If it does not, STOP with `HEAD_MISMATCH`.
+- Founder observation journey validation = PASS
+- OCS inspection journey validation = PASS
+- canonical decision happy path = PASS
+- illegal `EXECUTED -> ASSURED` transition = REJECTED
+- authorization without authority reference = REJECTED
+- verification without readback = REJECTED
+- assurance without evidence = REJECTED
 
-Do not execute against an older commit merely because it appears in this envelope's history.
+This preflight is supplementary evidence only. It does not replace Gradle/Android/APK execution.
 
 ## Hard boundaries
 
@@ -31,11 +37,12 @@ Do not execute against an older commit merely because it appears in this envelop
 
 ## Required repository checks
 
-1. Confirm the checked-out commit exactly matches `EXECUTION_HEAD`.
-2. Confirm `frontend/command-android/build.gradle.kts` uses `com.android.application`.
-3. Confirm application id is `com.reisos.command`.
-4. Confirm `AndroidManifest.xml` exposes `reisos.command.app.MainActivity` as MAIN/LAUNCHER.
-5. Confirm no `android.permission.INTERNET` is declared.
+1. Resolve the current head SHA of PR #75 and record it as `HEAD`.
+2. Confirm the checked-out branch is `dedala/command-android-e2e-longitudinal-001` at that exact HEAD. If not, STOP with `HEAD_MISMATCH`.
+3. Confirm `frontend/command-android/build.gradle.kts` uses `com.android.application`.
+4. Confirm application id is `com.reisos.command`.
+5. Confirm `AndroidManifest.xml` exposes `reisos.command.app.MainActivity` as MAIN/LAUNCHER.
+6. Confirm no `android.permission.INTERNET` is declared.
 
 ## Required execution
 
@@ -108,7 +115,7 @@ Return exactly one structured result containing:
 
 ```text
 MISSION=COMMAND_ANDROID_PRODUCT_SLICE_E2E_001
-HEAD=<EXECUTION_HEAD>
+HEAD=<exact sha>
 GRADLE_BUILD=<PASS|FAIL>
 LINT=<PASS|FAIL>
 UNIT_TESTS=<PASS|FAIL>
