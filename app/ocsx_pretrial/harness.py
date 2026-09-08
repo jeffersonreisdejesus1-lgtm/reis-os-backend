@@ -252,7 +252,7 @@ class SyntheticPretrialHarness:
             generation_id=checkpoint.generation_id,
             namespace=checkpoint.namespace,
             l0_hash=checkpoint.l0_hash,
-            allowed_tools=allowed_tools or frozenset({"synthetic-read", "synthetic-write"}),
+            allowed_tools=(allowed_tools if allowed_tools is not None else frozenset({"synthetic-read", "synthetic-write"})),
             writer_id=checkpoint.writer_id,
             stopped=checkpoint.stopped,
             stop_reason=checkpoint.stop_reason,
