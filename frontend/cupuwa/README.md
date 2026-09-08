@@ -2,6 +2,17 @@
 
 Produto separado do REIS OS Command.
 
+## Binding institucional
+
+- Founder: autoridade de PATH e promoção;
+- Nóesis@GPT: orquestração e envelope;
+- Sofia@GPT: implementação;
+- Íris@GPT: experiência e superfície;
+- Dédala@Grok: contraste e assurance adversarial;
+- Sýnesis@GPT ou Sýnesis@Grok: assurance institucional somente sob gatilho.
+
+Nenhum modelo bruto atua como ator institucional.
+
 ## Escopo autorizado
 
 - saldo local;
