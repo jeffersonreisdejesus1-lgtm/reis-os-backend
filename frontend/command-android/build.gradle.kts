@@ -1,5 +1,5 @@
 plugins {
-    id("com.android.library") version "8.7.3"
+    id("com.android.application") version "8.7.3"
     id("org.jetbrains.kotlin.android") version "2.0.21"
 }
 
@@ -8,9 +8,12 @@ android {
     compileSdk = 35
 
     defaultConfig {
+        applicationId = "com.reisos.command"
         minSdk = 23
+        targetSdk = 35
+        versionCode = 1
+        versionName = "0.1.0-longitudinal"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        consumerProguardFiles("consumer-rules.pro")
     }
 
     sourceSets {
@@ -24,7 +27,7 @@ android {
     }
 
     buildFeatures {
-        buildConfig = false
+        buildConfig = true
     }
 
     compileOptions {
@@ -44,4 +47,4 @@ dependencies {
     testImplementation(kotlin("test"))
 }
 
-// NON_RUNTIME_PREPARATION_ONLY: no networking, persistence, Atlas, L5, AI, or Kernel mutation dependency.
+// SYNTHETIC_PRODUCT_SLICE_ONLY: no networking, persistence, Atlas/L5, AI, or Kernel mutation dependency.

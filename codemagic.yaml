@@ -1,0 +1,62 @@
+workflows:
+  command-android-material:
+    name: Command Android material execution
+    max_build_duration: 60
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: dedala/command-android-e2e-longitudinal-001
+          include: true
+          source: true
+      cancel_previous_builds: true
+    environment:
+      java: 17
+    scripts:
+      - name: Material Android build
+        script: |
+          set -euo pipefail
+          mkdir -p codemagic-artifacts
+          gradle --version 2>&1 | tee codemagic-artifacts/gradle-version.log
+          gradle --no-daemon -p frontend/command-android clean lintDebug testDebugUnitTest assembleDebug 2>&1 | tee codemagic-artifacts/gradle-build.log
+      - name: Collect APK and complete evidence
+        script: |
+          set -euxo pipefail
+          mkdir -p codemagic-artifacts/junit codemagic-artifacts/lint
+          APK="$(find frontend/command-android -type f -path '*/build/outputs/apk/debug/*.apk' | sort)"
+          test "$(printf '%s\n' "$APK" | sed '/^$/d' | wc -l)" -eq 1
+          cp "$APK" codemagic-artifacts/command-debug.apk
+          AAPT="$(find "${ANDROID_HOME:-${ANDROID_SDK_ROOT}}" -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$AAPT"
+          "$AAPT" dump badging "$APK" | tee codemagic-artifacts/aapt-badging.txt
+          grep -F "package: name='com.reisos.command'" codemagic-artifacts/aapt-badging.txt
+          sha256sum "$APK" | tee codemagic-artifacts/command-debug.apk.sha256
+          echo "APK=$APK"
+          find frontend/command-android -type f -path '*/build/test-results/*/*.xml' | sort | tee codemagic-artifacts/junit-xml-list.txt
+          JUNIT_COUNT=0
+          : > codemagic-artifacts/junit-verdict.txt
+          while IFS= read -r report; do
+            rel="${report#frontend/command-android/}"
+            mkdir -p "codemagic-artifacts/junit/$(dirname "$rel")"
+            cp "$report" "codemagic-artifacts/junit/$rel"
+            JUNIT_COUNT=$((JUNIT_COUNT + 1))
+            grep -Eq 'failures="0"' "$report"
+            grep -Eq 'errors="0"' "$report"
+            ! grep -Eq 'failures="[1-9]|errors="[1-9]' "$report"
+            printf '%s failures=0 errors=0\n' "$rel" | tee -a codemagic-artifacts/junit-verdict.txt
+          done < <(find frontend/command-android -type f -path '*/build/test-results/*/*.xml' | sort)
+          printf 'JUNIT_XML_COUNT=%s\n' "$JUNIT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
+          for suite in AccessibilitySemanticsChecks ContractChecks DecisionLifecycleChecks LongitudinalFlowChecks ProductDataCatalogChecks ProductJourneyChecks ProductSliceE2EChecks; do
+            grep -F "$suite" codemagic-artifacts/junit-xml-list.txt
+          done
+          find frontend/command-android -type f \( -path '*/build/reports/lint-results-*.html' -o -path '*/build/reports/lint-results-*.xml' \) | sort | tee codemagic-artifacts/lint-report-list.txt
+          LINT_COUNT=0
+          while IFS= read -r report; do
+            cp "$report" "codemagic-artifacts/lint/$(basename "$report")"
+            LINT_COUNT=$((LINT_COUNT + 1))
+          done < <(find frontend/command-android -type f \( -path '*/build/reports/lint-results-*.html' -o -path '*/build/reports/lint-results-*.xml' \) | sort)
+          printf 'LINT_REPORT_COUNT=%s\n' "$LINT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
+          test "$JUNIT_COUNT" -eq 7
+          test "$LINT_COUNT" -ge 1
+    artifacts:
+      - codemagic-artifacts/**
