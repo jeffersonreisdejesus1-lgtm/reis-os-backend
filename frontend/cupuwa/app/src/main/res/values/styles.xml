@@ -1,6 +1,0 @@
-<resources>
-    <style name="Theme.Cupuwa" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#5B3CC4</item>
-    </style>
-</resources>
