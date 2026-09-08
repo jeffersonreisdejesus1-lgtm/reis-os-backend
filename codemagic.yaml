@@ -41,6 +41,9 @@ workflows:
             JUNIT_COUNT=$((JUNIT_COUNT + 1))
           done < <(find frontend/command-android -type f -path '*/build/test-results/*/*.xml' | sort)
           printf 'JUNIT_XML_COUNT=%s\n' "$JUNIT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
+          for suite in AccessibilitySemanticsChecks ContractChecks DecisionLifecycleChecks LongitudinalFlowChecks ProductDataCatalogChecks ProductJourneyChecks ProductSliceE2EChecks; do
+            grep -F "$suite" codemagic-artifacts/junit-xml-list.txt
+          done
           find frontend/command-android -type f \( -path '*/build/reports/lint-results-*.html' -o -path '*/build/reports/lint-results-*.xml' \) | sort | tee codemagic-artifacts/lint-report-list.txt
           LINT_COUNT=0
           while IFS= read -r report; do
@@ -48,7 +51,7 @@ workflows:
             LINT_COUNT=$((LINT_COUNT + 1))
           done < <(find frontend/command-android -type f \( -path '*/build/reports/lint-results-*.html' -o -path '*/build/reports/lint-results-*.xml' \) | sort)
           printf 'LINT_REPORT_COUNT=%s\n' "$LINT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
-          test "$JUNIT_COUNT" -eq 6
+          test "$JUNIT_COUNT" -eq 7
           test "$LINT_COUNT" -ge 1
     artifacts:
       - codemagic-artifacts/**
