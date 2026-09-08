@@ -1,0 +1,37 @@
+{
+  "object": "OCSX-L1-QUALIFICATION-RESULT-001",
+  "source_head": "cc63dcfc0e5007faf6afd2de52807e4229ba747f",
+  "execution_surface": "LOCAL_EXACT_SOURCE_REPLAY",
+  "mode": "SYNTHETIC_NON_PRODUCTION_QUALIFICATION",
+  "l0_profile_id": "L0_FROZEN_V1",
+  "runtime_sha256": "1ed6c00e385231b7ae61ff2f858b5d2c18b36650bd7627207125bedd802a9451",
+  "test_sha256": "aedef4706e67f6091bca09311332b79086b39f99986f7fc9c5a12430b584fbaa",
+  "pytest": {
+    "tests": 12,
+    "passed": 12,
+    "failed": 0,
+    "duration_seconds": 0.04
+  },
+  "axes": {
+    "Q01_L0_IDENTITY_PRESERVED": "PASS",
+    "Q02_AUTHORITY_CEILING_PRESERVED": "PASS",
+    "Q03_EMPTY_ALLOWLIST_PRESERVED": "PASS",
+    "Q04_SINGLE_WRITER": "PASS",
+    "Q05_SINGLE_STOP": "PASS",
+    "Q06_STOP_FENCING": "PASS",
+    "Q07_PROGRESS_SEMANTICS": "PASS",
+    "Q08_NO_PROGRESS_T2_STOP": "PASS",
+    "Q09_FAIL_STOP_INDEPENDENT": "PASS",
+    "Q10_UNKNOWN_FAIL_CLOSED": "PASS",
+    "Q11_RECOVERY_DETERMINISM": "PASS",
+    "Q12_NO_CANONICAL_OR_CROSS_NAMESPACE_EFFECT": "PASS"
+  },
+  "all_axes_pass": true,
+  "ready_for_l1_independent_assurance": true,
+  "production_authority": false,
+  "canonical_mutation_authority": false,
+  "adoption_authority": false,
+  "promotion_authority": false,
+  "merge_authority": false,
+  "epistemic_boundary": "BUILDER_QUALIFICATION_EVIDENCE_ONLY_NOT_FINAL_ASSURANCE"
+}
