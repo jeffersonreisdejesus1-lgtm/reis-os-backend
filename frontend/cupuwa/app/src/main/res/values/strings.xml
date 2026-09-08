@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CUPUWA</string>
+    <string name="tagline">O caixa do seu dia</string>
+    <string name="balance_label">Saldo</string>
+    <string name="today_label">Hoje</string>
+    <string name="add_income">Entrada</string>
+    <string name="add_expense">Saída</string>
+    <string name="history">Movimentações</string>
+    <string name="empty">Nenhuma movimentação ainda.\nRegiste a primeira entrada do dia.</string>
+    <string name="amount">Valor</string>
+    <string name="description">Descrição</string>
+    <string name="save">Guardar</string>
+    <string name="edit">Editar</string>
+    <string name="delete">Excluir</string>
+    <string name="delete_title">Excluir lançamento?</string>
+    <string name="cancel">Cancelar</string>
+    <string name="amount_hint">0,00</string>
+</resources>

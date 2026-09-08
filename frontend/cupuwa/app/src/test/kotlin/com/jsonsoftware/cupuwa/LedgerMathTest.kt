@@ -9,20 +9,19 @@ class LedgerMathTest {
         assertEquals(2590L, LedgerMath.parseCents("25,90"))
         assertEquals(2590L, LedgerMath.parseCents("25.90"))
         assertEquals(125090L, LedgerMath.parseCents("1.250,90"))
+        assertEquals(2590L, LedgerMath.parseCents("R$ 25,90"))
     }
 
     @Test fun formatsCentsAsBrazilianReais() {
         assertEquals("R$ 25,90", LedgerMath.formatBrl(2590L))
-        assertEquals("R$ 2.590,00", LedgerMath.formatBrl(259000L).replace(".", "").let {
-            // integer formatter has no thousands sep; lock the cents contract
-            LedgerMath.formatBrl(259000L)
-        })
-        assertEquals("R$ 2590,00", LedgerMath.formatBrl(259000L))
+        assertEquals("R$ 2.590,00", LedgerMath.formatBrl(259000L))
+        assertEquals("R$ 1.250,90", LedgerMath.formatBrl(125090L))
         assertEquals("- R$ 25,90", LedgerMath.formatBrl(-2590L))
     }
 
     @Test fun roundTripDoesNotPromoteCentsToReais() {
         assertEquals("R$ 25,90", LedgerMath.formatBrl(LedgerMath.parseCents("25,90")))
+        assertEquals("R$ 2.590,00", LedgerMath.formatBrl(LedgerMath.parseCents("2.590,00")))
     }
 
     @Test fun computesIncomeMinusExpense() {

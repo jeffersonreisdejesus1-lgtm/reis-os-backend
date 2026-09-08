@@ -1,220 +1,119 @@
 package com.jsonsoftware.cupuwa
 
-import android.graphics.Color
+import android.content.Intent
 import android.os.Bundle
-import android.text.InputType
+import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var store: LocalLedgerStore
-    private lateinit var balanceView: TextView
-    private lateinit var amountInput: EditText
-    private lateinit var descriptionInput: EditText
-    private lateinit var historyView: LinearLayout
-    private lateinit var primaryAction: MaterialButton
-    private var editingId: Long? = null
-    private var editingKind: MoneyEntry.Kind = MoneyEntry.Kind.INCOME
+    private lateinit var adapter: MovementAdapter
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        setContentView(R.layout.activity_home)
         store = LocalLedgerStore(this)
-        render()
+        adapter = MovementAdapter(
+            onEdit = { openMovement(it.kind, it.id) },
+            onDelete = { confirmDelete(it) },
+        )
+        findViewById<RecyclerView>(R.id.historyList).apply {
+            layoutManager = LinearLayoutManager(this@MainActivity)
+            adapter = this@MainActivity.adapter
+        }
+        findViewById<MaterialButton>(R.id.incomeButton).setOnClickListener {
+            openMovement(MoneyEntry.Kind.INCOME, null)
+        }
+        findViewById<MaterialButton>(R.id.expenseButton).setOnClickListener {
+            openMovement(MoneyEntry.Kind.EXPENSE, null)
+        }
     }
 
-    private fun render() {
-        val padding = dp(20)
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(padding, padding, padding, padding)
-        }
-
-        root.addView(TextView(this).apply {
-            text = "CUPUWA"
-            textSize = 30f
-            setTextColor(Color.rgb(42, 28, 72))
-            contentDescription = "CUPUWA"
-        })
-        root.addView(TextView(this).apply {
-            text = "Seu dinheiro, claro e local."
-            textSize = 16f
-        })
-
-        root.addView(label("Saldo atual", padding))
-        balanceView = TextView(this).apply {
-            textSize = 36f
-            setTextColor(Color.rgb(42, 28, 72))
-            contentDescription = "Saldo atual"
-        }
-        root.addView(balanceView)
-
-        root.addView(label("Valor", padding))
-        amountInput = EditText(this).apply {
-            hint = "Ex.: 25,90"
-            inputType = InputType.TYPE_CLASS_TEXT
-            contentDescription = "Valor da movimentação"
-        }
-        root.addView(amountInput, fieldParams())
-
-        root.addView(label("Descrição", 4))
-        descriptionInput = EditText(this).apply {
-            hint = "Opcional"
-            contentDescription = "Descrição da movimentação"
-        }
-        root.addView(descriptionInput, fieldParams())
-
-        val actions = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(0, 8, 0, 0)
-        }
-        primaryAction = MaterialButton(this).apply {
-            text = "Adicionar entrada"
-            isAllCaps = false
-            minHeight = dp(48)
-            contentDescription = "Adicionar entrada"
-            setOnClickListener { record(MoneyEntry.Kind.INCOME) }
-        }
-        actions.addView(primaryAction)
-        actions.addView(MaterialButton(this).apply {
-            text = "Adicionar saída"
-            isAllCaps = false
-            minHeight = dp(48)
-            contentDescription = "Adicionar saída"
-            setOnClickListener { record(MoneyEntry.Kind.EXPENSE) }
-        })
-        actions.addView(MaterialButton(this).apply {
-            text = "Cancelar edição"
-            isAllCaps = false
-            minHeight = dp(48)
-            contentDescription = "Cancelar edição"
-            setOnClickListener { clearEditor() }
-        })
-        root.addView(actions)
-
-        root.addView(TextView(this).apply {
-            text = "Histórico"
-            textSize = 22f
-            setPadding(0, padding, 0, padding / 2)
-            contentDescription = "Histórico"
-        })
-        historyView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        root.addView(historyView)
-
-        setContentView(ScrollView(this).apply { addView(root) })
+    override fun onResume() {
+        super.onResume()
         refresh()
-    }
-
-    private fun record(kind: MoneyEntry.Kind) {
-        runCatching {
-            val cents = LedgerMath.parseCents(amountInput.text.toString())
-            val description = descriptionInput.text.toString()
-            val currentId = editingId
-            if (currentId == null) {
-                store.add(cents, kind, description)
-            } else {
-                store.update(currentId, cents, kind, description)
-            }
-            clearEditor()
-            refresh()
-        }.onFailure {
-            Toast.makeText(this, it.message ?: "Valor inválido", Toast.LENGTH_SHORT).show()
-        }
     }
 
     private fun refresh() {
         val entries = store.entries()
-        balanceView.text = LedgerMath.formatBrl(LedgerMath.balanceCents(entries))
-        historyView.removeAllViews()
-        if (entries.isEmpty()) {
-            historyView.addView(TextView(this).apply {
-                text = "Nenhuma movimentação ainda."
-                textSize = 16f
-                setPadding(0, 8, 0, 8)
-                contentDescription = "Nenhuma movimentação ainda"
-            })
-            return
-        }
-        entries.forEach { entry ->
-            val row = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                setPadding(0, 8, 0, 8)
-            }
-            val kindLabel = if (entry.kind == MoneyEntry.Kind.INCOME) "entrada" else "saída"
-            val sign = if (entry.kind == MoneyEntry.Kind.INCOME) "+" else "-"
-            row.addView(TextView(this).apply {
-                text = "$sign ${LedgerMath.formatBrl(entry.cents)} · ${entry.description} ($kindLabel)"
-                textSize = 16f
-                contentDescription = text
-            })
-            val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-            buttons.addView(MaterialButton(this).apply {
-                text = "Editar"
-                isAllCaps = false
-                contentDescription = "Editar ${entry.description}"
-                setOnClickListener { startEdit(entry) }
-            })
-            buttons.addView(MaterialButton(this).apply {
-                text = "Excluir"
-                isAllCaps = false
-                contentDescription = "Excluir ${entry.description}"
-                setOnClickListener { confirmDelete(entry) }
-            })
-            row.addView(buttons)
-            historyView.addView(row)
-        }
+        findViewById<TextView>(R.id.balanceView).text = LedgerMath.formatBrl(LedgerMath.balanceCents(entries))
+        val (income, expense) = LedgerMath.todayTotals(entries)
+        findViewById<TextView>(R.id.todayView).text =
+            "Hoje  + ${LedgerMath.formatBrl(income)}   - ${LedgerMath.formatBrl(expense)}"
+        findViewById<TextView>(R.id.emptyView).visibility =
+            if (entries.isEmpty()) View.VISIBLE else View.GONE
+        adapter.submit(entries)
     }
 
-    private fun startEdit(entry: MoneyEntry) {
-        editingId = entry.id
-        editingKind = entry.kind
-        amountInput.setText(LedgerMath.formatBrl(entry.cents).removePrefix("- ").removePrefix("R$ "))
-        descriptionInput.setText(entry.description)
-        primaryAction.text = "Salvar alteração"
-        primaryAction.contentDescription = "Salvar alteração"
-        primaryAction.setOnClickListener { record(editingKind) }
-        Toast.makeText(this, "Editando lançamento", Toast.LENGTH_SHORT).show()
+    private fun openMovement(kind: MoneyEntry.Kind, id: Long?) {
+        startActivity(
+            Intent(this, MovementActivity::class.java)
+                .putExtra(MovementActivity.EXTRA_KIND, kind.name)
+                .putExtra(MovementActivity.EXTRA_ID, id ?: -1L),
+        )
     }
 
     private fun confirmDelete(entry: MoneyEntry) {
         AlertDialog.Builder(this)
-            .setTitle("Excluir lançamento?")
+            .setTitle(R.string.delete_title)
             .setMessage("${LedgerMath.formatBrl(entry.cents)} · ${entry.description}")
-            .setNegativeButton("Cancelar", null)
-            .setPositiveButton("Excluir") { _, _ ->
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.delete) { _, _ ->
                 store.delete(entry.id)
-                if (editingId == entry.id) clearEditor()
                 refresh()
             }
             .show()
     }
+}
 
-    private fun clearEditor() {
-        editingId = null
-        amountInput.text.clear()
-        descriptionInput.text.clear()
-        primaryAction.text = "Adicionar entrada"
-        primaryAction.contentDescription = "Adicionar entrada"
-        primaryAction.setOnClickListener { record(MoneyEntry.Kind.INCOME) }
+class MovementAdapter(
+    private val onEdit: (MoneyEntry) -> Unit,
+    private val onDelete: (MoneyEntry) -> Unit,
+) : RecyclerView.Adapter<MovementAdapter.Holder>() {
+    private var items: List<MoneyEntry> = emptyList()
+    private val time = SimpleDateFormat("dd/MM · HH:mm", Locale("pt", "BR"))
+
+    fun submit(value: List<MoneyEntry>) {
+        items = value
+        notifyDataSetChanged()
     }
 
-    private fun label(text: String, top: Int) = TextView(this).apply {
-        this.text = text
-        textSize = 17f
-        setPadding(0, top, 0, 4)
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
+        val view = LayoutInflater.from(parent.context).inflate(R.layout.item_movement, parent, false)
+        return Holder(view)
     }
 
-    private fun fieldParams() = LinearLayout.LayoutParams(
-        ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.WRAP_CONTENT,
-    ).apply { bottomMargin = 8 }
+    override fun getItemCount(): Int = items.size
 
-    private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt()
+    override fun onBindViewHolder(holder: Holder, position: Int) {
+        val entry = items[position]
+        val income = entry.kind == MoneyEntry.Kind.INCOME
+        holder.description.text = entry.description
+        holder.meta.text = time.format(Date(entry.createdAtMillis)) +
+            if (income) " · entrada" else " · saída"
+        holder.amount.text = (if (income) "+ " else "- ") + LedgerMath.formatBrl(entry.cents)
+        holder.amount.setTextColor(
+            holder.itemView.context.getColor(if (income) R.color.cupuwa_income else R.color.cupuwa_expense),
+        )
+        holder.edit.setOnClickListener { onEdit(entry) }
+        holder.delete.setOnClickListener { onDelete(entry) }
+    }
+
+    class Holder(view: View) : RecyclerView.ViewHolder(view) {
+        val description: TextView = view.findViewById(R.id.itemDescription)
+        val meta: TextView = view.findViewById(R.id.itemMeta)
+        val amount: TextView = view.findViewById(R.id.itemAmount)
+        val edit: MaterialButton = view.findViewById(R.id.editButton)
+        val delete: MaterialButton = view.findViewById(R.id.deleteButton)
+    }
 }

@@ -12,28 +12,33 @@ class LocalLedgerStore(context: Context) {
             .filter { it.isNotBlank() }
             .mapNotNull { row ->
                 val fields = row.split(FIELD_SEPARATOR)
-                if (fields.size != 4) return@mapNotNull null
+                if (fields.size !in 4..5) return@mapNotNull null
                 runCatching {
                     MoneyEntry(
                         id = fields[0].toLong(),
                         cents = fields[1].toLong(),
                         kind = MoneyEntry.Kind.valueOf(fields[2]),
                         description = fields[3],
+                        createdAtMillis = fields.getOrNull(4)?.toLongOrNull() ?: fields[0].toLong(),
                     )
                 }.getOrNull()
             }
-            .sortedByDescending { it.id }
+            .sortedByDescending { it.createdAtMillis }
 
     fun add(cents: Long, kind: MoneyEntry.Kind, description: String): MoneyEntry {
+        val now = System.currentTimeMillis()
         val entry = MoneyEntry(
-            id = System.currentTimeMillis(),
+            id = now,
             cents = cents,
             kind = kind,
             description = defaultDescription(kind, description),
+            createdAtMillis = now,
         )
         persist(listOf(entry) + entries())
         return entry
     }
+
+    fun get(id: Long): MoneyEntry? = entries().firstOrNull { it.id == id }
 
     fun update(id: Long, cents: Long, kind: MoneyEntry.Kind, description: String) {
         val current = entries()
@@ -54,16 +59,18 @@ class LocalLedgerStore(context: Context) {
     }
 
     fun delete(id: Long) {
-        val remaining = entries().filterNot { it.id == id }
-        require(remaining.size != entries().size) { "Lançamento não encontrado" }
+        val current = entries()
+        val remaining = current.filterNot { it.id == id }
+        require(remaining.size != current.size) { "Lançamento não encontrado" }
         persist(remaining)
     }
 
     private fun persist(items: List<MoneyEntry>) {
         val encoded = items.joinToString(RECORD_SEPARATOR) {
-            listOf(it.id, it.cents, it.kind.name, it.description).joinToString(FIELD_SEPARATOR)
+            listOf(it.id, it.cents, it.kind.name, it.description, it.createdAtMillis)
+                .joinToString(FIELD_SEPARATOR)
         }
-        preferences.edit().putString(KEY_ENTRIES, encoded).apply()
+        preferences.edit().putString(KEY_ENTRIES, encoded).commit()
     }
 
     private fun defaultDescription(kind: MoneyEntry.Kind, description: String): String =
