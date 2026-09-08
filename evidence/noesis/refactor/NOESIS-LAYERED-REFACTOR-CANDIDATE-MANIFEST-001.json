@@ -1,0 +1,46 @@
+{
+  "object": "NOESIS-LAYERED-REFACTOR-CANDIDATE-MANIFEST-001",
+  "candidate_version": "v0.3.0-noncanonical",
+  "base_canonical_ec": "EC-NOESIS-007",
+  "base_package": "NOESIS_NATIVE_EC007_20260823_v0.2.1.zip",
+  "base_package_sha256": "691d738823b52265af6a268a287e3475e446a4b7f3aaec681856b3f27cdcd06c",
+  "base_l0_binding_hash": "650ce1748e368055d79cf97db887f71976141f434afa589ae924e07fb7dc605f",
+  "candidate_package": "NOESIS_NATIVE_EC007_LAYERED_REFACTOR_CANDIDATE_20260908_v0.3.0.zip",
+  "candidate_package_sha256": "55fab30eb97289b8f1c977b9d63c8c07d08d97a4d015dcfde8fc9dc3ac706f14",
+  "patch_sha256": "5a73d8b59783d654683f88a5931ca0a6bc6618ed6ad5946ff0d785a56c6c7f95",
+  "architecture": [
+    "R1_EXPLICIT_STATE_BLACKBOARD",
+    "R2_PROGRESS_MONITOR",
+    "R3_TYPED_TRANSITIONS",
+    "R4_SCHEDULER",
+    "R5_TELEMETRY",
+    "R6_FORMAL_CHECKS"
+  ],
+  "ancestral_identity": {
+    "idi": "REISOS::INST::NOESIS::001",
+    "current_ec": "EC-NOESIS-007",
+    "runtime_id": "NOESIS-NATIVE-EC007",
+    "mutation_allowed": false
+  },
+  "mechanism_rule": "L1..L6_MAY_CONTROL_MECHANISM_MUST_NOT_ALTER_IDENTITY",
+  "authority_rule": "ORCHESTRATION_NE_AUTHORITY",
+  "handoff_rule": "HANDOFF_NE_AUTHORITY_TRANSFER",
+  "assurance_rule": "BUILDER_ROLE_NE_FINAL_ASSURANCE_ROLE",
+  "test_receipts": {
+    "baseline": "100/100 PASS",
+    "candidate_fresh_replay": "112/112 PASS",
+    "native_cognition_equivalence": true,
+    "qualification_report_sha256": "c2e4a5f891fbdcbd1e4d141b3dc80638f285564a77a13944c5b62a041bfc5b87"
+  },
+  "forbidden": [
+    "SELF_ASSURANCE",
+    "SELF_PROMOTION",
+    "CREATE_AUTHORITY",
+    "BYPASS_FOUNDER_GATE",
+    "CANONICAL_WRITE",
+    "PRODUCTION",
+    "MERGE"
+  ],
+  "promotion": "NOT_AUTHORIZED",
+  "canonical_mutation": "NONE"
+}
