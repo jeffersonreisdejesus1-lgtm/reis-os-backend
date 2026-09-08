@@ -16,14 +16,14 @@ data class MoneyEntry(
 
 object LedgerMath {
     fun parseCents(raw: String): Long {
-        val trimmed = raw.trim().replace("R$", "", ignoreCase = true).trim()
+        val trimmed = raw.trim().replace("R$", "", ignoreCase = true).replace(" ", "")
         require(trimmed.isNotEmpty()) { "Valor obrigatório" }
         val normalized = when {
             trimmed.contains(',') && trimmed.contains('.') ->
                 trimmed.replace(".", "").replace(',', '.')
             trimmed.contains(',') ->
-                trimmed.replace('.', ' ').replace(" ", "").replace(',', '.')
-            else -> trimmed.replace(".", "")
+                trimmed.replace(',', '.')
+            else -> trimmed
         }
         require(normalized.matches(Regex("\\d+(\\.\\d{1,2})?"))) { "Valor inválido" }
         return BigDecimal(normalized)
