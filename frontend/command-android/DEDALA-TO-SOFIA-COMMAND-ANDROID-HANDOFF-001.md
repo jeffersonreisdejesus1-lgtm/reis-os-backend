@@ -21,82 +21,41 @@ SOFIA receives the materialized implementation state and is responsible for comp
 
 ## Current materialized state
 
-PR #75 already contains:
+PR #75 already contains an executable Android application module, `com.reisos.command`, MAIN/LAUNCHER `MainActivity`, deterministic S0–S9 navigation, explicit state semantics, the ten-OCS synthetic catalog, operation/evidence/system catalogs, Founder and OCS journeys, lifecycle invariants, structural accessibility semantics, an offline boundary with no INTERNET permission, longitudinal tests, and APK/badging evidence requirements.
 
-- executable Android application module (`com.android.application`)
-- application id `com.reisos.command`
-- `MainActivity` MAIN/LAUNCHER entrypoint
-- deterministic navigation across S0–S9
-- primary navigation S0/S1/S3/S7/S9
-- navigation history and recreation-state restoration
-- explicit CURRENT / PARTIAL / STALE / UNKNOWN / HOLD / DENY / NOT_PROVEN semantics
-- 10-OCS synthetic product catalog
-- operation, evidence and system catalogs
-- Founder observation journey
-- OCS inspection journey
-- evidence-crossing requirements
-- decision lifecycle PROPOSED → AUTHORIZED → EXECUTED → VERIFIED → ASSURED
-- rejection of illegal lifecycle skips
-- unknown-progress anti-fabrication rule
-- unknown graph relation → HOLD
-- missing OCS generation → PARTIAL
-- structural accessibility semantics
-- offline boundary: no INTERNET permission
-- longitudinal test families
-- APK/badging evidence requirements
-- Google AI Studio / Gemini one-shot execution envelope
-
-## Implementation ownership now assigned to SOFIA
+## Implementation ownership
 
 SOFIA SHALL continue the same macro-tranche and SHALL NOT restart from concept or decompose the mission into microgates.
 
-SOFIA owns:
+SOFIA owns complete Android build execution, lint, unit and longitudinal tests, APK generation, package/launcher proof, ordinary implementation repair, preservation of boundaries, generation of final implementation evidence, and exact-head readback before return to DÉDALA.
 
-1. complete Android build execution;
-2. lint execution;
-3. unit and longitudinal test execution;
-4. APK generation;
-5. APK package/launcher proof;
-6. ordinary implementation repair for failures discovered during execution;
-7. preservation of all hard boundaries and invariants;
-8. generation of the final implementation evidence package;
-9. exact-head readback before returning the object to DÉDALA.
+## Executor correction
 
-## Required execution target
+Google AI Studio / Gemini Playground was materially tested with the mission instructions and returned `BLOCKED (EXECUTION_ENVIRONMENT_UNAVAILABLE)`.
 
-Resolve the exact current PR #75 HEAD at execution time and run the canonical envelope:
+The tested textual surface did not provide authenticated repository checkout, shell, Android SDK, Gradle runtime, AAPT tooling, or APK generation.
 
-`frontend/command-android/GOOGLE-AI-STUDIO-EXECUTION-ENVELOPE.md`
+Therefore:
 
-Primary execution engine for this mission:
+`GOOGLE_AI_STUDIO_TEXTUAL_MODEL != MATERIAL_ANDROID_EXECUTOR`
 
-`GOOGLE_AI_STUDIO / GEMINI`
+The prior product-name binding is invalidated for material execution without changing the mission, owner, scope, boundaries, or assurance route.
 
-GitHub remains repository / PR / evidence surface. GitHub Actions is non-authoritative for this mission unless an explicit contract later makes a specific check mandatory.
+Canonical envelope:
 
-## Required closure evidence from SOFIA
+`frontend/command-android/ANDROID-MATERIAL-EXECUTION-ENVELOPE.md`
 
-SOFIA SHALL return one structured evidence package containing at minimum:
+Required executor capabilities:
 
-- exact HEAD SHA
-- Gradle build result
-- lint result
-- unit test result
-- LongitudinalFlowChecks result
-- ProductSliceE2EChecks result
-- ProductDataCatalogChecks result
-- ProductJourneyChecks result
-- DecisionLifecycleChecks result
-- APK presence
-- APK package id
-- launchable activity
-- S0–S9 coverage
-- 10-OCS roster coverage
-- offline boundary result
-- forbidden runtime-boundary readback
-- blocking findings count
+`REAL_SHELL + JDK_17 + ANDROID_SDK + GRADLE + AAPT + REPOSITORY_ACCESS`
 
-No PASS claim may be emitted without material execution evidence.
+Any authorized environment satisfying those capabilities may execute the envelope and preserve the evidence. GitHub remains repository / PR / evidence surface; GitHub Actions is not automatically authoritative by product name.
+
+## Required closure evidence
+
+SOFIA SHALL return one package containing at minimum exact HEAD SHA, execution environment description, Gradle build, lint, unit tests, LongitudinalFlowChecks, ProductSliceE2EChecks, ProductDataCatalogChecks, ProductJourneyChecks, DecisionLifecycleChecks, APK presence, package id, launcher activity, APK SHA-256, S0–S9 coverage, ten-OCS roster coverage, offline boundary result, forbidden-runtime-boundary readback, and blocking findings count.
+
+No PASS may be emitted without material execution evidence.
 
 ## Hard boundaries preserved
 
@@ -111,23 +70,17 @@ No PASS claim may be emitted without material execution evidence.
 
 ## Return path
 
-When SOFIA has completed implementation execution and produced the evidence package:
+After implementation evidence exists:
 
 SOFIA → DÉDALA
 
-DÉDALA then performs exact-head adversarial assurance only.
+DÉDALA performs exact-head adversarial assurance only. If DÉDALA emits PASS or PASS_WITH_RESERVATIONS with no blocking finding, the next governance boundary may become Founder Gate for merge authorization.
 
-If DÉDALA emits PASS or PASS_WITH_RESERVATIONS and no blocking finding remains, the next governance boundary may become Founder Gate for merge authorization.
+## Stop conditions
 
-## Stop conditions for SOFIA
+SOFIA stops only on a blocker requiring human intervention outside the execution environment, a governance decision outside implementation authority, or completion of the material execution package and return to DÉDALA.
 
-SOFIA stops only on:
-
-1. a blocker requiring human intervention outside the execution environment;
-2. a governance decision that implementation authority does not cover;
-3. completion of the implementation evidence package and return to DÉDALA.
-
-Ordinary build/test/implementation failures are not handoff triggers; SOFIA should repair them autonomously within this mission.
+Ordinary build/test/implementation failures are not handoff triggers.
 
 ## Status
 
@@ -136,3 +89,5 @@ IMPLEMENTATION_OWNER = SOFIA
 ASSURANCE_OWNER_AFTER_IMPLEMENTATION = DÉDALA
 MICROGATE_CADENCE = DISABLED_AS_DEFAULT
 EXECUTION_MODE = LONGITUDINAL
+EXECUTOR_BINDING = CAPABILITY_DEFINED
+AI_STUDIO_TEXTUAL_EXECUTOR = INVALIDATED_FOR_MATERIAL_BUILD
