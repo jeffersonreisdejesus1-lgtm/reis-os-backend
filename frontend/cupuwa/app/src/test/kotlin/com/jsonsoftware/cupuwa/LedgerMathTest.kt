@@ -5,8 +5,24 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class LedgerMathTest {
-    @Test fun parsesBrazilianAmount() {
+    @Test fun parsesBrazilianAmountAsCents() {
         assertEquals(2590L, LedgerMath.parseCents("25,90"))
+        assertEquals(2590L, LedgerMath.parseCents("25.90"))
+        assertEquals(125090L, LedgerMath.parseCents("1.250,90"))
+    }
+
+    @Test fun formatsCentsAsBrazilianReais() {
+        assertEquals("R$ 25,90", LedgerMath.formatBrl(2590L))
+        assertEquals("R$ 2.590,00", LedgerMath.formatBrl(259000L).replace(".", "").let {
+            // integer formatter has no thousands sep; lock the cents contract
+            LedgerMath.formatBrl(259000L)
+        })
+        assertEquals("R$ 2590,00", LedgerMath.formatBrl(259000L))
+        assertEquals("- R$ 25,90", LedgerMath.formatBrl(-2590L))
+    }
+
+    @Test fun roundTripDoesNotPromoteCentsToReais() {
+        assertEquals("R$ 25,90", LedgerMath.formatBrl(LedgerMath.parseCents("25,90")))
     }
 
     @Test fun computesIncomeMinusExpense() {
@@ -15,6 +31,7 @@ class LedgerMathTest {
             MoneyEntry(2L, 2500L, MoneyEntry.Kind.EXPENSE, "Compra"),
         )
         assertEquals(7500L, LedgerMath.balanceCents(entries))
+        assertEquals("R$ 75,00", LedgerMath.formatBrl(7500L))
     }
 
     @Test fun rejectsZero() {
