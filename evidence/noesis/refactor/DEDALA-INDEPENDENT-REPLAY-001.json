@@ -1,0 +1,53 @@
+{
+  "object": "DEDALA-INDEPENDENT-REPLAY-001",
+  "mission": "NOESIS-LAYERED-PHYSIOLOGY-REFACTOR-001",
+  "source_pr": 77,
+  "assurer": "DEDALA",
+  "base_package": {
+    "name": "NOESIS_NATIVE_EC007_20260823_v0.2.1.zip",
+    "google_drive_file_id": "16nIZYpSJ8-jobDb7GB0W0UQQmVVcLL_N",
+    "expected_sha256": "691d738823b52265af6a268a287e3475e446a4b7f3aaec681856b3f27cdcd06c",
+    "observed_sha256": "691d738823b52265af6a268a287e3475e446a4b7f3aaec681856b3f27cdcd06c",
+    "sha_match": true
+  },
+  "sealed_patch": {
+    "name": "NOESIS-LAYERED-PHYSIOLOGY-REFACTOR-001.patch",
+    "library_file_id": "file_00000000d988820e8e73f4ecb6c6685b",
+    "expected_sha256": "5a73d8b59783d654683f88a5931ca0a6bc6618ed6ad5946ff0d785a56c6c7f95",
+    "observed_sha256": "5a73d8b59783d654683f88a5931ca0a6bc6618ed6ad5946ff0d785a56c6c7f95",
+    "sha_match": true,
+    "applied_cleanly_to_fresh_base": true
+  },
+  "independent_replay": {
+    "baseline": {"passed": 100, "failed": 0},
+    "candidate": {"passed": 112, "failed": 0},
+    "native_cognition_equivalence": true,
+    "all_l0_preserved": true,
+    "forbidden_probe_status": "BLOCKED",
+    "qualification_report_sha256": "c2e4a5f891fbdcbd1e4d141b3dc80638f285564a77a13944c5b62a041bfc5b87"
+  },
+  "manifest_digest_semantics": {
+    "declared_manifest_sha256": "69f359ef3857f241ce8f0ea7214c0bf6e5eb1ccab02bfa14c60c34ab9c4af067",
+    "semantics": "SHA256_OF_SORTED_COMPACT_JSON_WITH_MANIFEST_SHA256_FIELD_OMITTED",
+    "recomputed": "69f359ef3857f241ce8f0ea7214c0bf6e5eb1ccab02bfa14c60c34ab9c4af067",
+    "match": true,
+    "raw_file_sha256": "86dc495f251977ae8211a463a72e947e586b213a859dfc6f704a61a165ea3df0"
+  },
+  "exact_head_ci_classification": {
+    "observed_head": "905e6319657e6d4ea25ed28c3fea41f1d3c397b3",
+    "quality_gate": "FAILED_BEFORE_RUNNER_ALLOCATION",
+    "hazel_kernel": "FAILED_BEFORE_RUNNER_ALLOCATION",
+    "g3_f01": "FAILED_BEFORE_RUNNER_ALLOCATION",
+    "post_promotion_r3": "FAILED_BEFORE_RUNNER_ALLOCATION",
+    "common_evidence": "steps=[]; runner_id=0; runner_name=''",
+    "code_failure_observed": false,
+    "classification": "EXTERNAL_PRE_RUNNER_EXECUTION_FAILURE"
+  },
+  "boundaries": {
+    "canonical_mutation": false,
+    "merge_authorized": false,
+    "production_authorized": false,
+    "canonical_promotion_authorized": false
+  },
+  "disposition": "READY_FOR_SYNESIS_REENTRY"
+}
