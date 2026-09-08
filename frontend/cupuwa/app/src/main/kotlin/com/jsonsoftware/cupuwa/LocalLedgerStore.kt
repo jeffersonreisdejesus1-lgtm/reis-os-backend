@@ -24,23 +24,55 @@ class LocalLedgerStore(context: Context) {
             }
             .sortedByDescending { it.id }
 
-    fun add(cents: Long, kind: MoneyEntry.Kind, description: String) {
+    fun add(cents: Long, kind: MoneyEntry.Kind, description: String): MoneyEntry {
         val entry = MoneyEntry(
             id = System.currentTimeMillis(),
             cents = cents,
             kind = kind,
-            description = description.ifBlank { if (kind == MoneyEntry.Kind.INCOME) "Entrada" else "Saída" },
+            description = defaultDescription(kind, description),
         )
-        val encoded = (listOf(entry) + entries()).joinToString(RECORD_SEPARATOR) {
+        persist(listOf(entry) + entries())
+        return entry
+    }
+
+    fun update(id: Long, cents: Long, kind: MoneyEntry.Kind, description: String) {
+        val current = entries()
+        require(current.any { it.id == id }) { "Lançamento não encontrado" }
+        persist(
+            current.map { entry ->
+                if (entry.id == id) {
+                    entry.copy(
+                        cents = cents,
+                        kind = kind,
+                        description = defaultDescription(kind, description),
+                    )
+                } else {
+                    entry
+                }
+            },
+        )
+    }
+
+    fun delete(id: Long) {
+        val remaining = entries().filterNot { it.id == id }
+        require(remaining.size != entries().size) { "Lançamento não encontrado" }
+        persist(remaining)
+    }
+
+    private fun persist(items: List<MoneyEntry>) {
+        val encoded = items.joinToString(RECORD_SEPARATOR) {
             listOf(it.id, it.cents, it.kind.name, it.description).joinToString(FIELD_SEPARATOR)
         }
         preferences.edit().putString(KEY_ENTRIES, encoded).apply()
     }
 
+    private fun defaultDescription(kind: MoneyEntry.Kind, description: String): String =
+        description.ifBlank { if (kind == MoneyEntry.Kind.INCOME) "Entrada" else "Saída" }
+
     private companion object {
         const val FILE_NAME = "cupuwa_local_ledger"
         const val KEY_ENTRIES = "entries.v1"
-        const val RECORD_SEPARATOR = ""
-        const val FIELD_SEPARATOR = ""
+        const val RECORD_SEPARATOR = "\u001e"
+        const val FIELD_SEPARATOR = "\u001f"
     }
 }
