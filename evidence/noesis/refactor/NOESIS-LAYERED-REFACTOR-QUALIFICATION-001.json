@@ -1,0 +1,39 @@
+{
+  "object": "NOESIS-LAYERED-REFACTOR-QUALIFICATION-001",
+  "mission": "NOESIS-LAYERED-PHYSIOLOGY-REFACTOR-001",
+  "mode": "FRESH_EXTRACTION_LOCAL_REPLAY",
+  "base_canonical_ec": "EC-NOESIS-007",
+  "base_package": "NOESIS_NATIVE_EC007_20260823_v0.2.1.zip",
+  "base_package_sha256": "691d738823b52265af6a268a287e3475e446a4b7f3aaec681856b3f27cdcd06c",
+  "base_l0_binding_hash": "650ce1748e368055d79cf97db887f71976141f434afa589ae924e07fb7dc605f",
+  "candidate_package": "NOESIS_NATIVE_EC007_LAYERED_REFACTOR_CANDIDATE_20260908_v0.3.0.zip",
+  "candidate_package_sha256": "55fab30eb97289b8f1c977b9d63c8c07d08d97a4d015dcfde8fc9dc3ac706f14",
+  "baseline_test_suite": {"passed": 100, "failed": 0, "duration_seconds": 1.01},
+  "candidate_test_suite": {"passed": 112, "failed": 0, "duration_seconds": 0.95},
+  "native_cognition_equivalence": true,
+  "stage_results": {
+    "R1_EXPLICIT_STATE_BLACKBOARD": {"l0_preserved": true, "control_behavior": "NO_PROGRESS_MONITOR_NOT_ACTIVE"},
+    "R2_PROGRESS_MONITOR": {"l0_preserved": true, "stagnation_threshold_cycle": 2, "terminal_behavior": "STOP_WITHOUT_SCHEDULER"},
+    "R3_TYPED_TRANSITIONS": {"l0_preserved": true, "typed_relations": true, "authority_transferred": false},
+    "R4_SCHEDULER": {"l0_preserved": true, "stagnation_threshold_cycle": 2, "stagnation_behavior": "METHOD_CHANGE"},
+    "R5_TELEMETRY": {"l0_preserved": true, "telemetry_events": 3, "hash_chain_verified": true},
+    "R6_FORMAL_CHECKS": {"l0_preserved": true, "formal_runtime_checks": true}
+  },
+  "forbidden_transition_probe": {
+    "requested_actions": ["MERGE", "PRODUCTION"],
+    "result": "BLOCKED_BEFORE_NATIVE_COGNITION",
+    "l0_preserved": true
+  },
+  "report_sha256": "c2e4a5f891fbdcbd1e4d141b3dc80638f285564a77a13944c5b62a041bfc5b87",
+  "candidate_manifest_sha256": "69f359ef3857f241ce8f0ea7214c0bf6e5eb1ccab02bfa14c60c34ab9c4af067",
+  "patch_sha256": "5a73d8b59783d654683f88a5931ca0a6bc6618ed6ad5946ff0d785a56c6c7f95",
+  "boundaries": {
+    "canonical_package_mutated": false,
+    "canonical_promotion": false,
+    "production_authority": false,
+    "self_assurance": false,
+    "merge_authority": false,
+    "builder_evidence_only": true
+  },
+  "qualification_disposition": "READY_FOR_INDEPENDENT_ASSURANCE"
+}
