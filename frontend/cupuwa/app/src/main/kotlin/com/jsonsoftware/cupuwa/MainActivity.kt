@@ -3,9 +3,13 @@ package com.jsonsoftware.cupuwa
 import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
-import android.view.View
 import android.view.ViewGroup
-import android.widget.*
+import android.widget.EditText
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.TextView
+import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
 
@@ -15,6 +19,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var amountInput: EditText
     private lateinit var descriptionInput: EditText
     private lateinit var historyView: LinearLayout
+    private lateinit var primaryAction: MaterialButton
+    private var editingId: Long? = null
+    private var editingKind: MoneyEntry.Kind = MoneyEntry.Kind.INCOME
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -23,7 +30,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun render() {
-        val padding = (20 * resources.displayMetrics.density).toInt()
+        val padding = dp(20)
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(padding, padding, padding, padding)
@@ -40,11 +47,7 @@ class MainActivity : AppCompatActivity() {
             textSize = 16f
         })
 
-        root.addView(TextView(this).apply {
-            text = "Saldo atual"
-            textSize = 18f
-            setPadding(0, padding, 0, 4)
-        })
+        root.addView(label("Saldo atual", padding))
         balanceView = TextView(this).apply {
             textSize = 36f
             setTextColor(Color.rgb(42, 28, 72))
@@ -52,23 +55,15 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(balanceView)
 
-        root.addView(TextView(this).apply {
-            text = "Valor"
-            textSize = 17f
-            setPadding(0, padding, 0, 4)
-        })
+        root.addView(label("Valor", padding))
         amountInput = EditText(this).apply {
             hint = "Ex.: 25,90"
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            inputType = InputType.TYPE_CLASS_TEXT
             contentDescription = "Valor da movimentação"
         }
         root.addView(amountInput, fieldParams())
 
-        root.addView(TextView(this).apply {
-            text = "Descrição"
-            textSize = 17f
-            setPadding(0, 4, 0, 4)
-        })
+        root.addView(label("Descrição", 4))
         descriptionInput = EditText(this).apply {
             hint = "Opcional"
             contentDescription = "Descrição da movimentação"
@@ -79,19 +74,27 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(0, 8, 0, 0)
         }
-        actions.addView(MaterialButton(this).apply {
+        primaryAction = MaterialButton(this).apply {
             text = "Adicionar entrada"
             isAllCaps = false
             minHeight = dp(48)
             contentDescription = "Adicionar entrada"
             setOnClickListener { record(MoneyEntry.Kind.INCOME) }
-        })
+        }
+        actions.addView(primaryAction)
         actions.addView(MaterialButton(this).apply {
             text = "Adicionar saída"
             isAllCaps = false
             minHeight = dp(48)
             contentDescription = "Adicionar saída"
             setOnClickListener { record(MoneyEntry.Kind.EXPENSE) }
+        })
+        actions.addView(MaterialButton(this).apply {
+            text = "Cancelar edição"
+            isAllCaps = false
+            minHeight = dp(48)
+            contentDescription = "Cancelar edição"
+            setOnClickListener { clearEditor() }
         })
         root.addView(actions)
 
@@ -111,9 +114,14 @@ class MainActivity : AppCompatActivity() {
     private fun record(kind: MoneyEntry.Kind) {
         runCatching {
             val cents = LedgerMath.parseCents(amountInput.text.toString())
-            store.add(cents, kind, descriptionInput.text.toString())
-            amountInput.text.clear()
-            descriptionInput.text.clear()
+            val description = descriptionInput.text.toString()
+            val currentId = editingId
+            if (currentId == null) {
+                store.add(cents, kind, description)
+            } else {
+                store.update(currentId, cents, kind, description)
+            }
+            clearEditor()
             refresh()
         }.onFailure {
             Toast.makeText(this, it.message ?: "Valor inválido", Toast.LENGTH_SHORT).show()
@@ -122,8 +130,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun refresh() {
         val entries = store.entries()
-        val cents = LedgerMath.balanceCents(entries)
-        balanceView.text = "R$ %.2f".format(cents / 100.0)
+        balanceView.text = LedgerMath.formatBrl(LedgerMath.balanceCents(entries))
         historyView.removeAllViews()
         if (entries.isEmpty()) {
             historyView.addView(TextView(this).apply {
@@ -135,22 +142,77 @@ class MainActivity : AppCompatActivity() {
             return
         }
         entries.forEach { entry ->
-            val sign = if (entry.kind == MoneyEntry.Kind.INCOME) "+" else "-"
-            historyView.addView(TextView(this).apply {
-                text = sign + " R$ %.2f · ".format(entry.cents / 100.0) +
-                    entry.description + " (" +
-                    if (entry.kind == MoneyEntry.Kind.INCOME) "entrada" else "saída" +
-                    ")"
-                textSize = 16f
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
                 setPadding(0, 8, 0, 8)
+            }
+            val kindLabel = if (entry.kind == MoneyEntry.Kind.INCOME) "entrada" else "saída"
+            val sign = if (entry.kind == MoneyEntry.Kind.INCOME) "+" else "-"
+            row.addView(TextView(this).apply {
+                text = "$sign ${LedgerMath.formatBrl(entry.cents)} · ${entry.description} ($kindLabel)"
+                textSize = 16f
                 contentDescription = text
             })
+            val buttons = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+            buttons.addView(MaterialButton(this).apply {
+                text = "Editar"
+                isAllCaps = false
+                contentDescription = "Editar ${entry.description}"
+                setOnClickListener { startEdit(entry) }
+            })
+            buttons.addView(MaterialButton(this).apply {
+                text = "Excluir"
+                isAllCaps = false
+                contentDescription = "Excluir ${entry.description}"
+                setOnClickListener { confirmDelete(entry) }
+            })
+            row.addView(buttons)
+            historyView.addView(row)
         }
+    }
+
+    private fun startEdit(entry: MoneyEntry) {
+        editingId = entry.id
+        editingKind = entry.kind
+        amountInput.setText(LedgerMath.formatBrl(entry.cents).removePrefix("- ").removePrefix("R$ "))
+        descriptionInput.setText(entry.description)
+        primaryAction.text = "Salvar alteração"
+        primaryAction.contentDescription = "Salvar alteração"
+        primaryAction.setOnClickListener { record(editingKind) }
+        Toast.makeText(this, "Editando lançamento", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun confirmDelete(entry: MoneyEntry) {
+        AlertDialog.Builder(this)
+            .setTitle("Excluir lançamento?")
+            .setMessage("${LedgerMath.formatBrl(entry.cents)} · ${entry.description}")
+            .setNegativeButton("Cancelar", null)
+            .setPositiveButton("Excluir") { _, _ ->
+                store.delete(entry.id)
+                if (editingId == entry.id) clearEditor()
+                refresh()
+            }
+            .show()
+    }
+
+    private fun clearEditor() {
+        editingId = null
+        amountInput.text.clear()
+        descriptionInput.text.clear()
+        primaryAction.text = "Adicionar entrada"
+        primaryAction.contentDescription = "Adicionar entrada"
+        primaryAction.setOnClickListener { record(MoneyEntry.Kind.INCOME) }
+    }
+
+    private fun label(text: String, top: Int) = TextView(this).apply {
+        this.text = text
+        textSize = 17f
+        setPadding(0, top, 0, 4)
     }
 
     private fun fieldParams() = LinearLayout.LayoutParams(
         ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.WRAP_CONTENT
+        ViewGroup.LayoutParams.WRAP_CONTENT,
     ).apply { bottomMargin = 8 }
 
     private fun dp(value: Int): Int =
