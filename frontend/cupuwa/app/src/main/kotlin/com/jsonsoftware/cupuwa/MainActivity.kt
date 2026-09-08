@@ -1,16 +1,17 @@
 package com.jsonsoftware.cupuwa
 
-import android.content.Intent
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -18,13 +19,14 @@ import java.util.Locale
 class MainActivity : AppCompatActivity() {
     private lateinit var store: LocalLedgerStore
     private lateinit var adapter: MovementAdapter
+    private var editingId: Long? = null
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         setContentView(R.layout.activity_home)
         store = LocalLedgerStore(this)
         adapter = MovementAdapter(
-            onEdit = { openMovement(it.kind, it.id) },
+            onEdit = { startEdit(it) },
             onDelete = { confirmDelete(it) },
         )
         findViewById<RecyclerView>(R.id.historyList).apply {
@@ -32,16 +34,47 @@ class MainActivity : AppCompatActivity() {
             adapter = this@MainActivity.adapter
         }
         findViewById<MaterialButton>(R.id.incomeButton).setOnClickListener {
-            openMovement(MoneyEntry.Kind.INCOME, null)
+            save(MoneyEntry.Kind.INCOME)
         }
         findViewById<MaterialButton>(R.id.expenseButton).setOnClickListener {
-            openMovement(MoneyEntry.Kind.EXPENSE, null)
+            save(MoneyEntry.Kind.EXPENSE)
+        }
+        findViewById<MaterialButton>(R.id.cancelEditButton).setOnClickListener { clearEditor() }
+        refresh()
+    }
+
+    private fun save(kind: MoneyEntry.Kind) {
+        val amount = findViewById<TextInputEditText>(R.id.amountInput)
+        val description = findViewById<TextInputEditText>(R.id.descriptionInput)
+        runCatching {
+            val cents = LedgerMath.parseCents(amount.text?.toString().orEmpty())
+            val note = description.text?.toString().orEmpty()
+            val id = editingId
+            if (id == null) store.add(cents, kind, note)
+            else store.update(id, cents, kind, note)
+            clearEditor()
+            refresh()
+        }.onFailure {
+            Toast.makeText(this, it.message ?: "Valor inválido", Toast.LENGTH_SHORT).show()
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        refresh()
+    private fun startEdit(entry: MoneyEntry) {
+        editingId = entry.id
+        findViewById<TextInputEditText>(R.id.amountInput).setText(
+            LedgerMath.formatBrl(entry.cents).removePrefix("- ").removePrefix("R$ ").trim(),
+        )
+        findViewById<TextInputEditText>(R.id.descriptionInput).setText(entry.description)
+        findViewById<TextView>(R.id.composerTitle).text = "Editar lançamento"
+        findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.VISIBLE
+    }
+
+    private fun clearEditor() {
+        editingId = null
+        findViewById<TextInputEditText>(R.id.amountInput).text?.clear()
+        findViewById<TextInputEditText>(R.id.descriptionInput).text?.clear()
+        findViewById<TextView>(R.id.composerTitle).text = "Novo lançamento"
+        findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.GONE
     }
 
     private fun refresh() {
@@ -49,18 +82,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.balanceView).text = LedgerMath.formatBrl(LedgerMath.balanceCents(entries))
         val (income, expense) = LedgerMath.todayTotals(entries)
         findViewById<TextView>(R.id.todayView).text =
-            "Hoje  + ${LedgerMath.formatBrl(income)}   - ${LedgerMath.formatBrl(expense)}"
+            "Hoje  + ${LedgerMath.formatBrl(income)}   − ${LedgerMath.formatBrl(expense)}"
         findViewById<TextView>(R.id.emptyView).visibility =
             if (entries.isEmpty()) View.VISIBLE else View.GONE
         adapter.submit(entries)
-    }
-
-    private fun openMovement(kind: MoneyEntry.Kind, id: Long?) {
-        startActivity(
-            Intent(this, MovementActivity::class.java)
-                .putExtra(MovementActivity.EXTRA_KIND, kind.name)
-                .putExtra(MovementActivity.EXTRA_ID, id ?: -1L),
-        )
     }
 
     private fun confirmDelete(entry: MoneyEntry) {
@@ -70,6 +95,7 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.delete) { _, _ ->
                 store.delete(entry.id)
+                if (editingId == entry.id) clearEditor()
                 refresh()
             }
             .show()
