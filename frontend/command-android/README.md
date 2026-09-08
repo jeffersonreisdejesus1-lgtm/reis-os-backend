@@ -17,7 +17,17 @@ This module is an **executable Android application slice** for the REIS OS Comma
 - Unknown graph relations produce HOLD rather than canonical causal acceptance.
 - OCS instance state with missing generation remains PARTIAL.
 - Offline manifest boundary: no INTERNET permission.
-- CI is designed to run lint, unit tests, longitudinal invariant suites, APK assembly, package/launcher inspection, and an evidence receipt bound to the exact Git SHA.
+- Evidence rules require lint, unit tests, longitudinal invariant suites, APK assembly, package/launcher inspection, and a receipt bound to the exact Git SHA.
+
+## Canonical material execution
+
+The canonical execution envelope is:
+
+`ANDROID-MATERIAL-EXECUTION-ENVELOPE.md`
+
+The executor is capability-defined and must provide a real shell, JDK 17, Android SDK/build-tools, Gradle, AAPT, repository access, and binary artifact generation.
+
+Google AI Studio / Gemini Playground was empirically tested and returned `BLOCKED (EXECUTION_ENVIRONMENT_UNAVAILABLE)` for material execution. Its previous product-name binding is deprecated; textual analysis does not replace build evidence.
 
 ## Longitudinal surfaces
 
@@ -40,7 +50,7 @@ This module is an **executable Android application slice** for the REIS OS Comma
 - AI runtime integration.
 - Kernel mutation or authority creation.
 - Production readiness.
-- Successful build on the current PR HEAD while GitHub-hosted runners remain unallocated.
+- Successful material Android build until the canonical envelope completes on an eligible executor.
 - Real-device accessibility, TalkBack traversal, focus order on device, or device contrast validation.
 
 ## Institutional boundary
