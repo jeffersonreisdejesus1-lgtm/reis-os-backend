@@ -1,0 +1,65 @@
+name: OCS-X L1 Gemini Independent Assurance
+
+on:
+  push:
+    branches:
+      - dedala/ocsx-assurance-repair-001
+    paths:
+      - 'formal/ocsx/l1/**'
+      - 'app/ocsx_l1/**'
+      - 'tests/test_ocsx_l1_qualification.py'
+      - 'scripts/run_ocsx_l1_gemini_assurance.py'
+      - '.github/workflows/ocsx-l1-gemini-assurance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  l1-gemini-independent-assurance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GEMINI_API_KEY_RAW: ${{ secrets.GEMINI_API_KEY }}
+      OCSX_GEMINI_MODEL: gemini-3.8-flash
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Bind and mask Gemini credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLEAN_KEY="$(printf '%s' "$GEMINI_API_KEY_RAW" | tr -d '\r\n')"
+          if [ -z "$CLEAN_KEY" ]; then
+            echo 'GEMINI_API_KEY missing' >&2
+            exit 2
+          fi
+          echo "::add-mask::$CLEAN_KEY"
+          echo "GEMINI_API_KEY=$CLEAN_KEY" >> "$GITHUB_ENV"
+
+      - name: Run L1 qualification tests
+        run: python -m pytest -q tests/test_ocsx_l1_qualification.py
+
+      - name: Run independent Gemini assurance
+        run: python scripts/run_ocsx_l1_gemini_assurance.py
+
+      - name: Bind source metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence/ocsx/l1/gemini-assurance
+          printf '%s\n' "$GITHUB_SHA" > evidence/ocsx/l1/gemini-assurance/SOURCE_HEAD.txt
+          sha256sum evidence/ocsx/l1/gemini-assurance/assurance.json > evidence/ocsx/l1/gemini-assurance/ASSURANCE.sha256
+
+      - name: Upload assurance evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ocsx-l1-gemini-independent-assurance
+          path: evidence/ocsx/l1/gemini-assurance/
+          if-no-files-found: error
