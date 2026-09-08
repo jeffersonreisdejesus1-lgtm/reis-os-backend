@@ -2,6 +2,14 @@ workflows:
   command-android-material:
     name: Command Android material execution
     max_build_duration: 60
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: dedala/command-android-e2e-longitudinal-001
+          include: true
+          source: true
+      cancel_previous_builds: true
     environment:
       java: 17
     scripts:
