@@ -13,7 +13,7 @@ workflows:
           gradle --no-daemon -p frontend/command-android clean lintDebug testDebugUnitTest assembleDebug 2>&1 | tee codemagic-artifacts/gradle-build.log
       - name: Collect APK and complete evidence
         script: |
-          set -euo pipefail
+          set -euxo pipefail
           mkdir -p codemagic-artifacts/junit codemagic-artifacts/lint
           APK="$(find frontend/command-android -type f -path '*/build/outputs/apk/debug/*.apk' | sort)"
           test "$(printf '%s\n' "$APK" | sed '/^$/d' | wc -l)" -eq 1
@@ -23,6 +23,8 @@ workflows:
           "$AAPT" dump badging "$APK" | tee codemagic-artifacts/aapt-badging.txt
           grep -F "package: name='com.reisos.command'" codemagic-artifacts/aapt-badging.txt
           sha256sum "$APK" | tee codemagic-artifacts/command-debug.apk.sha256
+          echo "APK=$APK"
+          find frontend/command-android -type f -path '*/build/test-results/*/*.xml' | sort | tee codemagic-artifacts/junit-xml-list.txt
           JUNIT_COUNT=0
           while IFS= read -r report; do
             rel="${report#frontend/command-android/}"
@@ -30,13 +32,15 @@ workflows:
             cp "$report" "codemagic-artifacts/junit/$rel"
             JUNIT_COUNT=$((JUNIT_COUNT + 1))
           done < <(find frontend/command-android -type f -path '*/build/test-results/*/*.xml' | sort)
-          test "$JUNIT_COUNT" -eq 6
+          printf 'JUNIT_XML_COUNT=%s\n' "$JUNIT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
+          find frontend/command-android -type f \( -path '*/build/reports/lint-results-*.html' -o -path '*/build/reports/lint-results-*.xml' \) | sort | tee codemagic-artifacts/lint-report-list.txt
           LINT_COUNT=0
           while IFS= read -r report; do
             cp "$report" "codemagic-artifacts/lint/$(basename "$report")"
             LINT_COUNT=$((LINT_COUNT + 1))
           done < <(find frontend/command-android -type f \( -path '*/build/reports/lint-results-*.html' -o -path '*/build/reports/lint-results-*.xml' \) | sort)
+          printf 'LINT_REPORT_COUNT=%s\n' "$LINT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
+          test "$JUNIT_COUNT" -eq 6
           test "$LINT_COUNT" -ge 1
-          printf 'JUNIT_XML_COUNT=%s\nLINT_REPORT_COUNT=%s\n' "$JUNIT_COUNT" "$LINT_COUNT" | tee codemagic-artifacts/evidence-manifest.txt
     artifacts:
       - codemagic-artifacts/**
