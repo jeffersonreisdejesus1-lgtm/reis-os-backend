@@ -138,7 +138,9 @@ class MainActivity : AppCompatActivity() {
             val sign = if (entry.kind == MoneyEntry.Kind.INCOME) "+" else "-"
             historyView.addView(TextView(this).apply {
                 text = sign + " R$ %.2f · ".format(entry.cents / 100.0) +
-                    entry.description + " (" + if (entry.kind == MoneyEntry.Kind.INCOME) "entrada" else "saída" + ")"
+                    entry.description + " (" +
+                    if (entry.kind == MoneyEntry.Kind.INCOME) "entrada" else "saída" +
+                    ")"
                 textSize = 16f
                 setPadding(0, 8, 0, 8)
                 contentDescription = text
