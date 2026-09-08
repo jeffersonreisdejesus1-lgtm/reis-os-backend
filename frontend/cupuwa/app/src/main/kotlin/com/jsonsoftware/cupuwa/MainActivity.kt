@@ -3,6 +3,7 @@ package com.jsonsoftware.cupuwa
 import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
+import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
@@ -32,43 +33,73 @@ class MainActivity : AppCompatActivity() {
             text = "CUPUWA"
             textSize = 30f
             setTextColor(Color.rgb(42, 28, 72))
+            contentDescription = "CUPUWA"
         })
         root.addView(TextView(this).apply {
             text = "Seu dinheiro, claro e local."
             textSize = 16f
         })
+
+        root.addView(TextView(this).apply {
+            text = "Saldo atual"
+            textSize = 18f
+            setPadding(0, padding, 0, 4)
+        })
         balanceView = TextView(this).apply {
-            textSize = 34f
+            textSize = 36f
             setTextColor(Color.rgb(42, 28, 72))
+            contentDescription = "Saldo atual"
         }
         root.addView(balanceView)
 
+        root.addView(TextView(this).apply {
+            text = "Valor"
+            textSize = 17f
+            setPadding(0, padding, 0, 4)
+        })
         amountInput = EditText(this).apply {
-            hint = "Valor (ex.: 25,90)"
+            hint = "Ex.: 25,90"
             inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_FLAG_DECIMAL
+            contentDescription = "Valor da movimentação"
         }
         root.addView(amountInput, fieldParams())
 
+        root.addView(TextView(this).apply {
+            text = "Descrição"
+            textSize = 17f
+            setPadding(0, 4, 0, 4)
+        })
         descriptionInput = EditText(this).apply {
-            hint = "Descrição (opcional)"
+            hint = "Opcional"
+            contentDescription = "Descrição da movimentação"
         }
         root.addView(descriptionInput, fieldParams())
 
-        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        val actions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(0, 8, 0, 0)
+        }
         actions.addView(MaterialButton(this).apply {
-            text = "Entrou"
+            text = "Adicionar entrada"
+            isAllCaps = false
+            minHeight = dp(48)
+            contentDescription = "Adicionar entrada"
             setOnClickListener { record(MoneyEntry.Kind.INCOME) }
-        }, weightParams())
+        })
         actions.addView(MaterialButton(this).apply {
-            text = "Saiu"
+            text = "Adicionar saída"
+            isAllCaps = false
+            minHeight = dp(48)
+            contentDescription = "Adicionar saída"
             setOnClickListener { record(MoneyEntry.Kind.EXPENSE) }
-        }, weightParams())
+        })
         root.addView(actions)
 
         root.addView(TextView(this).apply {
             text = "Histórico"
             textSize = 22f
             setPadding(0, padding, 0, padding / 2)
+            contentDescription = "Histórico"
         })
         historyView = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         root.addView(historyView)
@@ -90,15 +121,27 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refresh() {
-        val cents = LedgerMath.balanceCents(store.entries())
-        balanceView.text = "Saldo: R$ %.2f".format(cents / 100.0)
+        val entries = store.entries()
+        val cents = LedgerMath.balanceCents(entries)
+        balanceView.text = "R$ %.2f".format(cents / 100.0)
         historyView.removeAllViews()
-        store.entries().forEach { entry ->
-            val sign = if (entry.kind == MoneyEntry.Kind.INCOME) "+" else "-"
+        if (entries.isEmpty()) {
             historyView.addView(TextView(this).apply {
-                text = sign + " R$ %.2f · ".format(entry.cents / 100.0) + entry.description
+                text = "Nenhuma movimentação ainda."
                 textSize = 16f
                 setPadding(0, 8, 0, 8)
+                contentDescription = "Nenhuma movimentação ainda"
+            })
+            return
+        }
+        entries.forEach { entry ->
+            val sign = if (entry.kind == MoneyEntry.Kind.INCOME) "+" else "-"
+            historyView.addView(TextView(this).apply {
+                text = sign + " R$ %.2f · ".format(entry.cents / 100.0) +
+                    entry.description + " (" + if (entry.kind == MoneyEntry.Kind.INCOME) "entrada" else "saída" + ")"
+                textSize = 16f
+                setPadding(0, 8, 0, 8)
+                contentDescription = text
             })
         }
     }
@@ -108,7 +151,6 @@ class MainActivity : AppCompatActivity() {
         ViewGroup.LayoutParams.WRAP_CONTENT
     ).apply { bottomMargin = 8 }
 
-    private fun weightParams() = LinearLayout.LayoutParams(
-        0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f
-    )
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
 }
