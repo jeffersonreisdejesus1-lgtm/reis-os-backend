@@ -101,11 +101,16 @@ class GovernanceCommand:
     lease_id: str
     authority_ref: str
     command_type: str
+    schedule_ref: str
     write_set: dict[str, Any]
     idempotency_key: str
     expected_state_version: int
     scope: tuple[str, ...] = ()
     material_effect_requested: bool = False
+
+    def __post_init__(self) -> None:
+        if not self.schedule_ref:
+            raise ValueError("command_schedule_ref_required")
 
 
 @dataclass(frozen=True, slots=True)
