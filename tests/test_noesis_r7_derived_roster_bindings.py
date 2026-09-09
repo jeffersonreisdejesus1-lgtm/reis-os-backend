@@ -20,6 +20,17 @@ def _ready() -> R7ArchitecturalReadiness:
     )
 
 
+def _contract(governor_id: str, state_key: str) -> GovernorContract:
+    return GovernorContract(
+        governor_id=governor_id,
+        function=GovernorFunction.STATE,
+        owned_state_keys=(state_key,),
+        readable_state_keys=(state_key,),
+        allowed_commands=("UPDATE_STATE",),
+        authority_ceiling_ref="AUTH::R7::TEST",
+    )
+
+
 def test_derived_roster_is_exactly_17_unique_governors() -> None:
     assert len(DERIVED_GOVERNOR_ROSTER) == 17
     assert len({item.governor_id for item in DERIVED_GOVERNOR_ROSTER}) == 17
@@ -39,17 +50,19 @@ def test_runtime_direct_registration_cannot_bypass_derived_roster() -> None:
         integration=materialized_integration_contract(),
         architectural_readiness=_ready(),
     )
-    non_derived = GovernorContract(
-        governor_id="A-EXEC",
-        function=GovernorFunction.STATE,
-        owned_state_keys=("exec.state",),
-        readable_state_keys=("exec.state",),
-        allowed_commands=("UPDATE_STATE",),
-        authority_ceiling_ref="AUTH::R7::TEST",
-    )
     with pytest.raises(R7InvariantError, match="R7_GOVERNOR_NOT_IN_DERIVED_ROSTER"):
-        runtime.register_governor(non_derived)
+        runtime.register_governor(_contract("A-EXEC", "exec.state"))
     assert runtime.state == {}
+
+
+def test_runtime_direct_registration_accepts_derived_governor_only() -> None:
+    runtime = R7GovernanceRuntime(
+        mission_id="R7-DERIVED-REGISTER-TEST",
+        integration=materialized_integration_contract(),
+        architectural_readiness=_ready(),
+    )
+    runtime.register_governor(_contract("A-CTX", "ctx.state"))
+    assert runtime.current_generation("A-CTX") == 1
 
 
 def test_six_r1_r6_bindings_are_materialized_as_distinct_refs() -> None:
