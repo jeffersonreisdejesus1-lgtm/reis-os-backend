@@ -20,15 +20,15 @@ from app.noesis_r7.contracts import (
     R7InvariantError,
     RecoveryCheckpoint,
 )
-from app.noesis_r7.integration import R1R6IntegrationContract
+from app.noesis_r7.integration import R1R6IntegrationContract, R7ArchitecturalReadiness
 from app.noesis_r7.runtime import R7GovernanceRuntime
 
 
 class R7DurableRuntime(R7GovernanceRuntime):
-    """Restart-safe R7 runtime with append-only SQLite snapshot journal.
+    """Restart-safe R7 candidate runtime with append-only SQLite snapshots.
 
-    SQLite is an engineering persistence substrate for this candidate only. It is
-    not a source of institutional identity or authority and does not replace L0/R1-R6.
+    A restart must receive the same architectural readiness gate again. Durable state
+    never substitutes for Nóesis taxonomy/derivation authority.
     """
 
     def __init__(
@@ -38,6 +38,7 @@ class R7DurableRuntime(R7GovernanceRuntime):
         integration: R1R6IntegrationContract,
         database_path: Path,
         initial_state: dict[str, Any] | None = None,
+        architectural_readiness: R7ArchitecturalReadiness | None = None,
     ) -> None:
         self._database_path = database_path
         self._persistence_suspended = False
@@ -47,12 +48,15 @@ class R7DurableRuntime(R7GovernanceRuntime):
             mission_id=mission_id,
             integration=integration,
             initial_state=initial_state,
+            architectural_readiness=architectural_readiness,
         )
         loaded = self._load_latest_snapshot()
         if loaded is None:
             self._persist_snapshot("INITIALIZE")
         else:
             payload, snapshot_hash = loaded
+            if payload.get("governors"):
+                self._architectural_readiness.assert_governor_activation_allowed()
             self._restore_snapshot(payload)
             self._durable_head_hash = snapshot_hash
 
@@ -113,10 +117,7 @@ class R7DurableRuntime(R7GovernanceRuntime):
         self._persist_if_enabled("SCHEDULE_TASK")
 
     def next_task(self) -> GovernanceTask | None:
-        task = super().next_task()
-        if task is not None:
-            self._persist_if_enabled("DEQUEUE_TASK")
-        return task
+        return super().next_task()
 
     def communicate(self, envelope: CommunicationEnvelope) -> None:
         super().communicate(envelope)
@@ -188,10 +189,7 @@ class R7DurableRuntime(R7GovernanceRuntime):
             "task_seq": self._task_seq,
             "receipts": [asdict(value) for value in self._receipts],
             "idempotency": {
-                key: {
-                    "fingerprint": fingerprint,
-                    "receipt_id": receipt.receipt_id,
-                }
+                key: {"fingerprint": fingerprint, "receipt_id": receipt.receipt_id}
                 for key, (fingerprint, receipt) in self._idempotency.items()
             },
             "invalidated_idempotency": sorted(self._invalidated_idempotency),
@@ -228,21 +226,17 @@ class R7DurableRuntime(R7GovernanceRuntime):
                 if row is not None:
                     latest_payload = json.loads(str(row["snapshot_json"]))
                     if self._snapshot_hash(latest_payload) != actual_head:
-                        raise R7InvariantError(
-                            "R7_DURABLE_SNAPSHOT_INTEGRITY_FAILURE"
-                        )
+                        raise R7InvariantError("R7_DURABLE_SNAPSHOT_INTEGRITY_FAILURE")
+                    if latest_payload.get("governors"):
+                        self._architectural_readiness.assert_governor_activation_allowed()
                     self._restore_snapshot(latest_payload)
                     self._durable_head_hash = actual_head
                 raise R7InvariantError("R7_DURABLE_STALE_WRITER")
             connection.execute(
                 """
                 INSERT INTO r7_runtime_snapshot_journal (
-                    mission_id,
-                    reason,
-                    state_version,
-                    predecessor_hash,
-                    snapshot_hash,
-                    snapshot_json
+                    mission_id, reason, state_version, predecessor_hash,
+                    snapshot_hash, snapshot_json
                 ) VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -349,6 +343,7 @@ class R7DurableRuntime(R7GovernanceRuntime):
                 command_type=str(raw["command_type"]),
                 priority=int(raw["priority"]),
                 created_seq=int(raw["created_seq"]),
+                command_id=str(raw.get("command_id") or raw["task_id"]),
             )
             for raw in payload["tasks"]
         ]
