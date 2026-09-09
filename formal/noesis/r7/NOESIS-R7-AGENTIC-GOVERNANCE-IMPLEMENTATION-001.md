@@ -6,12 +6,28 @@ BASE_MAIN = 063d42e745366a5315ec5bbb1cf433548d208150
 CLASS = ADDITIVE_POST_REFACTOR_EVOLUTION
 TARGET = NÓESIS
 GENERATION = R7
+STATUS = HOLD_WITH_REPAIRABLE_ARCHITECTURAL_RESERVATIONS
 
-## Boundary
+## Correct architectural boundary
 
-R7 is an internal governance runtime layered above the promoted R1–R6 physiology.
-It does not rewrite L0, identity, current EC, R1–R6 state semantics, Founder authority,
-or the external cognitive ecology.
+R7 is NOT merely a layer above R1–R6.
+
+R7 is an agentic governance domain embedded in, observed by and constrained by the
+promoted R1–R6 physiology. L0 identity, authority and canonical state remain untouched.
+
+Required causal relations:
+
+- R1 -> persists R7 state;
+- R2 -> measures R7 progress/effects;
+- R3 -> types R7 transitions;
+- R4 -> schedules R7 mechanisms;
+- R7 -> executes specialized governance;
+- R5 -> observes R7 plus the global chain;
+- R6 -> constrains R7 plus the global chain.
+
+The current candidate records these six relations as mandatory requirements while
+tracking their implementation/evidence references separately. Presence of R1–R6 is
+therefore not equivalent to proof of complete R1–R6 <-> R7 wiring.
 
 Mandatory invariants:
 
@@ -23,113 +39,128 @@ Mandatory invariants:
 - `SCHEDULER != AUTHORITY`.
 - `HANDOFF != AUTHORITY_TRANSFER`.
 - `GOVERNOR != OCS`.
+- `GOVERNOR_INFRASTRUCTURE != GOVERNOR_DERIVATION`.
 - `GOVERNOR_CONTRACT != AUTHORITY_GRANT`.
 - `R7_INTERNAL_GOVERNANCE != MATERIAL_EFFECT_EXECUTOR`.
 - `BUILDER_ROLE != FINAL_ASSURANCE_ROLE`.
 
-## Governor model
+## Taxonomic freeze and Governor activation gate
 
-This implementation deliberately freezes a **Governor contract model**, not a final
-Governor identity roster. A Governor is a mission-bound functional controller with:
+Generic Governor mechanics are retained because they are reusable infrastructure.
+Material Governor population is blocked by default.
 
-- governor_id;
-- functional interface;
-- exclusive owned state keys;
-- readable state keys;
-- allowed internal command classes;
-- authority ceiling reference;
-- mandatory lease policy;
-- generational recovery policy.
+`register_governor`, lease binding, scheduling, communication, execution and recovery
+remain inert until ALL of the following are externally established by the Nóesis
+architectural workstream:
 
-Functional interfaces currently represent STATE, PROGRESS, TRANSITION, SCHEDULING,
-COMMUNICATION, LEASE, RECOVERY and EVIDENCE. These are interfaces, not new OCSs and
-not a claim that the final institutional roster must contain exactly eight Governors.
+- R7-I taxonomy frozen;
+- R7-O taxonomy frozen;
+- cross-taxonomy analysis complete;
+- normalized requirements available;
+- Governor derivation valid;
+- a derivation reference is supplied.
 
-## State ownership
+Default behavior:
 
-No two registered Governors may own the same state key. A command can mutate only
-keys owned by its Governor contract. Cross-owner writes fail closed before state
-commit and report `mutation_count = 0`.
+`GOVERNOR_ACTIVATION = DENY/HOLD`
 
-R7 state is subordinate runtime state. It is not a new canonical institutional root.
+Tests may use an explicitly labelled `synthetic-test-only` derivation fixture solely to
+exercise generic mechanics. Such a fixture is not institutional evidence and cannot
+promote a roster.
 
-## Scheduling
+No final Governor roster is defined by this candidate. Functional interfaces STATE,
+PROGRESS, TRANSITION, SCHEDULING, COMMUNICATION, LEASE, RECOVERY and EVIDENCE remain
+implementation abstractions only.
 
-Tasks are ordered deterministically by priority, then creation sequence, then task ID.
-The scheduler can select only command classes already admitted by a Governor contract.
-Forbidden authority actions remain blocked even if a malformed contract lists them.
+## R1–R6 wiring status
 
-## Communication
+The promoted physiology already materializes Blackboard, ProgressMonitor,
+TypedTransition, PhysiologicalScheduler, TelemetryLedger and FormalChecks. Its
+operational cycle is:
 
-Governor communication uses typed envelopes with source, receiver, mission, relation
-and payload reference. `authority_transferred=true` is structurally rejected.
+`BIND -> READ_STATE -> CLASSIFY -> SCHEDULE -> COGNITIVE_STEP -> MEASURE_DELTA -> PERSIST_STATE -> METHOD_CHANGE|HANDOFF|ESCALATE|STOP -> CHECK_GATE -> NEXT_CYCLE`
 
-## Lease and fencing
+R7 must be reconciled into those mechanisms after Governor derivation defines the
+actual R7 state, transition and observation surfaces.
 
-Every mutable command requires a lease bound to:
+Current material status:
 
-- governor;
-- mission;
-- authority reference;
-- scope;
-- generation;
-- validity window;
-- max uses.
+- R1 state binding reference: PENDING;
+- R2 measurement binding reference: PENDING;
+- R3 transition binding reference: PENDING;
+- R4 scheduler binding reference: PENDING;
+- R5 observation binding reference: PENDING;
+- R6 constraint binding reference: PENDING.
 
-Expired, exhausted, foreign, fenced or stale-generation leases fail closed.
-Replacement/recovery fences every lease of the predecessor generation before the
-next generation is considered current.
+Therefore:
+
+`FULL_R7_ARCHITECTURAL_CONFORMANCE = NOT_YET`
+
+`R1_R6_PRESENCE != R1_R6_R7_WIRING_PROOF`
+
+## Reusable candidate mechanics
+
+The following candidate work is retained rather than discarded:
+
+- generic Governor contracts;
+- exclusive state ownership mechanics;
+- scheduler admission mechanics;
+- communication envelopes with authority-transfer prohibition;
+- externally sourced leases;
+- generation-aware fencing/recovery;
+- idempotency and replay;
+- rollback causal invalidation;
+- receipt hash chain/readback;
+- durable SQLite candidate snapshots with integrity and stale-writer fencing;
+- failure injection tests;
+- Effect Gate separation.
+
+These mechanics are candidate infrastructure and do not constitute a Governor roster.
 
 ## Effect boundary
 
-R7 executes governed internal state commits only. `material_effect_requested=true`
-is denied even with a valid lease. External material effects require a later effect
-gate with separate authority, idempotency, reconciliation, execution receipt and
+R7 internal mechanics do not execute external material effects.
+`material_effect_requested=true` is denied. External effects require a separate Effect
+Gate with independent authority, idempotency, execution receipt, reconciliation and
 readback.
 
-## Idempotency and reconciliation
+## Process boundary
 
-The exact same command under the same idempotency key replays without another state
-mutation. Same key with a divergent command fingerprint is a hard conflict.
+Ágora is authorized to implement and repair this candidate under the exceptional
+end-to-end implementation handoff. Ágora does not provide independent assurance over
+its own implementation.
 
-Failure after commit is recoverable by exact replay: the committed receipt and
-idempotency record prevent duplicate state effect.
+The next valid route is NOT Dédala yet. Architectural prerequisites return to Nóesis:
 
-## Recovery
+1. R7-I taxonomy;
+2. R7-O taxonomy;
+3. cross-taxonomy analysis;
+4. normalized governance requirements;
+5. Governor derivation.
 
-Checkpoint captures mission, generation, state version, governed state and the
-predecessor receipt hash. Recovery performs:
+After those artifacts exist, Ágora must:
 
-`FENCE_PREDECESSOR -> ADVANCE_GENERATION -> RESTORE_CHECKPOINT`
+1. reconcile the generic runtime with the legitimately derived roster;
+2. complete concrete R1–R6 <-> R7 wiring and evidence references;
+3. rerun engineering tests/failure injection;
+4. regenerate the exact-head evidence package.
 
-An old-generation command is denied after recovery.
+Only then:
 
-## Rollback
+`ÁGORA -> DÉDALA -> SÝNESIS -> FOUNDER_PROMOTION_GATE`
 
-`rollback_to_checkpoint` applies only to internal R7 governed state. It makes no claim
-that an already performed external material effect can be rolled back. External-effect
-rollback requires its own effect-specific recovery contract and evidence.
+## Current disposition
 
-## Evidence
-
-R7 receipts contain state versions before/after, mutation count, material-effect flag,
-readback values and a predecessor hash. Receipt integrity is hash chained.
-
-## Failure injection
-
-The engineering test matrix includes failures:
-
-- after validation;
-- before commit;
-- after commit.
-
-Pre-commit failure must preserve state/version and emit no successful receipt.
-Post-commit failure must converge through idempotent replay without duplicate commit.
-
-## Promotion boundary
-
-This branch is an implementation candidate only.
-
-Ágora may implement, test, repair and package evidence under the current handoff.
-Dédala performs the next adversarial technical review. Sýnesis remains independent
-institutional assurance. Canonical promotion remains Founder-reserved.
+GENERIC_R7_RUNTIME_MECHANICS = FUNCTIONAL_CANDIDATE
+CURRENT_CODE_VALUE = HIGH_REUSABLE
+REWRITE_REQUIRED = NO
+TARGETED_CORRECTIONS = PARTIALLY_COMPLETED
+GOVERNOR_ACTIVATION = BLOCKED_PENDING_DERIVATION
+R7_I_TAXONOMY = PENDING_NOESIS
+R7_O_TAXONOMY = PENDING_NOESIS
+CROSS_TAXONOMY_ANALYSIS = PENDING_NOESIS
+GOVERNOR_DERIVATION = PENDING_NOESIS
+R1_R6_R7_WIRING = PENDING_POST_DERIVATION_RECONCILIATION
+CONFORMANCE_PASS_ALLOWED = NO
+PR79 = HOLD_CANDIDATE
+CANONICAL_PROMOTION = NOT_AUTHORIZED
