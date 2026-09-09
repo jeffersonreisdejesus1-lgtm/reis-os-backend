@@ -21,6 +21,7 @@ from app.noesis_r7.contracts import (
     RecoveryCheckpoint,
 )
 from app.noesis_r7.integration import R1R6IntegrationContract, R7ArchitecturalReadiness
+from app.noesis_r7.roster import assert_derived_governor
 from app.noesis_r7.runtime import R7GovernanceRuntime
 
 
@@ -311,6 +312,10 @@ class R7DurableRuntime(R7GovernanceRuntime):
                 authority_ceiling_ref=str(raw["authority_ceiling_ref"]),
                 lease_required=bool(raw["lease_required"]),
                 recovery_policy=str(raw["recovery_policy"]),
+            )
+            assert_derived_governor(
+                contract.governor_id,
+                derivation_ref=self._architectural_readiness.derivation_ref or "",
             )
             self._governors[contract.governor_id] = contract
         self._leases = {}
