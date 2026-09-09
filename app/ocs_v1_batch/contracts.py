@@ -51,16 +51,18 @@ class CandidateProfile:
             raise OCSV1InvariantError(f"{self.ocs_id}:R1_R6_BINDINGS_INVALID")
         if len(self.namespaces) != len(set(self.namespaces)):
             raise OCSV1InvariantError(f"{self.ocs_id}:DUPLICATE_NAMESPACE")
-        seen: set[str] = set()
+        seen: set[tuple[str, str]] = set()
         for governor in self.governors:
             if not governor.owned_state_keys or not governor.allowed_operations:
                 raise OCSV1InvariantError(f"{self.ocs_id}:GOVERNOR_CONTRACT_INCOMPLETE")
-            if not set(governor.writable_namespaces).issubset(self.namespaces):
+            if not governor.writable_namespaces or not set(governor.writable_namespaces).issubset(self.namespaces):
                 raise OCSV1InvariantError(f"{self.ocs_id}:GOVERNOR_NAMESPACE_INVALID")
-            overlap = seen.intersection(governor.owned_state_keys)
-            if overlap:
-                raise OCSV1InvariantError(f"{self.ocs_id}:DUPLICATE_STATE_OWNER")
-            seen.update(governor.owned_state_keys)
+            for namespace in governor.writable_namespaces:
+                for key in governor.owned_state_keys:
+                    marker = (namespace, key)
+                    if marker in seen:
+                        raise OCSV1InvariantError(f"{self.ocs_id}:DUPLICATE_STATE_OWNER")
+                    seen.add(marker)
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +74,7 @@ class GovernanceRequest:
     namespace: str
     mutation: Mapping[str, object] = field(default_factory=dict)
     expected_state_version: int = 0
+    expected_generation: int = 0
     evidence_state: EvidenceState = EvidenceState.UNKNOWN
     evidence_ref: str | None = None
     provenance_ref: str | None = None
@@ -86,9 +89,11 @@ class GovernanceRequest:
     package_id: str | None = None
     return_receipt_package_id: str | None = None
     superseded_specialty_requested: bool = False
+    specialty_ref: str | None = None
     historical_provenance_claimed_resolved: bool = False
     strategy_as_execution_authority: bool = False
     communication_as_institutional_authority: bool = False
+    causal_consistent: bool | None = None
 
 
 @dataclass(frozen=True, slots=True)
