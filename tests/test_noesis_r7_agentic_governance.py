@@ -17,11 +17,15 @@ from app.noesis_r7 import (
     R7InvariantError,
 )
 from app.noesis_r7.contracts import FailurePoint
+from app.noesis_r7.physiology_bindings import materialized_integration_contract
+from app.noesis_r7.roster import DERIVATION_REF
 
 MISSION = "mission:noesis:r7"
 AUTH = "authority:noesis:r7:internal-governance"
 SOURCE = "founder-handoff:NOESIS-TO-AGORA-R7-REFACTOR-IMPLEMENTATION-001"
-TEST_DERIVATION = "synthetic-test-only:r7-governor-derivation"
+PRIMARY_GOVERNOR = "A-CTX"
+EVIDENCE_GOVERNOR = "A-EVID"
+COMMUNICATION_GOVERNOR = "OG-HANDOFF"
 
 
 def derived_readiness():
@@ -31,11 +35,11 @@ def derived_readiness():
         cross_taxonomy_complete=True,
         normalized_requirements_available=True,
         governor_derivation_valid=True,
-        derivation_ref=TEST_DERIVATION,
+        derivation_ref=DERIVATION_REF,
     )
 
 
-def governor(governor_id="governor:state", *, owned=("current_phase", "blockers"), function=GovernorFunction.STATE):
+def governor(governor_id=PRIMARY_GOVERNOR, *, owned=("current_phase", "blockers"), function=GovernorFunction.STATE):
     return GovernorContract(
         governor_id=governor_id,
         function=function,
@@ -46,7 +50,7 @@ def governor(governor_id="governor:state", *, owned=("current_phase", "blockers"
     )
 
 
-def lease(governor_id="governor:state", *, lease_id="lease:r7:1", generation=1):
+def lease(governor_id=PRIMARY_GOVERNOR, *, lease_id="lease:r7:1", generation=1):
     return GovernorLease(
         lease_id=lease_id,
         governor_id=governor_id,
@@ -62,7 +66,7 @@ def lease(governor_id="governor:state", *, lease_id="lease:r7:1", generation=1):
     )
 
 
-def command(*, command_id="cmd:1", governor_id="governor:state", lease_id="lease:r7:1", generation=1,
+def command(*, command_id="cmd:1", governor_id=PRIMARY_GOVERNOR, lease_id="lease:r7:1", generation=1,
             write_set=None, idempotency_key="idem:1", expected_state_version=0,
             command_type="SET_STATE", material_effect_requested=False):
     return GovernanceCommand(
@@ -84,7 +88,7 @@ def command(*, command_id="cmd:1", governor_id="governor:state", lease_id="lease
 def inert_runtime():
     return R7GovernanceRuntime(
         mission_id=MISSION,
-        integration=R1R6IntegrationContract.canonical(),
+        integration=materialized_integration_contract(),
         initial_state={"mission_id": MISSION, "current_phase": "INTAKE"},
     )
 
@@ -92,7 +96,7 @@ def inert_runtime():
 def runtime():
     rt = R7GovernanceRuntime(
         mission_id=MISSION,
-        integration=R1R6IntegrationContract.canonical(),
+        integration=materialized_integration_contract(),
         initial_state={"mission_id": MISSION, "current_phase": "INTAKE"},
         architectural_readiness=derived_readiness(),
     )
@@ -127,8 +131,13 @@ def test_governor_activation_is_blocked_until_taxonomic_derivation():
         rt.register_governor(governor())
 
 
-def test_exact_r1_r6_binding_and_complete_causal_containment_fail_closed():
-    compatible = R1R6IntegrationContract.canonical()
+def test_runtime_requires_all_six_material_r1_r6_bindings_fail_closed():
+    incomplete = R1R6IntegrationContract.canonical()
+    incomplete.assert_base_compatible()
+    with pytest.raises(R7InvariantError, match="R7_R1_R6_WIRING_EVIDENCE_INCOMPLETE"):
+        R7GovernanceRuntime(mission_id=MISSION, integration=incomplete)
+
+    compatible = materialized_integration_contract()
     compatible.assert_compatible()
     assert compatible.scheduler_is_authority is False
     assert compatible.governance_may_mutate_l0 is False
@@ -136,10 +145,8 @@ def test_exact_r1_r6_binding_and_complete_causal_containment_fail_closed():
         replace(compatible, l0_binding_hash="forged").assert_compatible()
     with pytest.raises(R7InvariantError, match="COMPLETE_R1_R6_CAUSAL_CONTAINMENT"):
         replace(compatible, r1_persists_r7_state=False).assert_compatible()
-    with pytest.raises(R7InvariantError, match="COMPLETE_R1_R6_CAUSAL_CONTAINMENT"):
-        replace(compatible, r2_measures_r7_progress_and_effects=False).assert_compatible()
-    with pytest.raises(R7InvariantError, match="COMPLETE_R1_R6_CAUSAL_CONTAINMENT"):
-        replace(compatible, r3_types_r7_transitions=False).assert_compatible()
+    with pytest.raises(R7InvariantError, match="R7_R1_R6_WIRING_EVIDENCE_INCOMPLETE"):
+        replace(compatible, r1_state_binding_ref=None).assert_compatible()
 
 
 def test_direct_execute_without_scheduler_admission_is_zero_mutation():
@@ -166,11 +173,11 @@ def test_scheduler_priority_is_an_admission_gate_not_authority():
 
 def test_cross_owner_write_and_material_effect_fail_closed():
     rt = runtime()
-    rt.register_governor(governor("governor:evidence", owned=("evidence_refs",), function=GovernorFunction.EVIDENCE))
-    rt.bind_lease(lease("governor:evidence", lease_id="lease:evidence"))
+    rt.register_governor(governor(EVIDENCE_GOVERNOR, owned=("evidence_refs",), function=GovernorFunction.EVIDENCE))
+    rt.bind_lease(lease(EVIDENCE_GOVERNOR, lease_id="lease:evidence"))
     cross = command(
         command_id="cmd:cross",
-        governor_id="governor:evidence",
+        governor_id=EVIDENCE_GOVERNOR,
         lease_id="lease:evidence",
         idempotency_key="idem:cross",
         write_set={"current_phase": "FORGED"},
@@ -187,18 +194,18 @@ def test_cross_owner_write_and_material_effect_fail_closed():
 def test_communication_never_transfers_authority():
     rt = runtime()
     rt.register_governor(
-        governor("governor:communication", owned=("last_message_ref",), function=GovernorFunction.COMMUNICATION)
+        governor(COMMUNICATION_GOVERNOR, owned=("last_message_ref",), function=GovernorFunction.COMMUNICATION)
     )
     rt.communicate(
         CommunicationEnvelope(
-            "msg:1", MISSION, "governor:state", "governor:communication",
+            "msg:1", MISSION, PRIMARY_GOVERNOR, COMMUNICATION_GOVERNOR,
             "HANDOFF_FOR_REVIEW", "evidence:r7:1"
         )
     )
     assert rt.communications[0].authority_transferred is False
     with pytest.raises(R7InvariantError, match="MUST_NOT_TRANSFER_AUTHORITY"):
         CommunicationEnvelope(
-            "msg:bad", MISSION, "governor:state", "governor:communication",
+            "msg:bad", MISSION, PRIMARY_GOVERNOR, COMMUNICATION_GOVERNOR,
             "FORGED", "none", authority_transferred=True
         )
 
@@ -207,7 +214,7 @@ def test_generation_fencing_and_expiry_fail_closed():
     rt = runtime()
     expired = command(command_id="cmd:expired", idempotency_key="idem:expired")
     assert execute(rt, expired, now=501.0).mutation_count == 0
-    assert rt.fence_generation("governor:state") == 2
+    assert rt.fence_generation(PRIMARY_GOVERNOR) == 2
     stale = command(command_id="cmd:stale", idempotency_key="idem:stale")
     assert execute(rt, stale).reason == "STALE_GENERATION"
     rt.bind_lease(lease(lease_id="lease:gen2", generation=2))
@@ -248,8 +255,8 @@ def test_failure_injection_requires_rescheduling_before_retry():
 
 def test_owner_scoped_recovery_preserves_other_governor_state_and_monotonic_version():
     rt = runtime()
-    rt.register_governor(governor("governor:evidence", owned=("evidence_refs",), function=GovernorFunction.EVIDENCE))
-    rt.bind_lease(lease("governor:evidence", lease_id="lease:evidence"))
+    rt.register_governor(governor(EVIDENCE_GOVERNOR, owned=("evidence_refs",), function=GovernorFunction.EVIDENCE))
+    rt.bind_lease(lease(EVIDENCE_GOVERNOR, lease_id="lease:evidence"))
     execute(rt, command())
     rt.checkpoint("cp:1", now=111.0)
     execute(
@@ -266,7 +273,7 @@ def test_owner_scoped_recovery_preserves_other_governor_state_and_monotonic_vers
         rt,
         command(
             command_id="cmd:evidence",
-            governor_id="governor:evidence",
+            governor_id=EVIDENCE_GOVERNOR,
             lease_id="lease:evidence",
             idempotency_key="idem:evidence",
             expected_state_version=2,
@@ -275,7 +282,7 @@ def test_owner_scoped_recovery_preserves_other_governor_state_and_monotonic_vers
         now=113.0,
     )
     before = rt.state_version
-    generation = rt.recover_governor("governor:state", checkpoint_id="cp:1")
+    generation = rt.recover_governor(PRIMARY_GOVERNOR, checkpoint_id="cp:1")
     assert generation == 2
     assert rt.state_version == before + 1
     assert rt.state["evidence_refs"] == ["e1"]
