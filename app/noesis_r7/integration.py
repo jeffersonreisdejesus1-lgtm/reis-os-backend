@@ -51,18 +51,25 @@ class R7ArchitecturalReadiness:
 
 @dataclass(frozen=True, slots=True)
 class R1R6IntegrationContract:
-    """Base physiology identity plus explicit evidence refs for R7 wiring.
+    """R7 containment requirements plus separately tracked wiring evidence.
 
-    `canonical()` proves only that the promoted R1-R6 physiology identity is the
-    expected one. It intentionally does NOT claim the R1-R6 <-> R7 causal wiring is
-    complete. Each relation must later be backed by a concrete implementation/evidence
-    reference after Governor derivation defines the R7 state and transition surfaces.
+    The six boolean relations are architectural requirements. They state what R7 MUST
+    be embedded in; they are not proof that the implementation wiring exists. Material
+    conformance is represented only by the six corresponding `*_binding_ref` fields.
     """
 
     noesis_idi: str
     current_ec: str
     l0_binding_hash: str
     active_layers: tuple[str, ...]
+
+    r1_persists_r7_state: bool
+    r2_measures_r7_progress_and_effects: bool
+    r3_types_r7_transitions: bool
+    r4_schedules_r7_mechanisms: bool
+    r5_observes_r7_and_global_chain: bool
+    r6_constrains_r7_and_global_chain: bool
+
     r1_state_binding_ref: str | None = None
     r2_measurement_binding_ref: str | None = None
     r3_transition_binding_ref: str | None = None
@@ -77,6 +84,12 @@ class R1R6IntegrationContract:
             current_ec=CANONICAL_NOESIS_EC,
             l0_binding_hash=CANONICAL_L0_BINDING_HASH,
             active_layers=REQUIRED_LAYERS,
+            r1_persists_r7_state=True,
+            r2_measures_r7_progress_and_effects=True,
+            r3_types_r7_transitions=True,
+            r4_schedules_r7_mechanisms=True,
+            r5_observes_r7_and_global_chain=True,
+            r6_constrains_r7_and_global_chain=True,
         )
 
     def assert_base_compatible(self) -> None:
@@ -88,6 +101,17 @@ class R1R6IntegrationContract:
             raise R7InvariantError("R7_L0_BINDING_DRIFT")
         if self.active_layers != REQUIRED_LAYERS:
             raise R7InvariantError("R7_REQUIRES_EXACT_CANONICAL_R1_R6")
+
+        required_relations = (
+            self.r1_persists_r7_state,
+            self.r2_measures_r7_progress_and_effects,
+            self.r3_types_r7_transitions,
+            self.r4_schedules_r7_mechanisms,
+            self.r5_observes_r7_and_global_chain,
+            self.r6_constrains_r7_and_global_chain,
+        )
+        if not all(required_relations):
+            raise R7InvariantError("R7_REQUIRES_COMPLETE_R1_R6_CAUSAL_CONTAINMENT")
 
     @property
     def full_r7_integration_proven(self) -> bool:
@@ -104,9 +128,8 @@ class R1R6IntegrationContract:
     def assert_complete_r7_integration(self) -> None:
         self.assert_base_compatible()
         if not self.full_r7_integration_proven:
-            raise R7InvariantError("R7_REQUIRES_COMPLETE_R1_R6_CAUSAL_CONTAINMENT")
+            raise R7InvariantError("R7_R1_R6_WIRING_EVIDENCE_INCOMPLETE")
 
-    # Compatibility alias for callers whose intent is only base physiology validation.
     def assert_compatible(self) -> None:
         self.assert_base_compatible()
 
