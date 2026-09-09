@@ -11,7 +11,6 @@ class R7InvariantError(RuntimeError):
 
 class GovernorFunction(str, Enum):
     """Functional governance interfaces, not a frozen identity roster."""
-
     STATE = "STATE"
     PROGRESS = "PROGRESS"
     TRANSITION = "TRANSITION"
@@ -66,7 +65,6 @@ class GovernorContract:
 @dataclass(frozen=True, slots=True)
 class GovernorLease:
     """Externally authorized lease bound into R7; R7 does not mint authority."""
-
     lease_id: str
     governor_id: str
     mission_id: str
@@ -121,6 +119,8 @@ class GovernanceTask:
     def __post_init__(self) -> None:
         if not self.task_id:
             raise ValueError("task_id_required")
+        if not self.command_id:
+            object.__setattr__(self, "command_id", self.task_id)
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,9 +135,7 @@ class CommunicationEnvelope:
 
     def __post_init__(self) -> None:
         if self.authority_transferred:
-            raise R7InvariantError(
-                "GOVERNOR_COMMUNICATION_MUST_NOT_TRANSFER_AUTHORITY"
-            )
+            raise R7InvariantError("GOVERNOR_COMMUNICATION_MUST_NOT_TRANSFER_AUTHORITY")
 
 
 @dataclass(frozen=True, slots=True)
