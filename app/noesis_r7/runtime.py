@@ -19,6 +19,7 @@ from app.noesis_r7.contracts import (
     RecoveryCheckpoint,
 )
 from app.noesis_r7.integration import R1R6IntegrationContract, R7ArchitecturalReadiness
+from app.noesis_r7.roster import assert_derived_governor
 
 FORBIDDEN_COMMANDS = frozenset(
     {
@@ -106,6 +107,10 @@ class R7GovernanceRuntime:
 
     def register_governor(self, contract: GovernorContract) -> None:
         self._architectural_readiness.assert_governor_activation_allowed()
+        assert_derived_governor(
+            contract.governor_id,
+            derivation_ref=self._architectural_readiness.derivation_ref or "",
+        )
         existing = self._governors.get(contract.governor_id)
         if existing is not None:
             if existing != contract:
