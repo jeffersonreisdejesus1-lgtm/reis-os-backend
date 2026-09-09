@@ -120,6 +120,11 @@ class OCSV1Runtime:
             raise OCSV1InvariantError(f"{self.profile.ocs_id}:RECOVERY_NAMESPACE_MISMATCH")
         if any(not isinstance(state[namespace], Mapping) for namespace in self.profile.namespaces):
             raise OCSV1InvariantError(f"{self.profile.ocs_id}:RECOVERY_STATE_INVALID")
+        for namespace in self.profile.namespaces:
+            for key in state[namespace]:
+                owner = self._owner_by_key.get((namespace, str(key)))
+                if owner is None:
+                    raise OCSV1InvariantError(f"{self.profile.ocs_id}:RECOVERY_STATE_KEY_OWNERSHIP_VIOLATION")
 
         state_version = snapshot.get("state_version")
         if not isinstance(state_version, int) or state_version < 0:
@@ -130,9 +135,13 @@ class OCSV1Runtime:
         if snapshot.get("bound_object_ref") != self.bound_object_ref or snapshot.get("bound_exact_head") != self.bound_exact_head:
             raise OCSV1InvariantError(f"{self.profile.ocs_id}:RECOVERY_OBJECT_HEAD_BINDING_MISMATCH")
 
+        pre_recovery_generation = dict(self._generation)
         self._state = {namespace: deepcopy(dict(state[namespace])) for namespace in self.profile.namespaces}
         self._state_version = state_version
-        self._generation = {str(key): int(value) for key, value in generation.items()}
+        self._generation = {
+            str(governor_id): max(pre_recovery_generation[str(governor_id)], int(generation[governor_id])) + 1
+            for governor_id in restored_governors
+        }
 
     def execute(self, request: GovernanceRequest) -> GovernanceReceipt:
         before = self._state_version
