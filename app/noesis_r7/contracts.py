@@ -65,10 +65,13 @@ class GovernorContract:
 
 @dataclass(frozen=True, slots=True)
 class GovernorLease:
+    """Externally authorized lease bound into R7; R7 does not mint authority."""
+
     lease_id: str
     governor_id: str
     mission_id: str
     authority_ref: str
+    authority_source_ref: str
     scope: tuple[str, ...]
     generation: int
     issued_at: float
@@ -79,6 +82,8 @@ class GovernorLease:
     status: LeaseStatus = LeaseStatus.ACTIVE
 
     def __post_init__(self) -> None:
+        if not self.authority_source_ref:
+            raise ValueError("lease_authority_source_required")
         if self.generation < 1:
             raise ValueError("lease_generation_must_be_positive")
         if self.not_before < self.issued_at or self.expires_at <= self.not_before:
@@ -125,13 +130,16 @@ class CommunicationEnvelope:
 
     def __post_init__(self) -> None:
         if self.authority_transferred:
-            raise R7InvariantError("GOVERNOR_COMMUNICATION_MUST_NOT_TRANSFER_AUTHORITY")
+            raise R7InvariantError(
+                "GOVERNOR_COMMUNICATION_MUST_NOT_TRANSFER_AUTHORITY"
+            )
 
 
 @dataclass(frozen=True, slots=True)
 class GovernanceReceipt:
     receipt_id: str
     command_id: str
+    governor_id: str
     idempotency_key: str
     status: CommandStatus
     reason: str
@@ -149,8 +157,9 @@ class GovernanceReceipt:
 class RecoveryCheckpoint:
     checkpoint_id: str
     mission_id: str
-    generation: int
+    generation_snapshot: dict[str, int]
     state_version: int
     state: dict[str, Any]
     predecessor_receipt_hash: str
+    receipt_count: int
     created_at: float
