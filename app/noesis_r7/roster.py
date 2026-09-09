@@ -23,6 +23,9 @@ class DerivedGovernorSpec:
     boundaries: tuple[str, ...] = ()
 
 
+# Candidate roster derived by Nóesis. Presence in this table is necessary for
+# runtime registration but does not itself constitute institutional activation,
+# authority creation, canonical promotion or independent assurance.
 DERIVED_GOVERNOR_ROSTER: tuple[DerivedGovernorSpec, ...] = (
     DerivedGovernorSpec("G-I01", "A-CTX", "CONTEXT_AND_PERCEPTION_GOVERNOR", GovernorDomain.INTERNAL, ("NGR-01",), ("A-CTX != OG-INTAKE",)),
     DerivedGovernorSpec("G-I02", "A-CG", "COGNITIVE_COMPOSITION_GOVERNOR", GovernorDomain.INTERNAL, ("NGR-02",), ("A-CG != NOESIS", "A-CG != AUTHORITY")),
