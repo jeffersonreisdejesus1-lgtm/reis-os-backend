@@ -110,7 +110,7 @@ The qualification suite now includes checks for:
 - direct `R7GovernanceRuntime.register_governor()` rejection of a non-derived Governor;
 - existing scheduler bypass, authority inflation, cross-owner write, stale generation/lease, recovery, rollback/idempotency, durable restart, tamper, stale writer and crash-recovery cases.
 
-Hosted CI is not represented as PASS. On the exact reconciliation series, GitHub Actions continues to fail before runner execution (`steps=null` / no test steps), so:
+Hosted CI is not represented as PASS. GitHub Actions continues to fail before runner execution (`steps=null` / no test steps), so:
 
 `HOSTED_CI = PRE_RUNNER_FAILURE`
 
