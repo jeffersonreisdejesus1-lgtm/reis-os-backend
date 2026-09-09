@@ -12,6 +12,7 @@ from app.iris_v1.contracts import (
     IrisV1InvariantError,
     RecoveryCheckpoint,
 )
+from app.iris_v1.durable import IrisV1DurableRuntime
 from app.iris_v1.runtime import IrisV1Runtime, derived_governor_specs
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "IRIS_DESIGN_AUTHORITY",
     "IRIS_IDENTITY_STATE_ROOT",
     "IrisV1Bindings",
+    "IrisV1DurableRuntime",
     "IrisV1InvariantError",
     "IrisV1Runtime",
     "RecoveryCheckpoint",
