@@ -6,16 +6,13 @@ BASE_MAIN = 063d42e745366a5315ec5bbb1cf433548d208150
 CLASS = ADDITIVE_POST_REFACTOR_EVOLUTION
 TARGET = NÓESIS
 GENERATION = R7
-STATUS = HOLD_WITH_REPAIRABLE_ARCHITECTURAL_RESERVATIONS
+STATUS = IMPLEMENTATION_RECONCILED_FOR_ADVERSARIAL_REVIEW
 
-## Correct architectural boundary
+## Architectural boundary
 
-R7 is NOT merely a layer above R1–R6.
+R7 is an agentic governance domain embedded in, observed by and constrained by the promoted R1–R6 physiology. L0 identity, authority and canonical state remain untouched.
 
-R7 is an agentic governance domain embedded in, observed by and constrained by the
-promoted R1–R6 physiology. L0 identity, authority and canonical state remain untouched.
-
-Required causal relations:
+Required causal relations are materialized as explicit bridge functions:
 
 - R1 -> persists R7 state;
 - R2 -> measures R7 progress/effects;
@@ -24,10 +21,6 @@ Required causal relations:
 - R7 -> executes specialized governance;
 - R5 -> observes R7 plus the global chain;
 - R6 -> constrains R7 plus the global chain.
-
-The current candidate records these six relations as mandatory requirements while
-tracking their implementation/evidence references separately. Presence of R1–R6 is
-therefore not equivalent to proof of complete R1–R6 <-> R7 wiring.
 
 Mandatory invariants:
 
@@ -38,129 +31,121 @@ Mandatory invariants:
 - `ORCHESTRATION != AUTHORITY`.
 - `SCHEDULER != AUTHORITY`.
 - `HANDOFF != AUTHORITY_TRANSFER`.
+- `HANDOFF != IDENTITY_TRANSFER`.
 - `GOVERNOR != OCS`.
-- `GOVERNOR_INFRASTRUCTURE != GOVERNOR_DERIVATION`.
 - `GOVERNOR_CONTRACT != AUTHORITY_GRANT`.
 - `R7_INTERNAL_GOVERNANCE != MATERIAL_EFFECT_EXECUTOR`.
 - `BUILDER_ROLE != FINAL_ASSURANCE_ROLE`.
 
-## Taxonomic freeze and Governor activation gate
+## Derived roster
 
-Generic Governor mechanics are retained because they are reusable infrastructure.
-Material Governor population is blocked by default.
+Canonical derivation input for this candidate:
 
-`register_governor`, lease binding, scheduling, communication, execution and recovery
-remain inert until ALL of the following are externally established by the Nóesis
-architectural workstream:
+`DERIVATION_REF = NOESIS-R7-GOVERNOR-ROSTER-DERIVATION-001`
 
-- R7-I taxonomy frozen;
-- R7-O taxonomy frozen;
-- cross-taxonomy analysis complete;
-- normalized requirements available;
-- Governor derivation valid;
-- a derivation reference is supplied.
+Roster cardinality is a derived property, not a design target.
 
-Default behavior:
+Internal R7-I:
 
-`GOVERNOR_ACTIVATION = DENY/HOLD`
+1. A-CTX
+2. A-CG
+3. A-MEM-WORKING
+4. A-MEM-DURABLE
+5. A-DTRUST
+6. A-EVID
+7. A-LEARN
+8. A-HOME
+9. A-RECOVERY
+10. A-PI-ORCH
 
-Tests may use an explicitly labelled `synthetic-test-only` derivation fixture solely to
-exercise generic mechanics. Such a fixture is not institutional evidence and cannot
-promote a roster.
+Outer R7-O:
 
-No final Governor roster is defined by this candidate. Functional interfaces STATE,
-PROGRESS, TRANSITION, SCHEDULING, COMMUNICATION, LEASE, RECOVERY and EVIDENCE remain
-implementation abstractions only.
+11. OG-INTAKE
+12. OG-ORCH-ROUTE
+13. OG-HANDOFF
+14. OG-PROGRAM-STATE
+15. OG-EVOLUTION
+16. OG-AUTH
+17. OG-RUNTIME
 
-## R1–R6 wiring status
+`A-EXEC` is explicitly rejected as an R7 Governor. Memory remains split between working and durable lifecycles. Institutional orchestration and OCS routing remain merged. Authority/scope and runtime lifecycle governance remain separate.
 
-The promoted physiology already materializes Blackboard, ProgressMonitor,
-TypedTransition, PhysiologicalScheduler, TelemetryLedger and FormalChecks. Its
-operational cycle is:
+## Activation and registration gate
 
-`BIND -> READ_STATE -> CLASSIFY -> SCHEDULE -> COGNITIVE_STEP -> MEASURE_DELTA -> PERSIST_STATE -> METHOD_CHANGE|HANDOFF|ESCALATE|STOP -> CHECK_GATE -> NEXT_CYCLE`
+Governor activation remains fail-closed unless ALL architectural readiness conditions are true and the exact derivation reference is present.
 
-R7 must be reconciled into those mechanisms after Governor derivation defines the
-actual R7 state, transition and observation surfaces.
-
-Current material status:
-
-- R1 state binding reference: PENDING;
-- R2 measurement binding reference: PENDING;
-- R3 transition binding reference: PENDING;
-- R4 scheduler binding reference: PENDING;
-- R5 observation binding reference: PENDING;
-- R6 constraint binding reference: PENDING.
+Direct runtime registration is now also constrained by the derived roster. `register_governor()` validates the requested Governor ID against the canonical derived roster using the readiness derivation reference. This closes the previously identified bypass in which a caller could construct a raw `GovernorContract` and attempt to register a non-derived Governor directly.
 
 Therefore:
 
-`FULL_R7_ARCHITECTURAL_CONFORMANCE = NOT_YET`
+`DIRECT_REGISTER_ROSTER_BYPASS = CLOSED_BY_IMPLEMENTATION`
 
-`R1_R6_PRESENCE != R1_R6_R7_WIRING_PROOF`
+`GOVERNOR_ACTIVATION != INSTITUTIONAL_PROMOTION`
 
-## Reusable candidate mechanics
+## R1–R6 wiring
 
-The following candidate work is retained rather than discarded:
+The six concrete bridge references are materialized in `app/noesis_r7/physiology_bindings.py` and tracked independently in the R1–R6 integration contract.
 
-- generic Governor contracts;
-- exclusive state ownership mechanics;
-- scheduler admission mechanics;
-- communication envelopes with authority-transfer prohibition;
-- externally sourced leases;
-- generation-aware fencing/recovery;
-- idempotency and replay;
-- rollback causal invalidation;
-- receipt hash chain/readback;
-- durable SQLite candidate snapshots with integrity and stale-writer fencing;
-- failure injection tests;
-- Effect Gate separation.
+The promoted physiology remains the constraining substrate:
 
-These mechanics are candidate infrastructure and do not constitute a Governor roster.
+- R1 explicit state blackboard;
+- R2 progress monitor;
+- R3 typed transitions;
+- R4 physiological scheduler;
+- R5 telemetry ledger;
+- R6 formal checks.
+
+`R1_R6_PRESENCE != R1_R6_R7_WIRING_PROOF`; the candidate now carries explicit wiring references rather than inferring integration from layer presence.
+
+## Qualification surface
+
+The qualification suite now includes checks for:
+
+- exact 17-Governor roster cardinality;
+- Governor ID uniqueness;
+- 10 internal / 7 outer split;
+- rejection of A-EXEC;
+- exact derivation reference requirement;
+- six distinct R1–R6 binding refs;
+- direct `R7GovernanceRuntime.register_governor()` rejection of a non-derived Governor;
+- existing scheduler bypass, authority inflation, cross-owner write, stale generation/lease, recovery, rollback/idempotency, durable restart, tamper, stale writer and crash-recovery cases.
+
+Hosted CI is not represented as PASS. On the exact reconciliation series, GitHub Actions continues to fail before runner execution (`steps=null` / no test steps), so:
+
+`HOSTED_CI = PRE_RUNNER_FAILURE`
+
+`HOSTED_CI_PASS = NOT_CLAIMED`
+
+`IMPLEMENTATION_TEST_FAILURE = NOT_DEMONSTRATED_BY_HOSTED_CI`
 
 ## Effect boundary
 
-R7 internal mechanics do not execute external material effects.
-`material_effect_requested=true` is denied. External effects require a separate Effect
-Gate with independent authority, idempotency, execution receipt, reconciliation and
-readback.
+R7 internal mechanics do not execute external material effects. `material_effect_requested=true` is denied. External effects require a separate authorized effect surface.
 
 ## Process boundary
 
-Ágora is authorized to implement and repair this candidate under the exceptional
-end-to-end implementation handoff. Ágora does not provide independent assurance over
-its own implementation.
+Ágora implemented and repaired this candidate under the end-to-end implementation handoff. Ágora does not provide independent assurance over its own implementation.
 
-The next valid route is NOT Dédala yet. Architectural prerequisites return to Nóesis:
+No merge, promotion, production or Governor institutional activation is performed by this document.
 
-1. R7-I taxonomy;
-2. R7-O taxonomy;
-3. cross-taxonomy analysis;
-4. normalized governance requirements;
-5. Governor derivation.
+Next route:
 
-After those artifacts exist, Ágora must:
+`ÁGORA -> DÉDALA -> [ÁGORA_REPAIR <-> DÉDALA_REVIEW]* -> SÝNESIS -> FOUNDER_PROMOTION_GATE`
 
-1. reconcile the generic runtime with the legitimately derived roster;
-2. complete concrete R1–R6 <-> R7 wiring and evidence references;
-3. rerun engineering tests/failure injection;
-4. regenerate the exact-head evidence package.
-
-Only then:
-
-`ÁGORA -> DÉDALA -> SÝNESIS -> FOUNDER_PROMOTION_GATE`
+Implementation findings return to Ágora. Architectural findings return to Nóesis.
 
 ## Current disposition
 
-GENERIC_R7_RUNTIME_MECHANICS = FUNCTIONAL_CANDIDATE
-CURRENT_CODE_VALUE = HIGH_REUSABLE
-REWRITE_REQUIRED = NO
-TARGETED_CORRECTIONS = PARTIALLY_COMPLETED
-GOVERNOR_ACTIVATION = BLOCKED_PENDING_DERIVATION
-R7_I_TAXONOMY = PENDING_NOESIS
-R7_O_TAXONOMY = PENDING_NOESIS
-CROSS_TAXONOMY_ANALYSIS = PENDING_NOESIS
-GOVERNOR_DERIVATION = PENDING_NOESIS
-R1_R6_R7_WIRING = PENDING_POST_DERIVATION_RECONCILIATION
-CONFORMANCE_PASS_ALLOWED = NO
-PR79 = HOLD_CANDIDATE
+R7_I_TAXONOMY = FROZEN
+R7_O_TAXONOMY = FROZEN
+CROSS_TAXONOMY_ANALYSIS = COMPLETE
+GOVERNOR_DERIVATION = VALID
+DERIVED_ROSTER = 17_CANDIDATE_GOVERNORS
+R1_R6_R7_WIRING = MATERIALIZED_WITH_EXPLICIT_BINDING_REFS
+DIRECT_REGISTER_ROSTER_ENFORCEMENT = MATERIALIZED
+QUALIFICATION_SPEC = REGENERATED
+HOSTED_CI = PRE_RUNNER_FAILURE
+HOSTED_CI_PASS = NOT_CLAIMED
+AGORA_IMPLEMENTATION = COMPLETE_FOR_REVIEW
+PR79 = CANDIDATE_FOR_DEDALA_REVIEW
 CANONICAL_PROMOTION = NOT_AUTHORIZED
