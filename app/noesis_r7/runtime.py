@@ -38,10 +38,9 @@ FORBIDDEN_COMMANDS = frozenset(
 class R7GovernanceRuntime:
     """Internal Nóesis R7 governance plane over unchanged canonical R1-R6.
 
-    Governor contracts are functional interfaces. Registering a contract does not
-    create a new OCS identity and does not grant authority. Material external
-    effects are deliberately outside this runtime; R7 can only govern internal
-    state proposals and return receipts suitable for later effect gates.
+    Governor contracts are functional interfaces, not new OCS identities. R7 binds
+    externally authorized leases but never mints authority. Material external effects
+    remain outside this runtime and require a separate effect gate.
     """
 
     def __init__(
@@ -65,6 +64,7 @@ class R7GovernanceRuntime:
         self._task_seq = 0
         self._receipts: list[GovernanceReceipt] = []
         self._idempotency: dict[str, tuple[str, GovernanceReceipt]] = {}
+        self._invalidated_idempotency: set[str] = set()
         self._communications: list[CommunicationEnvelope] = []
         self._checkpoints: dict[str, RecoveryCheckpoint] = {}
         self._failure_point = FailurePoint.NONE
@@ -113,7 +113,8 @@ class R7GovernanceRuntime:
         self._governors[contract.governor_id] = contract
         self._generation_by_governor.setdefault(contract.governor_id, 1)
 
-    def issue_lease(self, lease: GovernorLease) -> None:
+    def bind_lease(self, lease: GovernorLease) -> None:
+        """Bind an externally authorized lease; this method creates no authority."""
         contract = self._require_governor(lease.governor_id)
         if lease.mission_id != self.mission_id:
             raise R7InvariantError("LEASE_MISSION_MISMATCH")
@@ -179,15 +180,13 @@ class R7GovernanceRuntime:
     ) -> GovernanceReceipt:
         contract = self._require_governor(command.governor_id)
         fingerprint = self._hash(asdict(command))
+        if command.idempotency_key in self._invalidated_idempotency:
+            raise R7InvariantError("IDEMPOTENCY_KEY_INVALIDATED_BY_ROLLBACK")
         replay = self._idempotency.get(command.idempotency_key)
         if replay is not None:
             previous_fingerprint, previous_receipt = replay
             if previous_fingerprint != fingerprint:
                 raise R7InvariantError("IDEMPOTENCY_KEY_DIVERGENT_COMMAND")
-            if previous_receipt.state_version_after > self._state_version:
-                raise R7InvariantError(
-                    "IDEMPOTENCY_REPLAY_AFTER_ROLLBACK_REQUIRES_NEW_KEY"
-                )
             return self._record_replay_receipt(command, previous_receipt)
 
         before = self._state_version
@@ -255,23 +254,17 @@ class R7GovernanceRuntime:
         checkpoint = RecoveryCheckpoint(
             checkpoint_id=checkpoint_id,
             mission_id=self.mission_id,
-            generation=max(self._generation_by_governor.values(), default=1),
+            generation_snapshot=dict(self._generation_by_governor),
             state_version=self._state_version,
             state=dict(self._state),
             predecessor_receipt_hash=(
                 self._receipts[-1].receipt_hash if self._receipts else "GENESIS"
             ),
+            receipt_count=len(self._receipts),
             created_at=now,
         )
         self._checkpoints[checkpoint_id] = checkpoint
         return checkpoint
-
-    def restore_checkpoint(self, checkpoint_id: str) -> None:
-        checkpoint = self._checkpoints.get(checkpoint_id)
-        if checkpoint is None:
-            raise R7InvariantError("RECOVERY_CHECKPOINT_NOT_FOUND")
-        self._state = dict(checkpoint.state)
-        self._state_version = checkpoint.state_version
 
     def recover_governor(
         self,
@@ -279,16 +272,71 @@ class R7GovernanceRuntime:
         *,
         checkpoint_id: str,
     ) -> int:
+        contract = self._require_governor(governor_id)
+        checkpoint = self._require_checkpoint(checkpoint_id)
         previous_generation = self.current_generation(governor_id)
+        checkpoint_generation = checkpoint.generation_snapshot.get(governor_id)
+        if checkpoint_generation is None:
+            raise R7InvariantError("RECOVERY_CHECKPOINT_GOVERNOR_MISSING")
+        if checkpoint_generation > previous_generation:
+            raise R7InvariantError("RECOVERY_CHECKPOINT_FROM_FUTURE_GENERATION")
+
         next_generation = self.fence_generation(governor_id)
-        if next_generation != previous_generation + 1:
-            raise R7InvariantError("RECOVERY_GENERATION_DIVERGENCE")
-        self.restore_checkpoint(checkpoint_id)
+        before = self._state_version
+        staged = dict(self._state)
+        changed = 0
+        for key in contract.owned_state_keys:
+            if key in checkpoint.state:
+                if staged.get(key) != checkpoint.state[key]:
+                    changed += 1
+                staged[key] = checkpoint.state[key]
+            elif key in staged:
+                staged.pop(key)
+                changed += 1
+        self._state = staged
+        self._state_version = before + 1
+        self._invalidate_commits_after(
+            checkpoint,
+            governor_id=governor_id,
+        )
+        self._record_system_receipt(
+            command_id=f"recover:{governor_id}:{checkpoint_id}",
+            governor_id=governor_id,
+            idempotency_key=f"system:recover:{governor_id}:{next_generation}",
+            reason=f"GOVERNOR_RECOVERY_FROM:{checkpoint_id}",
+            generation=next_generation,
+            state_version_before=before,
+            state_version_after=self._state_version,
+            mutation_count=changed,
+            readback={key: self._state.get(key) for key in contract.owned_state_keys},
+        )
         return next_generation
 
     def rollback_to_checkpoint(self, checkpoint_id: str) -> None:
-        """Rollback internal state only; external effects are out of scope."""
-        self.restore_checkpoint(checkpoint_id)
+        """Rollback internal R7 state as a new monotonic state transition."""
+        checkpoint = self._require_checkpoint(checkpoint_id)
+        before = self._state_version
+        previous_state = self._state
+        self._state = dict(checkpoint.state)
+        self._state_version = before + 1
+        self._invalidate_commits_after(checkpoint)
+        changed = len(
+            {
+                *previous_state.keys(),
+                *self._state.keys(),
+            }
+        )
+        self._record_system_receipt(
+            command_id=f"rollback:{checkpoint_id}",
+            governor_id="NOESIS_R7_SYSTEM",
+            idempotency_key=f"system:rollback:{checkpoint_id}:{self._state_version}",
+            reason=f"ROLLBACK_TO_CHECKPOINT:{checkpoint_id}",
+            generation=max(self._generation_by_governor.values(), default=1),
+            state_version_before=before,
+            state_version_after=self._state_version,
+            mutation_count=changed,
+            readback=dict(self._state),
+        )
 
     def verify_receipt_chain(self) -> bool:
         previous = "GENESIS"
@@ -345,6 +393,26 @@ class R7GovernanceRuntime:
             return "STATE_OWNERSHIP_VIOLATION"
         return None
 
+    def _invalidate_commits_after(
+        self,
+        checkpoint: RecoveryCheckpoint,
+        *,
+        governor_id: str | None = None,
+    ) -> None:
+        receipt_position = {
+            receipt.receipt_id: index
+            for index, receipt in enumerate(self._receipts, start=1)
+        }
+        for key, (_, original) in self._idempotency.items():
+            position = receipt_position.get(original.receipt_id, 0)
+            if position <= checkpoint.receipt_count:
+                continue
+            if original.status is not CommandStatus.ACCEPTED:
+                continue
+            if governor_id is not None and original.governor_id != governor_id:
+                continue
+            self._invalidated_idempotency.add(key)
+
     def _record_replay_receipt(
         self,
         command: GovernanceCommand,
@@ -354,6 +422,7 @@ class R7GovernanceRuntime:
         payload: dict[str, Any] = {
             "receipt_id": f"r7:{len(self._receipts) + 1}:{command.command_id}:replay",
             "command_id": command.command_id,
+            "governor_id": command.governor_id,
             "idempotency_key": command.idempotency_key,
             "status": CommandStatus.REPLAYED,
             "reason": f"EXACT_REPLAY_OF:{original.receipt_id}",
@@ -388,6 +457,7 @@ class R7GovernanceRuntime:
         payload: dict[str, Any] = {
             "receipt_id": f"r7:{len(self._receipts) + 1}:{command.command_id}",
             "command_id": command.command_id,
+            "governor_id": command.governor_id,
             "idempotency_key": command.idempotency_key,
             "status": status,
             "reason": reason,
@@ -409,8 +479,50 @@ class R7GovernanceRuntime:
         self._idempotency[command.idempotency_key] = (fingerprint, receipt)
         return receipt
 
+    def _record_system_receipt(
+        self,
+        *,
+        command_id: str,
+        governor_id: str,
+        idempotency_key: str,
+        reason: str,
+        generation: int,
+        state_version_before: int,
+        state_version_after: int,
+        mutation_count: int,
+        readback: dict[str, Any],
+    ) -> GovernanceReceipt:
+        previous = self._receipts[-1].receipt_hash if self._receipts else "GENESIS"
+        payload: dict[str, Any] = {
+            "receipt_id": f"r7:{len(self._receipts) + 1}:{command_id}",
+            "command_id": command_id,
+            "governor_id": governor_id,
+            "idempotency_key": idempotency_key,
+            "status": CommandStatus.ACCEPTED,
+            "reason": reason,
+            "generation": generation,
+            "state_version_before": state_version_before,
+            "state_version_after": state_version_after,
+            "mutation_count": mutation_count,
+            "material_effect_performed": False,
+            "previous_hash": previous,
+            "readback": readback,
+        }
+        receipt = GovernanceReceipt(
+            receipt_hash=self._hash(payload),
+            **payload,
+        )
+        self._receipts.append(receipt)
+        return receipt
+
     def _require_governor(self, governor_id: str) -> GovernorContract:
         contract = self._governors.get(governor_id)
         if contract is None:
             raise R7InvariantError("GOVERNOR_NOT_REGISTERED")
         return contract
+
+    def _require_checkpoint(self, checkpoint_id: str) -> RecoveryCheckpoint:
+        checkpoint = self._checkpoints.get(checkpoint_id)
+        if checkpoint is None:
+            raise R7InvariantError("RECOVERY_CHECKPOINT_NOT_FOUND")
+        return checkpoint
