@@ -13,6 +13,7 @@ from app.noesis_r7.contracts import (
     GovernorContract,
     GovernorFunction,
     GovernorLease,
+    GovernanceCommand,
     GovernanceReceipt,
     GovernanceTask,
     LeaseStatus,
@@ -24,10 +25,10 @@ from app.noesis_r7.runtime import R7GovernanceRuntime
 
 
 class R7DurableRuntime(R7GovernanceRuntime):
-    """Restart-safe R7 runtime using append-only SQLite snapshots.
+    """Restart-safe R7 runtime with append-only SQLite snapshot journal.
 
-    SQLite is an engineering persistence substrate for the candidate. It does not
-    become the institutional source of authority or replace Nóesis L0/R1-R6.
+    SQLite is an engineering persistence substrate for this candidate only. It is
+    not a source of institutional identity or authority and does not replace L0/R1-R6.
     """
 
     def __init__(
@@ -39,17 +40,21 @@ class R7DurableRuntime(R7GovernanceRuntime):
         initial_state: dict[str, Any] | None = None,
     ) -> None:
         self._database_path = database_path
+        self._persistence_suspended = False
+        self._durable_head_hash = "GENESIS"
         self._initialize_database()
         super().__init__(
             mission_id=mission_id,
             integration=integration,
             initial_state=initial_state,
         )
-        snapshot = self._load_latest_snapshot()
-        if snapshot is not None:
-            self._restore_snapshot(snapshot)
-        else:
+        loaded = self._load_latest_snapshot()
+        if loaded is None:
             self._persist_snapshot("INITIALIZE")
+        else:
+            payload, snapshot_hash = loaded
+            self._restore_snapshot(payload)
+            self._durable_head_hash = snapshot_hash
 
     @staticmethod
     def _snapshot_hash(payload: dict[str, Any]) -> str:
@@ -63,7 +68,7 @@ class R7DurableRuntime(R7GovernanceRuntime):
         return hashlib.sha256(raw).hexdigest()
 
     def _connect(self) -> sqlite3.Connection:
-        connection = sqlite3.connect(self._database_path)
+        connection = sqlite3.connect(self._database_path, timeout=30.0)
         connection.row_factory = sqlite3.Row
         return connection
 
@@ -92,32 +97,37 @@ class R7DurableRuntime(R7GovernanceRuntime):
 
     def register_governor(self, contract: GovernorContract) -> None:
         super().register_governor(contract)
-        self._persist_snapshot("REGISTER_GOVERNOR")
+        self._persist_if_enabled("REGISTER_GOVERNOR")
 
-    def issue_lease(self, lease: GovernorLease) -> None:
-        super().issue_lease(lease)
-        self._persist_snapshot("ISSUE_LEASE")
+    def bind_lease(self, lease: GovernorLease) -> None:
+        super().bind_lease(lease)
+        self._persist_if_enabled("BIND_LEASE")
 
     def fence_generation(self, governor_id: str) -> int:
         generation = super().fence_generation(governor_id)
-        self._persist_snapshot("FENCE_GENERATION")
+        self._persist_if_enabled("FENCE_GENERATION")
         return generation
 
     def schedule(self, task: GovernanceTask) -> None:
         super().schedule(task)
-        self._persist_snapshot("SCHEDULE_TASK")
+        self._persist_if_enabled("SCHEDULE_TASK")
 
     def next_task(self) -> GovernanceTask | None:
         task = super().next_task()
         if task is not None:
-            self._persist_snapshot("DEQUEUE_TASK")
+            self._persist_if_enabled("DEQUEUE_TASK")
         return task
 
     def communicate(self, envelope: CommunicationEnvelope) -> None:
         super().communicate(envelope)
-        self._persist_snapshot("COMMUNICATE")
+        self._persist_if_enabled("COMMUNICATE")
 
-    def execute(self, command: Any, *, now: float) -> GovernanceReceipt:
+    def execute(
+        self,
+        command: GovernanceCommand,
+        *,
+        now: float,
+    ) -> GovernanceReceipt:
         try:
             receipt = super().execute(command, now=now)
         except RuntimeError as exc:
@@ -127,18 +137,44 @@ class R7DurableRuntime(R7GovernanceRuntime):
         self._persist_snapshot("EXECUTE_COMMAND")
         return receipt
 
-    def checkpoint(self, checkpoint_id: str, *, now: float) -> RecoveryCheckpoint:
+    def checkpoint(
+        self,
+        checkpoint_id: str,
+        *,
+        now: float,
+    ) -> RecoveryCheckpoint:
         checkpoint = super().checkpoint(checkpoint_id, now=now)
         self._persist_snapshot("CHECKPOINT")
         return checkpoint
 
-    def restore_checkpoint(self, checkpoint_id: str) -> None:
-        super().restore_checkpoint(checkpoint_id)
-        self._persist_snapshot("RESTORE_CHECKPOINT")
+    def recover_governor(
+        self,
+        governor_id: str,
+        *,
+        checkpoint_id: str,
+    ) -> int:
+        self._persistence_suspended = True
+        try:
+            generation = super().recover_governor(
+                governor_id,
+                checkpoint_id=checkpoint_id,
+            )
+        finally:
+            self._persistence_suspended = False
+        self._persist_snapshot("RECOVER_GOVERNOR")
+        return generation
 
     def rollback_to_checkpoint(self, checkpoint_id: str) -> None:
-        super().rollback_to_checkpoint(checkpoint_id)
+        self._persistence_suspended = True
+        try:
+            super().rollback_to_checkpoint(checkpoint_id)
+        finally:
+            self._persistence_suspended = False
         self._persist_snapshot("ROLLBACK_TO_CHECKPOINT")
+
+    def _persist_if_enabled(self, reason: str) -> None:
+        if not self._persistence_suspended:
+            self._persist_snapshot(reason)
 
     def _snapshot(self) -> dict[str, Any]:
         return {
@@ -158,6 +194,7 @@ class R7DurableRuntime(R7GovernanceRuntime):
                 }
                 for key, (fingerprint, receipt) in self._idempotency.items()
             },
+            "invalidated_idempotency": sorted(self._invalidated_idempotency),
             "communications": [asdict(value) for value in self._communications],
             "checkpoints": [asdict(value) for value in self._checkpoints.values()],
         }
@@ -165,10 +202,19 @@ class R7DurableRuntime(R7GovernanceRuntime):
     def _persist_snapshot(self, reason: str) -> None:
         payload = self._snapshot()
         snapshot_hash = self._snapshot_hash(payload)
-        with self._connect() as connection:
+        serialized = json.dumps(
+            payload,
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=str,
+        )
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
             row = connection.execute(
                 """
-                SELECT snapshot_hash
+                SELECT snapshot_hash, snapshot_json
                 FROM r7_runtime_snapshot_journal
                 WHERE mission_id = ?
                 ORDER BY seq DESC
@@ -176,7 +222,18 @@ class R7DurableRuntime(R7GovernanceRuntime):
                 """,
                 (self.mission_id,),
             ).fetchone()
-            predecessor_hash = str(row["snapshot_hash"]) if row else "GENESIS"
+            actual_head = str(row["snapshot_hash"]) if row else "GENESIS"
+            if actual_head != self._durable_head_hash:
+                connection.rollback()
+                if row is not None:
+                    latest_payload = json.loads(str(row["snapshot_json"]))
+                    if self._snapshot_hash(latest_payload) != actual_head:
+                        raise R7InvariantError(
+                            "R7_DURABLE_SNAPSHOT_INTEGRITY_FAILURE"
+                        )
+                    self._restore_snapshot(latest_payload)
+                    self._durable_head_hash = actual_head
+                raise R7InvariantError("R7_DURABLE_STALE_WRITER")
             connection.execute(
                 """
                 INSERT INTO r7_runtime_snapshot_journal (
@@ -192,19 +249,17 @@ class R7DurableRuntime(R7GovernanceRuntime):
                     self.mission_id,
                     reason,
                     self._state_version,
-                    predecessor_hash,
+                    actual_head,
                     snapshot_hash,
-                    json.dumps(
-                        payload,
-                        sort_keys=True,
-                        ensure_ascii=False,
-                        separators=(",", ":"),
-                        default=str,
-                    ),
+                    serialized,
                 ),
             )
+            connection.commit()
+            self._durable_head_hash = snapshot_hash
+        finally:
+            connection.close()
 
-    def _load_latest_snapshot(self) -> dict[str, Any] | None:
+    def _load_latest_snapshot(self) -> tuple[dict[str, Any], str] | None:
         with self._connect() as connection:
             row = connection.execute(
                 """
@@ -219,9 +274,10 @@ class R7DurableRuntime(R7GovernanceRuntime):
         if row is None:
             return None
         payload = json.loads(str(row["snapshot_json"]))
-        if self._snapshot_hash(payload) != str(row["snapshot_hash"]):
+        snapshot_hash = str(row["snapshot_hash"])
+        if self._snapshot_hash(payload) != snapshot_hash:
             raise R7InvariantError("R7_DURABLE_SNAPSHOT_INTEGRITY_FAILURE")
-        return payload
+        return payload, snapshot_hash
 
     def verify_snapshot_chain(self) -> bool:
         previous = "GENESIS"
@@ -270,6 +326,7 @@ class R7DurableRuntime(R7GovernanceRuntime):
                 governor_id=str(raw["governor_id"]),
                 mission_id=str(raw["mission_id"]),
                 authority_ref=str(raw["authority_ref"]),
+                authority_source_ref=str(raw["authority_source_ref"]),
                 scope=tuple(raw["scope"]),
                 generation=int(raw["generation"]),
                 issued_at=float(raw["issued_at"]),
@@ -300,6 +357,7 @@ class R7DurableRuntime(R7GovernanceRuntime):
             GovernanceReceipt(
                 receipt_id=str(raw["receipt_id"]),
                 command_id=str(raw["command_id"]),
+                governor_id=str(raw["governor_id"]),
                 idempotency_key=str(raw["idempotency_key"]),
                 status=CommandStatus(str(raw["status"])),
                 reason=str(raw["reason"]),
@@ -322,6 +380,7 @@ class R7DurableRuntime(R7GovernanceRuntime):
             )
             for key, value in payload["idempotency"].items()
         }
+        self._invalidated_idempotency = set(payload["invalidated_idempotency"])
         self._communications = [
             CommunicationEnvelope(
                 message_id=str(raw["message_id"]),
@@ -339,10 +398,14 @@ class R7DurableRuntime(R7GovernanceRuntime):
             checkpoint = RecoveryCheckpoint(
                 checkpoint_id=str(raw["checkpoint_id"]),
                 mission_id=str(raw["mission_id"]),
-                generation=int(raw["generation"]),
+                generation_snapshot={
+                    str(key): int(value)
+                    for key, value in raw["generation_snapshot"].items()
+                },
                 state_version=int(raw["state_version"]),
                 state=dict(raw["state"]),
                 predecessor_receipt_hash=str(raw["predecessor_receipt_hash"]),
+                receipt_count=int(raw["receipt_count"]),
                 created_at=float(raw["created_at"]),
             )
             self._checkpoints[checkpoint.checkpoint_id] = checkpoint
