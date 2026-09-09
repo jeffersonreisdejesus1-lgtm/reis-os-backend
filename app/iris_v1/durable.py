@@ -232,6 +232,19 @@ class IrisV1DurableRuntime(IrisV1Runtime):
             raise IrisV1InvariantError("IRIS_V1_DURABLE_NAMESPACE_SET_INVALID")
 
         canonical = {spec.governor_id: spec for spec in derived_governor_specs()}
+        raw_governors = payload.get("governors")
+        if not isinstance(raw_governors, list):
+            raise IrisV1InvariantError("IRIS_V1_DURABLE_GOVERNOR_ROSTER_INVALID")
+        try:
+            restored_governor_ids = [str(raw["governor_id"]) for raw in raw_governors]
+        except (KeyError, TypeError):
+            raise IrisV1InvariantError("IRIS_V1_DURABLE_GOVERNOR_ROSTER_INVALID") from None
+        if (
+            len(restored_governor_ids) != len(canonical)
+            or set(restored_governor_ids) != set(canonical)
+        ):
+            raise IrisV1InvariantError("IRIS_V1_DURABLE_GOVERNOR_ROSTER_INCOMPLETE")
+
         owner_by_key: dict[str, str] = {}
         for spec in canonical.values():
             for key in spec.owned_state_keys:
@@ -245,7 +258,7 @@ class IrisV1DurableRuntime(IrisV1Runtime):
         self._state = {name: dict(values) for name, values in raw_state.items()}
         self._state_version = int(payload.get("state_version", 0))
         self._governors = {}
-        for raw in payload.get("governors", []):
+        for raw in raw_governors:
             spec = GovernorSpec(
                 governor_id=str(raw["governor_id"]),
                 role=str(raw["role"]),
@@ -258,9 +271,12 @@ class IrisV1DurableRuntime(IrisV1Runtime):
             )
             self.register_governor(spec)
 
-        self._generation = {str(key): int(value) for key, value in payload.get("generation", {}).items()}
-        if set(self._generation) - set(self._governors):
+        raw_generation = payload.get("generation")
+        if not isinstance(raw_generation, dict):
             raise IrisV1InvariantError("IRIS_V1_DURABLE_GENERATION_OWNER_INVALID")
+        self._generation = {str(key): int(value) for key, value in raw_generation.items()}
+        if set(self._generation) != set(self._governors):
+            raise IrisV1InvariantError("IRIS_V1_DURABLE_GENERATION_OWNER_SET_MISMATCH")
 
         self._leases = {}
         for raw in payload.get("leases", []):
