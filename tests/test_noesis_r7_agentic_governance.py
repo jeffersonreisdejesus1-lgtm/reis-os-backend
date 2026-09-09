@@ -107,11 +107,17 @@ def test_r7_requires_exact_canonical_r1_r6_and_preserves_l0() -> None:
     with pytest.raises(R7InvariantError, match="R7_L0_BINDING_DRIFT"):
         replace(compatible, l0_binding_hash="forged").assert_compatible()
 
-    with pytest.raises(R7InvariantError, match="R7_REQUIRES_EXACT_CANONICAL_R1_R6"):
-        replace(compatible, active_layers=compatible.active_layers[:-1]).assert_compatible()
+    with pytest.raises(
+        R7InvariantError,
+        match="R7_REQUIRES_EXACT_CANONICAL_R1_R6",
+    ):
+        replace(
+            compatible,
+            active_layers=compatible.active_layers[:-1],
+        ).assert_compatible()
 
 
-def test_state_ownership_is_unique_and_cross_governor_write_denies_without_mutation() -> None:
+def test_state_ownership_cross_governor_write_is_zero_mutation() -> None:
     rt = runtime()
     with pytest.raises(R7InvariantError, match="STATE_OWNERSHIP_CONFLICT"):
         rt.register_governor(governor("governor:other", owned=("blockers",)))
@@ -141,18 +147,34 @@ def test_state_ownership_is_unique_and_cross_governor_write_denies_without_mutat
     assert rt.state == before
 
 
-def test_scheduler_orders_deterministically_and_cannot_grant_forbidden_authority() -> None:
+def test_scheduler_priority_and_forbidden_authority_are_deterministic() -> None:
     rt = runtime()
     rt.schedule(
-        GovernanceTask("task:1", MISSION, "governor:state", "SET_STATE", 1, 1)
+        GovernanceTask(
+            "task:1",
+            MISSION,
+            "governor:state",
+            "SET_STATE",
+            1,
+            1,
+        )
     )
     rt.schedule(
-        GovernanceTask("task:2", MISSION, "governor:state", "SET_STATE", 10, 2)
+        GovernanceTask(
+            "task:2",
+            MISSION,
+            "governor:state",
+            "SET_STATE",
+            10,
+            2,
+        )
     )
-    assert rt.next_task() is not None
-    next_task = rt.next_task()
-    assert next_task is not None
-    assert next_task.task_id == "task:1"
+    first = rt.next_task()
+    second_task = rt.next_task()
+    assert first is not None
+    assert second_task is not None
+    assert first.task_id == "task:2"
+    assert second_task.task_id == "task:1"
 
     forbidden = replace(
         governor(),
@@ -163,9 +185,19 @@ def test_scheduler_orders_deterministically_and_cannot_grant_forbidden_authority
         integration=R1R6IntegrationContract.canonical(),
     )
     second.register_governor(forbidden)
-    with pytest.raises(R7InvariantError, match="SCHEDULER_CANNOT_GRANT_AUTHORITY"):
+    with pytest.raises(
+        R7InvariantError,
+        match="SCHEDULER_CANNOT_GRANT_AUTHORITY",
+    ):
         second.schedule(
-            GovernanceTask("task:merge", MISSION, "governor:state", "MERGE", 1, 1)
+            GovernanceTask(
+                "task:merge",
+                MISSION,
+                "governor:state",
+                "MERGE",
+                1,
+                1,
+            )
         )
 
 
@@ -231,35 +263,43 @@ def test_lease_expiry_stale_generation_and_fencing_fail_closed() -> None:
     assert accepted.mutation_count == 1
 
 
-def test_idempotent_replay_does_not_duplicate_and_divergent_payload_conflicts() -> None:
+def test_idempotent_replay_and_divergent_payload_conflict() -> None:
     rt = runtime()
     first_command = command()
     first = rt.execute(first_command, now=110.0)
     replay = rt.execute(first_command, now=111.0)
     assert first.state_version_after == 1
     assert replay.status.value == "REPLAYED"
+    assert replay.mutation_count == 0
     assert rt.state_version == 1
-    assert len(rt.receipts) == 1
+    assert len(rt.receipts) == 2
+    assert rt.verify_receipt_chain() is True
 
-    with pytest.raises(R7InvariantError, match="IDEMPOTENCY_KEY_DIVERGENT_COMMAND"):
+    with pytest.raises(
+        R7InvariantError,
+        match="IDEMPOTENCY_KEY_DIVERGENT_COMMAND",
+    ):
         rt.execute(
             replace(first_command, write_set={"current_phase": "DIVERGENT"}),
             now=112.0,
         )
 
 
-def test_r7_refuses_material_effect_even_with_valid_internal_lease() -> None:
+def test_r7_refuses_material_effect_with_valid_internal_lease() -> None:
     rt = runtime()
     receipt = rt.execute(
         command(command_id="cmd:effect", material_effect_requested=True),
         now=110.0,
     )
-    assert receipt.reason == "R7_INTERNAL_GOVERNANCE_CANNOT_EXECUTE_MATERIAL_EFFECT"
+    assert (
+        receipt.reason
+        == "R7_INTERNAL_GOVERNANCE_CANNOT_EXECUTE_MATERIAL_EFFECT"
+    )
     assert receipt.material_effect_performed is False
     assert receipt.mutation_count == 0
 
 
-def test_failure_injection_pre_commit_is_zero_mutation_after_commit_is_recoverable() -> None:
+def test_failure_injection_pre_and_post_commit_converges() -> None:
     rt = runtime()
     before = rt.state
     rt.inject_failure(FailurePoint.BEFORE_COMMIT)
@@ -276,11 +316,13 @@ def test_failure_injection_pre_commit_is_zero_mutation_after_commit_is_recoverab
     assert len(rt.receipts) == 1
     replay = rt.execute(command(), now=112.0)
     assert replay.status.value == "REPLAYED"
+    assert replay.mutation_count == 0
     assert rt.state_version == 1
-    assert len(rt.receipts) == 1
+    assert len(rt.receipts) == 2
+    assert rt.verify_receipt_chain() is True
 
 
-def test_checkpoint_recovery_fences_predecessor_and_restores_allowed_state() -> None:
+def test_checkpoint_recovery_fences_predecessor_and_restores_state() -> None:
     rt = runtime()
     rt.execute(command(), now=110.0)
     checkpoint = rt.checkpoint("checkpoint:r7:1", now=111.0)
@@ -316,21 +358,25 @@ def test_checkpoint_recovery_fences_predecessor_and_restores_allowed_state() -> 
     assert stale.mutation_count == 0
 
 
-def test_receipt_chain_and_internal_rollback_are_deterministic() -> None:
+def test_rollback_blocks_replay_of_rolled_back_commit() -> None:
     rt = runtime()
     rt.execute(command(), now=110.0)
     rt.checkpoint("checkpoint:r7:rollback", now=111.0)
-    rt.execute(
-        command(
-            command_id="cmd:later",
-            write_set={"blockers": ["b1"]},
-            idempotency_key="idem:later",
-            expected_state_version=1,
-        ),
-        now=112.0,
+    later = command(
+        command_id="cmd:later",
+        write_set={"blockers": ["b1"]},
+        idempotency_key="idem:later",
+        expected_state_version=1,
     )
+    rt.execute(later, now=112.0)
     assert rt.verify_receipt_chain() is True
     rt.rollback_to_checkpoint("checkpoint:r7:rollback")
     assert rt.state_version == 1
     assert "blockers" not in rt.state
     assert rt.verify_receipt_chain() is True
+
+    with pytest.raises(
+        R7InvariantError,
+        match="IDEMPOTENCY_REPLAY_AFTER_ROLLBACK_REQUIRES_NEW_KEY",
+    ):
+        rt.execute(later, now=113.0)
