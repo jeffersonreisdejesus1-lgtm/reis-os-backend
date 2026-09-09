@@ -108,9 +108,8 @@ class R7GovernanceRuntime:
         for existing in self._governors.values():
             overlap = claimed.intersection(existing.owned_state_keys)
             if overlap:
-                raise R7InvariantError(
-                    f"STATE_OWNERSHIP_CONFLICT:{','.join(sorted(overlap))}"
-                )
+                joined = ",".join(sorted(overlap))
+                raise R7InvariantError(f"STATE_OWNERSHIP_CONFLICT:{joined}")
         self._governors[contract.governor_id] = contract
         self._generation_by_governor.setdefault(contract.governor_id, 1)
 
@@ -133,7 +132,10 @@ class R7GovernanceRuntime:
         current = self._generation_by_governor[governor_id]
         for lease_id, lease in tuple(self._leases.items()):
             if lease.governor_id == governor_id and lease.generation == current:
-                self._leases[lease_id] = replace(lease, status=LeaseStatus.FENCED)
+                self._leases[lease_id] = replace(
+                    lease,
+                    status=LeaseStatus.FENCED,
+                )
         self._generation_by_governor[governor_id] = current + 1
         return current + 1
 
@@ -157,7 +159,9 @@ class R7GovernanceRuntime:
     def next_task(self) -> GovernanceTask | None:
         if not self._tasks:
             return None
-        self._tasks.sort(key=lambda task: (-task.priority, task.created_seq, task.task_id))
+        self._tasks.sort(
+            key=lambda task: (-task.priority, task.created_seq, task.task_id)
+        )
         return self._tasks.pop(0)
 
     def communicate(self, envelope: CommunicationEnvelope) -> None:
@@ -167,7 +171,12 @@ class R7GovernanceRuntime:
             raise R7InvariantError("COMMUNICATION_MISSION_MISMATCH")
         self._communications.append(envelope)
 
-    def execute(self, command: GovernanceCommand, *, now: float) -> GovernanceReceipt:
+    def execute(
+        self,
+        command: GovernanceCommand,
+        *,
+        now: float,
+    ) -> GovernanceReceipt:
         contract = self._require_governor(command.governor_id)
         fingerprint = self._hash(asdict(command))
         replay = self._idempotency.get(command.idempotency_key)
@@ -175,7 +184,11 @@ class R7GovernanceRuntime:
             previous_fingerprint, previous_receipt = replay
             if previous_fingerprint != fingerprint:
                 raise R7InvariantError("IDEMPOTENCY_KEY_DIVERGENT_COMMAND")
-            return replace(previous_receipt, status=CommandStatus.REPLAYED)
+            if previous_receipt.state_version_after > self._state_version:
+                raise R7InvariantError(
+                    "IDEMPOTENCY_REPLAY_AFTER_ROLLBACK_REQUIRES_NEW_KEY"
+                )
+            return self._record_replay_receipt(command, previous_receipt)
 
         before = self._state_version
         reason = self._validate_command(command, contract, now=now)
@@ -206,7 +219,10 @@ class R7GovernanceRuntime:
         self._state = staged
         self._state_version = next_version
         lease = self._leases[command.lease_id]
-        self._leases[command.lease_id] = replace(lease, uses=lease.uses + 1)
+        self._leases[command.lease_id] = replace(
+            lease,
+            uses=lease.uses + 1,
+        )
 
         receipt = self._record_receipt(
             command=command,
@@ -221,10 +237,17 @@ class R7GovernanceRuntime:
 
         if self._failure_point is FailurePoint.AFTER_COMMIT:
             self._failure_point = FailurePoint.NONE
-            raise RuntimeError(f"injected_failure_after_commit:{receipt.receipt_id}")
+            raise RuntimeError(
+                f"injected_failure_after_commit:{receipt.receipt_id}"
+            )
         return receipt
 
-    def checkpoint(self, checkpoint_id: str, *, now: float) -> RecoveryCheckpoint:
+    def checkpoint(
+        self,
+        checkpoint_id: str,
+        *,
+        now: float,
+    ) -> RecoveryCheckpoint:
         if not checkpoint_id:
             raise ValueError("checkpoint_id_required")
         if checkpoint_id in self._checkpoints:
@@ -264,7 +287,7 @@ class R7GovernanceRuntime:
         return next_generation
 
     def rollback_to_checkpoint(self, checkpoint_id: str) -> None:
-        """Rollback internal governed state only; never claims external effect rollback."""
+        """Rollback internal state only; external effects are out of scope."""
         self.restore_checkpoint(checkpoint_id)
 
     def verify_receipt_chain(self) -> bool:
@@ -321,6 +344,33 @@ class R7GovernanceRuntime:
         if not set(command.write_set).issubset(owned):
             return "STATE_OWNERSHIP_VIOLATION"
         return None
+
+    def _record_replay_receipt(
+        self,
+        command: GovernanceCommand,
+        original: GovernanceReceipt,
+    ) -> GovernanceReceipt:
+        previous = self._receipts[-1].receipt_hash if self._receipts else "GENESIS"
+        payload: dict[str, Any] = {
+            "receipt_id": f"r7:{len(self._receipts) + 1}:{command.command_id}:replay",
+            "command_id": command.command_id,
+            "idempotency_key": command.idempotency_key,
+            "status": CommandStatus.REPLAYED,
+            "reason": f"EXACT_REPLAY_OF:{original.receipt_id}",
+            "generation": command.generation,
+            "state_version_before": self._state_version,
+            "state_version_after": self._state_version,
+            "mutation_count": 0,
+            "material_effect_performed": False,
+            "previous_hash": previous,
+            "readback": dict(original.readback),
+        }
+        receipt = GovernanceReceipt(
+            receipt_hash=self._hash(payload),
+            **payload,
+        )
+        self._receipts.append(receipt)
+        return receipt
 
     def _record_receipt(
         self,
