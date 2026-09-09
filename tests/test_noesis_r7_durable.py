@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 import sqlite3
 
 import pytest
@@ -11,17 +12,18 @@ from app.noesis_r7 import (
     GovernorLease,
     GovernanceCommand,
     GovernanceTask,
-    R1R6IntegrationContract,
     R7ArchitecturalReadiness,
     R7DurableRuntime,
     R7InvariantError,
 )
 from app.noesis_r7.contracts import FailurePoint
+from app.noesis_r7.physiology_bindings import materialized_integration_contract
+from app.noesis_r7.roster import DERIVATION_REF
 
 MISSION = "mission:noesis:r7:durable"
 AUTH = "authority:noesis:r7:durable"
 SOURCE = "founder-handoff:NOESIS-TO-AGORA-R7-REFACTOR-IMPLEMENTATION-001"
-TEST_DERIVATION = "synthetic-test-only:r7-governor-derivation"
+GOVERNOR = "A-CTX"
 
 
 def readiness():
@@ -31,13 +33,13 @@ def readiness():
         cross_taxonomy_complete=True,
         normalized_requirements_available=True,
         governor_derivation_valid=True,
-        derivation_ref=TEST_DERIVATION,
+        derivation_ref=DERIVATION_REF,
     )
 
 
 def contract():
     return GovernorContract(
-        "governor:durable-state",
+        GOVERNOR,
         GovernorFunction.STATE,
         ("phase", "findings"),
         ("phase", "findings"),
@@ -49,7 +51,7 @@ def contract():
 def lease(*, generation=1, lease_id="lease:durable:1"):
     return GovernorLease(
         lease_id,
-        "governor:durable-state",
+        GOVERNOR,
         MISSION,
         AUTH,
         SOURCE,
@@ -68,7 +70,7 @@ def command(*, command_id="cmd:durable:1", idempotency_key="idem:durable:1",
     return GovernanceCommand(
         command_id,
         MISSION,
-        "governor:durable-state",
+        GOVERNOR,
         generation,
         lease_id,
         AUTH,
@@ -83,7 +85,7 @@ def command(*, command_id="cmd:durable:1", idempotency_key="idem:durable:1",
 def open_runtime(path: Path, *, derived=True):
     return R7DurableRuntime(
         mission_id=MISSION,
-        integration=R1R6IntegrationContract.canonical(),
+        integration=materialized_integration_contract(),
         database_path=path,
         initial_state={"phase": "INTAKE"},
         architectural_readiness=readiness() if derived else None,
@@ -122,6 +124,26 @@ def test_durable_restart_refuses_materialized_governors_without_derivation_gate(
     execute(first, command())
     with pytest.raises(R7InvariantError, match="PENDING_DERIVATION"):
         open_runtime(path, derived=False)
+
+
+def test_durable_restore_rejects_governor_outside_derived_roster(tmp_path):
+    path = tmp_path / "r7-forged-roster.sqlite3"
+    first = bootstrap(path)
+    with sqlite3.connect(path) as connection:
+        row = connection.execute(
+            "SELECT seq, snapshot_json FROM r7_runtime_snapshot_journal WHERE mission_id=? ORDER BY seq DESC LIMIT 1",
+            (MISSION,),
+        ).fetchone()
+        payload = json.loads(row[1])
+        payload["governors"][0]["governor_id"] = "A-EXEC"
+        forged_json = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"), default=str)
+        forged_hash = first._snapshot_hash(payload)
+        connection.execute(
+            "UPDATE r7_runtime_snapshot_journal SET snapshot_json=?, snapshot_hash=? WHERE seq=?",
+            (forged_json, forged_hash, row[0]),
+        )
+    with pytest.raises(R7InvariantError, match="R7_GOVERNOR_NOT_IN_DERIVED_ROSTER"):
+        open_runtime(path)
 
 
 def test_restart_restores_state_receipts_leases_idempotency_and_scheduler(tmp_path):
@@ -179,11 +201,11 @@ def test_recovery_fencing_survives_restart_and_version_is_monotonic(tmp_path):
         now=112.0,
     )
     before = first.state_version
-    assert first.recover_governor("governor:durable-state", checkpoint_id="cp:1") == 2
+    assert first.recover_governor(GOVERNOR, checkpoint_id="cp:1") == 2
     assert first.state_version == before + 1
     first.bind_lease(lease(generation=2, lease_id="lease:durable:2"))
     restarted = open_runtime(path)
-    assert restarted.current_generation("governor:durable-state") == 2
+    assert restarted.current_generation(GOVERNOR) == 2
     stale = command(
         command_id="cmd:stale",
         idempotency_key="idem:stale",
@@ -216,7 +238,7 @@ def test_stale_writer_is_fenced_and_reconciled(tmp_path):
             GovernanceTask(
                 "cmd:second",
                 MISSION,
-                "governor:durable-state",
+                GOVERNOR,
                 "SET_STATE",
                 1,
                 second._task_seq + 1,
