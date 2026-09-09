@@ -119,7 +119,9 @@ class R1R6IntegrationContract:
             raise R7InvariantError("R7_R1_R6_WIRING_EVIDENCE_INCOMPLETE")
 
     def assert_compatible(self) -> None:
-        self.assert_base_compatible()
+        # Runtime compatibility is intentionally stricter than architectural presence:
+        # R7 must fail closed unless all six material R1-R6 binding refs are present.
+        self.assert_complete_r7_integration()
 
     @property
     def scheduler_is_authority(self) -> bool:
