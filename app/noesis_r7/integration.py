@@ -22,11 +22,7 @@ REQUIRED_LAYERS = (
 
 @dataclass(frozen=True, slots=True)
 class R7ArchitecturalReadiness:
-    """Architectural gate for material Governor activation.
-
-    The generic runtime may exist before these facts are true, but no Governor may be
-    registered into an effective runtime until Nóesis supplies a valid derivation chain.
-    """
+    """Architectural gate for material Governor activation."""
 
     r7_i_taxonomy_frozen: bool = False
     r7_o_taxonomy_frozen: bool = False
@@ -55,20 +51,24 @@ class R7ArchitecturalReadiness:
 
 @dataclass(frozen=True, slots=True)
 class R1R6IntegrationContract:
-    """Fail-closed physiological containment contract for R7."""
+    """Base physiology identity plus explicit evidence refs for R7 wiring.
+
+    `canonical()` proves only that the promoted R1-R6 physiology identity is the
+    expected one. It intentionally does NOT claim the R1-R6 <-> R7 causal wiring is
+    complete. Each relation must later be backed by a concrete implementation/evidence
+    reference after Governor derivation defines the R7 state and transition surfaces.
+    """
 
     noesis_idi: str
     current_ec: str
     l0_binding_hash: str
     active_layers: tuple[str, ...]
-
-    # These are required semantic relations, not evidence that deployment is complete.
-    r1_persists_r7_state: bool
-    r2_measures_r7_progress_and_effects: bool
-    r3_types_r7_transitions: bool
-    r4_schedules_r7_mechanisms: bool
-    r5_observes_r7_and_global_chain: bool
-    r6_constrains_r7_and_global_chain: bool
+    r1_state_binding_ref: str | None = None
+    r2_measurement_binding_ref: str | None = None
+    r3_transition_binding_ref: str | None = None
+    r4_scheduler_binding_ref: str | None = None
+    r5_observation_binding_ref: str | None = None
+    r6_constraint_binding_ref: str | None = None
 
     @classmethod
     def canonical(cls) -> "R1R6IntegrationContract":
@@ -77,15 +77,9 @@ class R1R6IntegrationContract:
             current_ec=CANONICAL_NOESIS_EC,
             l0_binding_hash=CANONICAL_L0_BINDING_HASH,
             active_layers=REQUIRED_LAYERS,
-            r1_persists_r7_state=True,
-            r2_measures_r7_progress_and_effects=True,
-            r3_types_r7_transitions=True,
-            r4_schedules_r7_mechanisms=True,
-            r5_observes_r7_and_global_chain=True,
-            r6_constrains_r7_and_global_chain=True,
         )
 
-    def assert_compatible(self) -> None:
+    def assert_base_compatible(self) -> None:
         if self.noesis_idi != CANONICAL_NOESIS_IDI:
             raise R7InvariantError("R7_NOESIS_IDENTITY_DRIFT")
         if self.current_ec != CANONICAL_NOESIS_EC:
@@ -95,16 +89,26 @@ class R1R6IntegrationContract:
         if self.active_layers != REQUIRED_LAYERS:
             raise R7InvariantError("R7_REQUIRES_EXACT_CANONICAL_R1_R6")
 
-        relations = (
-            self.r1_persists_r7_state,
-            self.r2_measures_r7_progress_and_effects,
-            self.r3_types_r7_transitions,
-            self.r4_schedules_r7_mechanisms,
-            self.r5_observes_r7_and_global_chain,
-            self.r6_constrains_r7_and_global_chain,
+    @property
+    def full_r7_integration_proven(self) -> bool:
+        refs = (
+            self.r1_state_binding_ref,
+            self.r2_measurement_binding_ref,
+            self.r3_transition_binding_ref,
+            self.r4_scheduler_binding_ref,
+            self.r5_observation_binding_ref,
+            self.r6_constraint_binding_ref,
         )
-        if not all(relations):
+        return all(bool(ref) for ref in refs)
+
+    def assert_complete_r7_integration(self) -> None:
+        self.assert_base_compatible()
+        if not self.full_r7_integration_proven:
             raise R7InvariantError("R7_REQUIRES_COMPLETE_R1_R6_CAUSAL_CONTAINMENT")
+
+    # Compatibility alias for callers whose intent is only base physiology validation.
+    def assert_compatible(self) -> None:
+        self.assert_base_compatible()
 
     @property
     def scheduler_is_authority(self) -> bool:
