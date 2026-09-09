@@ -8,6 +8,7 @@ from app.noesis_r7.contracts import (
     GovernanceTask,
     R7InvariantError,
 )
+from app.noesis_r7.durable import R7DurableRuntime
 from app.noesis_r7.integration import R1R6IntegrationContract
 from app.noesis_r7.runtime import R7GovernanceRuntime
 
@@ -20,6 +21,7 @@ __all__ = [
     "GovernanceReceipt",
     "GovernanceTask",
     "R1R6IntegrationContract",
+    "R7DurableRuntime",
     "R7GovernanceRuntime",
     "R7InvariantError",
 ]
