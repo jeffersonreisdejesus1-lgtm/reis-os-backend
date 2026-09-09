@@ -9,21 +9,22 @@ IRIS_IDENTITY_STATE_ROOT = "EC-IRIS-GENERALIST-EVO-001 + IRIS_STATE.json"
 IRIS_DESIGN_AUTHORITY = "IRIS"
 IRIS_DERIVATION_REF = "IRIS-V1-LOCAL-GOVERNOR-DERIVATION-001"
 
+EXPECTED_BINDING_REFS = {
+    "R1_R7_BINDING_REF": "IRIS-V1-R1-R7-STATE-CONTRACT-001",
+    "R2_R7_BINDING_REF": "IRIS-V1-R2-R7-MEASUREMENT-CONTRACT-001",
+    "R3_R7_BINDING_REF": "IRIS-V1-R3-R7-TRANSITION-CONTRACT-001",
+    "R4_R7_BINDING_REF": "IRIS-V1-R4-R7-SCHEDULING-CONTRACT-001",
+    "R5_R7_BINDING_REF": "IRIS-V1-R5-R7-OBSERVATION-CONTRACT-001",
+    "R6_R7_BINDING_REF": "IRIS-V1-R6-R7-CONSTRAINT-CONTRACT-001",
+}
+REQUIRED_BINDING_REFS = tuple(EXPECTED_BINDING_REFS)
+
 LOCAL_GOVERNOR_IDS = frozenset({
     "GOV-IRIS-01",
     "GOV-IRIS-02",
     "GOV-IRIS-03",
     "GOV-IRIS-04",
 })
-
-REQUIRED_BINDING_REFS = (
-    "R1_R7_BINDING_REF",
-    "R2_R7_BINDING_REF",
-    "R3_R7_BINDING_REF",
-    "R4_R7_BINDING_REF",
-    "R5_R7_BINDING_REF",
-    "R6_R7_BINDING_REF",
-)
 
 
 class IrisV1InvariantError(RuntimeError):
@@ -49,22 +50,22 @@ class IrisV1Bindings:
 
     @classmethod
     def materialized(cls) -> "IrisV1Bindings":
-        return cls(
-            refs={
-                "R1_R7_BINDING_REF": "IRIS-V1-R1-R7-STATE-CONTRACT-001",
-                "R2_R7_BINDING_REF": "IRIS-V1-R2-R7-MEASUREMENT-CONTRACT-001",
-                "R3_R7_BINDING_REF": "IRIS-V1-R3-R7-TRANSITION-CONTRACT-001",
-                "R4_R7_BINDING_REF": "IRIS-V1-R4-R7-SCHEDULING-CONTRACT-001",
-                "R5_R7_BINDING_REF": "IRIS-V1-R5-R7-OBSERVATION-CONTRACT-001",
-                "R6_R7_BINDING_REF": "IRIS-V1-R6-R7-CONSTRAINT-CONTRACT-001",
-            }
-        )
+        return cls(refs=dict(EXPECTED_BINDING_REFS))
 
     def assert_complete(self) -> None:
         missing = [name for name in REQUIRED_BINDING_REFS if not self.refs.get(name)]
         if missing:
             raise IrisV1InvariantError(
                 "IRIS_V1_R1_R6_BINDINGS_INCOMPLETE:" + ",".join(missing)
+            )
+        mismatched = [
+            name
+            for name, expected in EXPECTED_BINDING_REFS.items()
+            if self.refs.get(name) != expected
+        ]
+        if mismatched:
+            raise IrisV1InvariantError(
+                "IRIS_V1_R1_R6_BINDING_REF_MISMATCH:" + ",".join(mismatched)
             )
 
 
@@ -75,6 +76,8 @@ class GovernorSpec:
     requirements: tuple[str, ...]
     writable_namespaces: tuple[str, ...]
     readable_namespaces: tuple[str, ...]
+    owned_state_keys: tuple[str, ...]
+    allowed_operations: tuple[str, ...]
     authority_ceiling: str = IRIS_DESIGN_AUTHORITY
 
     def validate(self) -> None:
@@ -82,6 +85,8 @@ class GovernorSpec:
             raise IrisV1InvariantError("IRIS_V1_GOVERNOR_NOT_DERIVED")
         if self.authority_ceiling != IRIS_DESIGN_AUTHORITY:
             raise IrisV1InvariantError("IRIS_V1_AUTHORITY_EXPANSION_FORBIDDEN")
+        if not self.owned_state_keys or not self.allowed_operations:
+            raise IrisV1InvariantError("IRIS_V1_GOVERNOR_CONTRACT_INCOMPLETE")
 
 
 @dataclass(slots=True)
@@ -108,6 +113,7 @@ class GovernanceRequest:
     expected_state_version: int = 0
     lease_id: str | None = None
     generation: int = 1
+    idempotency_key: str | None = None
     evidence_freshness: EvidenceFreshness = EvidenceFreshness.UNKNOWN
     accessibility_conflict: bool = False
     design_approval_claimed: bool = False
@@ -125,3 +131,14 @@ class GovernanceReceipt:
     state_version_after: int
     design_authority: str = IRIS_DESIGN_AUTHORITY
     identity_state_root: str = IRIS_IDENTITY_STATE_ROOT
+    idempotent_replay: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveryCheckpoint:
+    checkpoint_id: str
+    mission_id: str
+    governor_id: str
+    generation: int
+    state_version: int
+    owned_state: Mapping[str, object]
