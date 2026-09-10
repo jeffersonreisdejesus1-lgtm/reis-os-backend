@@ -121,7 +121,7 @@ def test_synesis_spawn_path_rejects_delegation():
     states,_,_,runtime=build_bound("SYNESIS")
     out=runtime.spawn_child(request())
     assert out.status == "ABORTED"
-    assert "FORBIDDEN:DELEGATE" in out.detail
+    assert out.detail == "OCS_CAPABILITY_UNBOUND:DELEGATE"
     assert "child" not in states._actors
 
 
