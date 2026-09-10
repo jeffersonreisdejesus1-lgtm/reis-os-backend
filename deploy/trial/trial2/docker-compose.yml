@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
     command:
       - uvicorn
-      - app.single_surface_trial.asgi:app
+      - app.single_surface_trial.trial2_asgi:app
       - --host
       - 0.0.0.0
       - --port
