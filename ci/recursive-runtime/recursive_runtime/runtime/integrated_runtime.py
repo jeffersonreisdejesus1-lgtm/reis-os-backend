@@ -2,12 +2,13 @@ from recursive_runtime.contracts.model import *
 from recursive_runtime.repositories.state import Stale
 
 class IntegratedRuntime:
-    def __init__(self, states, inspector, reflection, spawn, cancel, recovery, trace, stop_engine, assurance_gate, *, max_cycles=16, ocs_enforcer=None, synaptic_mesh=None, autopoiesis=None):
+    def __init__(self, states, inspector, reflection, spawn, cancel, recovery, trace, stop_engine, assurance_gate, *, max_cycles=16, ocs_enforcer=None, synaptic_mesh=None, autopoiesis=None, production_effect_gateway=None):
         self.states=states; self.inspector=inspector; self.reflection=reflection
         self.spawn=spawn; self.cancel=cancel; self.recovery=recovery
         self.trace=trace; self.stop_engine=stop_engine; self.assurance_gate=assurance_gate
         self.max_cycles=max_cycles; self.ocs_enforcer=ocs_enforcer
         self.synaptic_mesh=synaptic_mesh; self.autopoiesis=autopoiesis
+        self.production_effect_gateway=production_effect_gateway
 
     def _fail_closed(self, actor_id, actor, detail):
         with self.states.lock:
@@ -65,6 +66,16 @@ class IntegratedRuntime:
             return False
         self.trace.emit("EFFECT_AUTHORIZED",actor,capability)
         return True
+
+    def execute_production_effect(self, request):
+        actor=self.states.get(request.actor_id)
+        if self.production_effect_gateway is None:
+            return self._fail_closed(actor.actor_id,actor,"PRODUCTION_EFFECT_GATEWAY_NOT_BOUND")
+        try:
+            return self.production_effect_gateway.execute(request)
+        except Exception as e:
+            self._fail_closed(actor.actor_id,actor,f"PRODUCTION_EFFECT_FAIL_CLOSED:{e}")
+            raise
 
     def spawn_child(self, request):
         parent=self.states.get(request.parent_actor_id)
