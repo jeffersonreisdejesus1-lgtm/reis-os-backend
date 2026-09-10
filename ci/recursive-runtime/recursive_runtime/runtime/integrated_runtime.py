@@ -95,7 +95,10 @@ class IntegratedRuntime:
         except Exception as e:
             return self._fail_closed(actor_id,actor,f"AUTOPOIESIS_FAIL_CLOSED:{e}")
         if repair is None:
-            return Outcome.HOLD
+            return self._authorize_outcome(actor_id,actor,Outcome.HOLD)
         if recipient_actor_id is not None:
-            self.autopoiesis.emit_repair_signal(repair,recipient_actor_id)
-        return Outcome.ESCALATE
+            try:
+                self.autopoiesis.emit_repair_signal(repair.repair_id,recipient_actor_id)
+            except Exception as e:
+                return self._fail_closed(actor_id,actor,f"AUTOPOIESIS_SIGNAL_FAIL_CLOSED:{e}")
+        return self._authorize_outcome(actor_id,actor,Outcome.ESCALATE)
