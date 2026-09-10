@@ -1,0 +1,53 @@
+name: REIS OS Mission-Triggered Runtime V1
+
+on:
+  workflow_dispatch:
+    inputs:
+      mission_id:
+        description: "Mission identifier"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reis-os-mission-${{ inputs.mission_id }}
+  cancel-in-progress: false
+
+jobs:
+  qualify-mission-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      REIS_OS_MISSION_ID: ${{ inputs.mission_id }}
+      REIS_OS_EXECUTION_MODE: MISSION_TRIGGERED
+      REIS_OS_ZERO_UNAUTHORIZED_SPEND: "true"
+      REIS_OS_CANONICAL_PROMOTION: "FOUNDER_ONLY"
+    steps:
+      - name: Checkout exact mission head
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependency
+        run: python -m pip install --disable-pip-version-check pytest
+
+      - name: Run runtime qualification suite
+        working-directory: ci/recursive-runtime
+        run: python -m pytest -q
+
+      - name: Run bounded mission-triggered live trial
+        working-directory: ci/recursive-runtime
+        run: python operational_live_trial.py
+
+      - name: Record execution policy
+        run: |
+          echo "MISSION_ID=${REIS_OS_MISSION_ID}"
+          echo "EXECUTION_MODE=${REIS_OS_EXECUTION_MODE}"
+          echo "ZERO_UNAUTHORIZED_SPEND=${REIS_OS_ZERO_UNAUTHORIZED_SPEND}"
+          echo "CANONICAL_PROMOTION=${REIS_OS_CANONICAL_PROMOTION}"
+          echo "PROCESS_AFTER_JOB=STOP"
