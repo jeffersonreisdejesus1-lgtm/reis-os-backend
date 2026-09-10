@@ -1,0 +1,59 @@
+name: REIS OS Recursive Runtime External CI
+
+on:
+  push:
+    branches:
+      - agora/recursive-runtime-external-ci-001
+
+permissions:
+  contents: read
+
+jobs:
+  external-ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Environment metadata
+        run: |
+          mkdir -p ci-evidence
+          {
+            echo "provider=GitHub Actions"
+            echo "runner_os=$RUNNER_OS"
+            echo "runner_arch=$RUNNER_ARCH"
+            echo "repository=$GITHUB_REPOSITORY"
+            echo "ref=$GITHUB_REF"
+            echo "sha=$GITHUB_SHA"
+            python --version
+            uname -a
+            python -m pip --version
+          } | tee ci-evidence/environment.txt
+      - name: Install pytest
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Run integrated suite
+        shell: bash
+        run: |
+          set -o pipefail
+          cd ci/recursive-runtime
+          python -m pytest -q | tee ../../ci-evidence/pytest.log
+      - name: Source evidence
+        if: always()
+        run: |
+          find ci/recursive-runtime -type f -not -path '*/__pycache__/*' -not -path '*/.pytest_cache/*' -print0 | sort -z | xargs -0 sha256sum > ci-evidence/source-files.sha256
+          echo "local_source_bundle_sha256=8c0dc10d4c9319b5170416d025ac8e45588d66208125353a388e540f05bfee4d" > ci-evidence/source-bundle-reference.txt
+          echo "replit_usage=FORBIDDEN_AND_NOT_USED" > ci-evidence/constraints.txt
+          echo "production_execution=FALSE" >> ci-evidence/constraints.txt
+          echo "real_world_autonomous_effects=FALSE" >> ci-evidence/constraints.txt
+          echo "authority_expansion=NONE" >> ci-evidence/constraints.txt
+      - name: Upload CI evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recursive-runtime-external-ci-evidence
+          path: ci-evidence/
+          if-no-files-found: error
