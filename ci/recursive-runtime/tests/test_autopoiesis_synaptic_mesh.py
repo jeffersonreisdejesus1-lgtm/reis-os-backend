@@ -146,6 +146,12 @@ def test_runtime_without_autopoiesis_fails_closed():
 
 
 def test_autopoiesis_outcome_uses_same_ocs_authorization_path():
-    states,_,_,_,runtime=build_pair(sender_ocs="SYNESIS")
+    class RejectEscalate(OCSRuntimeEnforcer):
+        def authorize_outcome(self, actor, outcome):
+            if outcome is Outcome.ESCALATE:
+                return False, "TEST_POLICY_REJECTS_ESCALATE"
+            return super().authorize_outcome(actor, outcome)
+    states,_,_,_,runtime=build_pair()
+    runtime.ocs_enforcer = RejectEscalate()
     assert runtime.run_autopoiesis_cycle("a","MISSING_EVIDENCE","b") is Outcome.FAIL_CLOSED
     assert states.get("a").lifecycle is Lifecycle.FAILED_CLOSED
