@@ -6,6 +6,7 @@ from sqlalchemy import create_engine
 from app.single_surface_trial.adapters import TrialKernelAdapter
 from app.single_surface_trial.context import ContextBuilder
 from app.single_surface_trial.contracts import Decision, TrialHold, state_namespace
+from app.single_surface_trial.runtime import MissionController
 from app.single_surface_trial.store import TrialStore
 
 
@@ -47,26 +48,26 @@ def test_three_ocs_automatic_handoff_without_manual_envelope_copy(
     store.checkpoint(
         "m-001", instance_id=dedala.instance_id, local_state={"phase": "arch"}
     )
-    h1 = store.issue_handoff(
+    controller = MissionController(store)
+    assert len({dedala.instance_id, sofia.instance_id, synesis.instance_id}) == 3
+    controller.handoff(
         "m-001",
         route_id="L2-SINGLE-SURFACE-DEDALA-TO-SOFIA-PLAN-001",
         target_instance_id=sofia.instance_id,
         target_ocs_id="SOFIA",
         envelope={"object": "single-surface", "next_gate": "PLAN"},
     )
-    store.accept_handoff("m-001", h1)
 
     store.checkpoint(
         "m-001", instance_id=sofia.instance_id, local_state={"phase": "plan"}
     )
-    h2 = store.issue_handoff(
+    controller.handoff(
         "m-001",
         route_id="L2-SINGLE-SURFACE-SOFIA-TO-SYNESIS-ASSURANCE-001",
         target_instance_id=synesis.instance_id,
         target_ocs_id="SÝNESIS",
         envelope={"object": "single-surface", "next_gate": "ASSURANCE"},
     )
-    store.accept_handoff("m-001", h2)
 
     projection = store.projection("m-001")
     assert projection["active"]["ocs_id"] == "SÝNESIS"
@@ -197,6 +198,7 @@ def test_blind_retry_zero_and_founder_gate_bypass_zero(
         target_ocs_id="SOFIA",
         envelope={"next": "SOFIA"},
     )
+    assert store.projection("m-001")["active"]["ocs_id"] == "DÉDALA"
     store.accept_handoff("m-001", handoff)
     with pytest.raises(TrialHold, match="blind_retry_forbidden"):
         store.accept_handoff("m-001", handoff)
