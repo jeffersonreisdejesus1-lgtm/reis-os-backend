@@ -1,0 +1,43 @@
+# REIS OS — OCS Runtime Operationalization V1
+
+OPERATIONALIZATION_ID
+= REIS-OS-OCS-RUNTIME-OPERATIONALIZATION-V1-001
+
+SOURCE_RUNTIME
+= REIS OS Recursive + Self-Reflective Runtime V1
+
+SOURCE_PROMOTION
+= FOUNDER-PROMOTION-RECURSIVE-SELF-REFLECTIVE-RUNTIME-V1-001
+
+MODE
+= BOUNDED_NON_PRODUCTION
+
+TARGET_OCS
+= NOESIS, DEDALA, SYNESIS, SOFIA, IRIS, LYRA, AGORA, AURI, METIS, SYNERGEIA
+
+PURPOSE
+= bind the promoted Recursive + Self-Reflective Runtime V1 to all ten OCS identities without changing their canonical authority.
+
+GLOBAL_ALLOWED
+= SELF_INSPECT, REFLECT, CONTINUE, HOLD, STOP, ESCALATE
+
+ROLE_SCOPED_DELEGATION
+= allowed only where explicitly bound and always subordinate to existing delegated authority, scope, budget, fencing, and stop conditions.
+
+GLOBAL_FORBIDDEN
+= SELF_PROMOTE, ASSURANCE_BYPASS, FOUNDER_GATE_BYPASS, AUTHORITY_EXPANSION, PRODUCTION_EFFECT, MULTI_PROVIDER_EXPANSION
+
+PRODUCTION
+= NOT_AUTHORIZED
+
+SYN-R004
+= OPEN_SEPARATE_TRACK
+
+AUTOPOIESIS_INTEGRATION
+= NOT_IN_THIS_SLICE
+
+SYNAPTIC_MESH_INTEGRATION
+= NOT_IN_THIS_SLICE
+
+NEXT_GATE
+= external proof of ten-OCS binding invariants, then Dédala targeted assurance.
