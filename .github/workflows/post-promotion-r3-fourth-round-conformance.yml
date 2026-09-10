@@ -1,8 +1,6 @@
 name: Post Promotion R3 Fourth Round Conformance
 
 on:
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
