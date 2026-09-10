@@ -2,7 +2,10 @@ from pathlib import Path
 
 from sqlalchemy import create_engine
 
-from app.single_surface_trial.trial2_store import Trial2Hold, Trial2PersistentStore
+from app.single_surface_trial.trial2_integrity import (
+    IntegrityCheckedTrial2Store as Trial2PersistentStore,
+)
+from app.single_surface_trial.trial2_store import Trial2Hold
 
 
 def valid_authority(authority_ref: str, actor: str, role: str) -> bool:
