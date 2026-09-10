@@ -50,6 +50,21 @@ class IntegratedRuntime:
         self.trace.emit("REFLECTION",a,f"{d.outcome.value}:{d.rule}")
         return self._authorize_outcome(actor_id,a,d.outcome)
 
+    def attempt_effect(self, actor_id, capability):
+        actor=self.states.get(actor_id)
+        if self.ocs_enforcer is None:
+            return True
+        try:
+            ok, detail=self.ocs_enforcer.authorize_effect(actor,capability)
+        except Exception as e:
+            self._fail_closed(actor_id,actor,f"OCS_BINDING_INVALID:{e}")
+            return False
+        if not ok:
+            self._fail_closed(actor_id,actor,detail)
+            return False
+        self.trace.emit("EFFECT_AUTHORIZED",actor,capability)
+        return True
+
     def spawn_child(self, request):
         parent=self.states.get(request.parent_actor_id)
         if self.ocs_enforcer is not None:
