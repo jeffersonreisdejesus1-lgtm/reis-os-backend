@@ -1,1 +1,0 @@
-Integration branch prepared from current main. Trial 1 + Trial 2 content reconciliation pending exact file import from PR #83 HEAD 40e463ef8abb7588527964d98679b8361aa44bb6. This marker does not authorize production or runtime activation.

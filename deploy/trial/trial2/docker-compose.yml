@@ -1,0 +1,39 @@
+services:
+  trial2-runtime:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    command:
+      - uvicorn
+      - app.single_surface_trial.trial2_asgi:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8081"
+    environment:
+      TRIAL_DATABASE_URL: postgresql+psycopg://trial2:trial2@trial2-db:5432/reis_trial2
+    depends_on:
+      trial2-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8081"
+    restart: unless-stopped
+
+  trial2-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: reis_trial2
+      POSTGRES_USER: trial2
+      POSTGRES_PASSWORD: trial2
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trial2 -d reis_trial2"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - trial2_pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/001-trial2-schema.sql:ro
+    restart: unless-stopped
+
+volumes:
+  trial2_pgdata:
