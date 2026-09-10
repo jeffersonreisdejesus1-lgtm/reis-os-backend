@@ -1,3 +1,4 @@
+# SYN-R003 external CI qualification marker
 [project]
 name = "reis-os-recursive-runtime-integration-repair"
 version = "1.0.0"
