@@ -333,6 +333,7 @@ class ProductionEffectGateway:
             env = getattr(self.adapter, "environment", None)
             if env == "PRODUCTION":
                 if self.effect_journal is None:
+                    self._validate_lease(request)
                     raise RuntimeError("EFFECT_JOURNAL_NOT_BOUND")
                 intent, commit = self._find_durable(request.request_id)
                 if commit is not None:
