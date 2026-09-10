@@ -5,7 +5,7 @@ import os
 from fastapi import FastAPI, HTTPException
 from sqlalchemy import create_engine, text
 
-from .trial2_store import Trial2PersistentStore
+from .trial2_integrity import IntegrityCheckedTrial2Store
 
 
 def create_trial2_app() -> FastAPI:
@@ -14,7 +14,7 @@ def create_trial2_app() -> FastAPI:
         raise RuntimeError("TRIAL_DATABASE_URL_REQUIRED_FAIL_CLOSED")
 
     engine = create_engine(database_url, pool_pre_ping=True)
-    store = Trial2PersistentStore(engine)
+    store = IntegrityCheckedTrial2Store(engine)
 
     app = FastAPI(
         title="REIS OS Trial 2 Persistent Infrastructure",
