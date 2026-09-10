@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from threading import RLock
 from typing import Callable, Dict, FrozenSet, Tuple
+import hashlib
 import time
 
 from recursive_runtime.contracts.model import JournalRecord
@@ -171,6 +172,10 @@ class ProductionEffectGateway:
             request.requires_paid_upgrade,
         )
 
+    @classmethod
+    def _fingerprint_hash(cls, request: EffectRequest):
+        return hashlib.sha256(repr(cls._fingerprint(request)).encode("utf-8")).hexdigest()
+
     def _validate_common(self, request: EffectRequest):
         actor = self.states.get(request.actor_id)
         self.states.validate_current(actor.actor_id, request.generation, request.fencing_epoch)
@@ -268,10 +273,14 @@ class ProductionEffectGateway:
                 commit = row
         return intent, commit
 
+    def _validate_durable_row(self, row, request: EffectRequest):
+        payload = dict(row["payload"])
+        if payload.get("fingerprint") != self._fingerprint_hash(request):
+            raise RuntimeError("DURABLE_EFFECT_REQUEST_CONFLICT")
+        return payload
+
     def _receipt_from_commit(self, request: EffectRequest, commit):
-        payload = dict(commit["payload"])
-        if payload.get("target") != request.target or payload.get("capability") != request.capability or payload.get("payload_ref") != request.payload_ref:
-            raise RuntimeError("DURABLE_EFFECT_COMMIT_CONFLICT")
+        payload = self._validate_durable_row(commit, request)
         return EffectReceipt(
             request_id=request.request_id,
             actor_id=request.actor_id,
@@ -295,7 +304,7 @@ class ProductionEffectGateway:
             generation=actor.generation,
             fencing_epoch=actor.fencing_epoch,
             status="INTENT_PERSISTED",
-            payload=(("request_id",request.request_id),("target",request.target),("capability",request.capability),("payload_ref",request.payload_ref),("lease_id",lease.lease_id)),
+            payload=(("request_id",request.request_id),("fingerprint",self._fingerprint_hash(request)),("target",request.target),("capability",request.capability),("payload_ref",request.payload_ref),("lease_id",lease.lease_id)),
         ))
 
     def _persist_commit(self, actor, request: EffectRequest, result_ref: str):
@@ -308,7 +317,7 @@ class ProductionEffectGateway:
             generation=actor.generation,
             fencing_epoch=actor.fencing_epoch,
             status="COMMITTED",
-            payload=(("request_id",request.request_id),("target",request.target),("capability",request.capability),("payload_ref",request.payload_ref),("lease_id",lease.lease_id),("result_ref",result_ref)),
+            payload=(("request_id",request.request_id),("fingerprint",self._fingerprint_hash(request)),("target",request.target),("capability",request.capability),("payload_ref",request.payload_ref),("lease_id",lease.lease_id),("result_ref",result_ref)),
         ))
 
     def execute(self, request: EffectRequest):
@@ -323,8 +332,6 @@ class ProductionEffectGateway:
             actor = self._validate_common(request)
             env = getattr(self.adapter, "environment", None)
             if env == "PRODUCTION":
-                self._validate_lease(request)
-                self._validate_production_policy(actor, request)
                 if self.effect_journal is None:
                     raise RuntimeError("EFFECT_JOURNAL_NOT_BOUND")
                 intent, commit = self._find_durable(request.request_id)
@@ -334,9 +341,7 @@ class ProductionEffectGateway:
                     self._receipts[request.request_id] = receipt
                     return receipt
                 if intent is not None:
-                    payload = dict(intent["payload"])
-                    if payload.get("target") != request.target or payload.get("capability") != request.capability or payload.get("payload_ref") != request.payload_ref:
-                        raise RuntimeError("DURABLE_EFFECT_INTENT_CONFLICT")
+                    self._validate_durable_row(intent, request)
                     if self.provider_reconciler is None:
                         raise RuntimeError("EFFECT_OUTCOME_UNKNOWN_HOLD")
                     result_ref = self.provider_reconciler(request)
@@ -348,6 +353,8 @@ class ProductionEffectGateway:
                     self._receipts[request.request_id] = receipt
                     self._lease_effect_counts[self.activation_lease.lease_id] = self._durable_effect_count(self.activation_lease.lease_id)
                     return receipt
+                self._validate_lease(request)
+                self._validate_production_policy(actor, request)
                 self._persist_intent(actor, request)
             elif env != "SANDBOX":
                 raise RuntimeError("UNKNOWN_EFFECT_ADAPTER_ENVIRONMENT")
