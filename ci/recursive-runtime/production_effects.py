@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from threading import RLock
 from typing import Callable, Dict, FrozenSet, Tuple
+import time
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,8 @@ class ActivationLease:
     allowed_capabilities: FrozenSet[str]
     founder_approval_ref: str = ""
     active: bool = False
+    max_effects: int = 1
+    expires_at_unix: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -36,7 +39,15 @@ class ProductionAuthorizationPolicy:
     allowed_capabilities: FrozenSet[str]
     founder_approval_ref: str = ""
     zero_unauthorized_spend: bool = True
+    allow_github_merge: bool = False
     active: bool = False
+
+
+@dataclass(frozen=True)
+class VerifiedCostDecision:
+    incremental_cost_usd: float
+    paid_upgrade_required: bool
+    source_ref: str
 
 
 @dataclass(frozen=True)
@@ -109,16 +120,31 @@ class RenderProductionAdapter(_BoundProviderAdapter):
 
 
 class ProductionEffectGateway:
-    def __init__(self, states, trace, ocs_enforcer, adapter, activation_lease=None, production_policy=None):
+    def __init__(
+        self,
+        states,
+        trace,
+        ocs_enforcer,
+        adapter,
+        activation_lease=None,
+        production_policy=None,
+        approval_verifier=None,
+        cost_preflight=None,
+        clock=None,
+    ):
         self.states = states
         self.trace = trace
         self.ocs_enforcer = ocs_enforcer
         self.adapter = adapter
         self.activation_lease = activation_lease
         self.production_policy = production_policy
+        self.approval_verifier = approval_verifier
+        self.cost_preflight = cost_preflight
+        self.clock = clock or time.time
         self._lock = RLock()
         self._receipts: Dict[str, EffectReceipt] = {}
         self._fingerprints: Dict[str, tuple] = {}
+        self._lease_effect_counts: Dict[str, int] = {}
 
     @staticmethod
     def _fingerprint(request: EffectRequest):
@@ -155,10 +181,17 @@ class ProductionEffectGateway:
             raise RuntimeError("PRODUCTION_LEASE_ENVIRONMENT_MISMATCH")
         if not lease.founder_approval_ref:
             raise RuntimeError("FOUNDER_APPROVAL_REF_REQUIRED")
+        if lease.max_effects <= 0:
+            raise RuntimeError("PRODUCTION_LEASE_EFFECT_LIMIT_INVALID")
+        if lease.expires_at_unix <= self.clock():
+            raise RuntimeError("PRODUCTION_LEASE_EXPIRED")
         if request.target not in lease.allowed_targets:
             raise RuntimeError("PRODUCTION_TARGET_NOT_ALLOWED")
         if request.capability not in lease.allowed_capabilities:
             raise RuntimeError("PRODUCTION_CAPABILITY_NOT_ALLOWED")
+        used = self._lease_effect_counts.get(lease.lease_id, 0)
+        if used >= lease.max_effects:
+            raise RuntimeError("PRODUCTION_LEASE_EFFECT_LIMIT_EXHAUSTED")
 
     def _validate_production_policy(self, actor, request: EffectRequest):
         policy = self.production_policy
@@ -168,16 +201,31 @@ class ProductionEffectGateway:
             raise RuntimeError("PRODUCTION_POLICY_FOUNDER_APPROVAL_REQUIRED")
         if self.activation_lease.founder_approval_ref != policy.founder_approval_ref:
             raise RuntimeError("FOUNDER_APPROVAL_REF_MISMATCH")
+        if self.approval_verifier is None:
+            raise RuntimeError("FOUNDER_APPROVAL_VERIFIER_NOT_BOUND")
+        if not self.approval_verifier(policy.founder_approval_ref):
+            raise RuntimeError("FOUNDER_APPROVAL_NOT_VERIFIED")
         if actor.identity_id not in policy.allowed_ocs_ids:
             raise RuntimeError("PRODUCTION_OCS_NOT_ALLOWED")
         if request.capability not in policy.allowed_capabilities:
             raise RuntimeError("PRODUCTION_POLICY_CAPABILITY_NOT_ALLOWED")
         if not any(request.target.startswith(prefix) for prefix in policy.allowed_target_prefixes):
             raise RuntimeError("PRODUCTION_POLICY_TARGET_NOT_ALLOWED")
+        if request.capability == "GITHUB_MERGE_PR" and not policy.allow_github_merge:
+            raise RuntimeError("GITHUB_MERGE_REQUIRES_EXPLICIT_POLICY")
         if policy.zero_unauthorized_spend:
             if request.estimated_incremental_cost_usd != 0:
                 raise RuntimeError("ZERO_SPEND_POLICY_VIOLATION")
             if request.requires_paid_upgrade:
+                raise RuntimeError("PAID_UPGRADE_FORBIDDEN")
+            if self.cost_preflight is None:
+                raise RuntimeError("COST_PREFLIGHT_NOT_BOUND")
+            decision = self.cost_preflight(request)
+            if not isinstance(decision, VerifiedCostDecision) or not decision.source_ref:
+                raise RuntimeError("COST_PREFLIGHT_UNVERIFIED")
+            if decision.incremental_cost_usd != 0:
+                raise RuntimeError("ZERO_SPEND_POLICY_VIOLATION")
+            if decision.paid_upgrade_required:
                 raise RuntimeError("PAID_UPGRADE_FORBIDDEN")
 
     def execute(self, request: EffectRequest):
@@ -210,6 +258,9 @@ class ProductionEffectGateway:
             )
             self._fingerprints[request.request_id] = fp
             self._receipts[request.request_id] = receipt
+            if env == "PRODUCTION":
+                lease_id = self.activation_lease.lease_id
+                self._lease_effect_counts[lease_id] = self._lease_effect_counts.get(lease_id, 0) + 1
             self.trace.emit(
                 "PRODUCTION_EFFECT_GATEWAY",
                 actor,
