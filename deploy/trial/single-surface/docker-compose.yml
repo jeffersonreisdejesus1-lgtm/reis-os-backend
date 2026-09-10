@@ -1,0 +1,38 @@
+services:
+  single-surface-trial:
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    command:
+      - uvicorn
+      - app.single_surface_trial.asgi:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8081"
+    environment:
+      TRIAL_DATABASE_URL: postgresql+psycopg://trial:trial@trial-db:5432/reis_trial
+    depends_on:
+      trial-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8081:8081"
+    restart: "no"
+
+  trial-db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: reis_trial
+      POSTGRES_USER: trial
+      POSTGRES_PASSWORD: trial
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trial -d reis_trial"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - single_surface_trial_pgdata:/var/lib/postgresql/data
+    restart: "no"
+
+volumes:
+  single_surface_trial_pgdata:
