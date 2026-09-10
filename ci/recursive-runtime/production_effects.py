@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from threading import RLock
-from typing import Dict, FrozenSet, Tuple
+from typing import Callable, Dict, FrozenSet, Tuple
 
 
 @dataclass(frozen=True)
@@ -14,6 +14,8 @@ class EffectRequest:
     mission_binding: str
     generation: int
     fencing_epoch: int
+    estimated_incremental_cost_usd: float = 0.0
+    requires_paid_upgrade: bool = False
 
 
 @dataclass(frozen=True)
@@ -23,6 +25,17 @@ class ActivationLease:
     allowed_targets: FrozenSet[str]
     allowed_capabilities: FrozenSet[str]
     founder_approval_ref: str = ""
+    active: bool = False
+
+
+@dataclass(frozen=True)
+class ProductionAuthorizationPolicy:
+    policy_id: str
+    allowed_ocs_ids: FrozenSet[str]
+    allowed_target_prefixes: FrozenSet[str]
+    allowed_capabilities: FrozenSet[str]
+    founder_approval_ref: str = ""
+    zero_unauthorized_spend: bool = True
     active: bool = False
 
 
@@ -56,13 +69,53 @@ class ProductionEffectAdapter:
         raise RuntimeError("REAL_PROVIDER_ADAPTER_NOT_BOUND")
 
 
+class _BoundProviderAdapter:
+    environment = "PRODUCTION"
+    provider = "UNBOUND"
+    TARGET_PREFIX = ""
+    ALLOWED_CAPABILITIES: FrozenSet[str] = frozenset()
+
+    def __init__(self, executor: Callable[[EffectRequest], str]):
+        self.executor = executor
+        self.calls = []
+
+    def execute(self, request: EffectRequest):
+        if not request.target.startswith(self.TARGET_PREFIX):
+            raise RuntimeError(f"{self.provider}_TARGET_FORBIDDEN")
+        if request.capability not in self.ALLOWED_CAPABILITIES:
+            raise RuntimeError(f"{self.provider}_CAPABILITY_FORBIDDEN")
+        self.calls.append(request)
+        return self.executor(request)
+
+
+class GitHubProductionAdapter(_BoundProviderAdapter):
+    provider = "GITHUB"
+    TARGET_PREFIX = "github:"
+    ALLOWED_CAPABILITIES = frozenset({
+        "GITHUB_CREATE_BRANCH",
+        "GITHUB_CREATE_OR_UPDATE_FILE",
+        "GITHUB_OPEN_PR",
+        "GITHUB_UPDATE_PR",
+        "GITHUB_MERGE_PR",
+    })
+
+
+class RenderProductionAdapter(_BoundProviderAdapter):
+    provider = "RENDER"
+    TARGET_PREFIX = "render:"
+    ALLOWED_CAPABILITIES = frozenset({
+        "RENDER_TRIGGER_DEPLOY",
+    })
+
+
 class ProductionEffectGateway:
-    def __init__(self, states, trace, ocs_enforcer, adapter, activation_lease=None):
+    def __init__(self, states, trace, ocs_enforcer, adapter, activation_lease=None, production_policy=None):
         self.states = states
         self.trace = trace
         self.ocs_enforcer = ocs_enforcer
         self.adapter = adapter
         self.activation_lease = activation_lease
+        self.production_policy = production_policy
         self._lock = RLock()
         self._receipts: Dict[str, EffectReceipt] = {}
         self._fingerprints: Dict[str, tuple] = {}
@@ -78,6 +131,8 @@ class ProductionEffectGateway:
             request.mission_binding,
             request.generation,
             request.fencing_epoch,
+            request.estimated_incremental_cost_usd,
+            request.requires_paid_upgrade,
         )
 
     def _validate_common(self, request: EffectRequest):
@@ -105,6 +160,26 @@ class ProductionEffectGateway:
         if request.capability not in lease.allowed_capabilities:
             raise RuntimeError("PRODUCTION_CAPABILITY_NOT_ALLOWED")
 
+    def _validate_production_policy(self, actor, request: EffectRequest):
+        policy = self.production_policy
+        if policy is None or not policy.active:
+            raise RuntimeError("PRODUCTION_POLICY_NOT_ACTIVE")
+        if not policy.founder_approval_ref:
+            raise RuntimeError("PRODUCTION_POLICY_FOUNDER_APPROVAL_REQUIRED")
+        if self.activation_lease.founder_approval_ref != policy.founder_approval_ref:
+            raise RuntimeError("FOUNDER_APPROVAL_REF_MISMATCH")
+        if actor.identity_id not in policy.allowed_ocs_ids:
+            raise RuntimeError("PRODUCTION_OCS_NOT_ALLOWED")
+        if request.capability not in policy.allowed_capabilities:
+            raise RuntimeError("PRODUCTION_POLICY_CAPABILITY_NOT_ALLOWED")
+        if not any(request.target.startswith(prefix) for prefix in policy.allowed_target_prefixes):
+            raise RuntimeError("PRODUCTION_POLICY_TARGET_NOT_ALLOWED")
+        if policy.zero_unauthorized_spend:
+            if request.estimated_incremental_cost_usd != 0:
+                raise RuntimeError("ZERO_SPEND_POLICY_VIOLATION")
+            if request.requires_paid_upgrade:
+                raise RuntimeError("PAID_UPGRADE_FORBIDDEN")
+
     def execute(self, request: EffectRequest):
         fp = self._fingerprint(request)
         with self._lock:
@@ -118,9 +193,7 @@ class ProductionEffectGateway:
             env = getattr(self.adapter, "environment", None)
             if env == "PRODUCTION":
                 self._validate_lease(request)
-                ok, detail = self.ocs_enforcer.authorize_effect(actor, "PRODUCTION_EFFECT")
-                if not ok:
-                    raise RuntimeError(detail)
+                self._validate_production_policy(actor, request)
             elif env != "SANDBOX":
                 raise RuntimeError("UNKNOWN_EFFECT_ADAPTER_ENVIRONMENT")
 
