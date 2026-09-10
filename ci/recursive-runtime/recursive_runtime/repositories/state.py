@@ -78,12 +78,15 @@ class BudgetLedger:
         with self._lock: return self._reserved[ref], self._actual[ref]
 
 import json
+import os
 from pathlib import Path
 
 class DurableJournalRepository:
     def __init__(self, path):
         self.path = Path(path); self.path.parent.mkdir(parents=True, exist_ok=True); self._lock = RLock()
-        if not self.path.exists(): self.path.write_text("", encoding="utf-8")
+        if not self.path.exists():
+            with self.path.open("w", encoding="utf-8") as f:
+                f.write(""); f.flush(); os.fsync(f.fileno())
     def _load(self):
         out = {}; raw = self.path.read_text(encoding="utf-8")
         for line in raw.splitlines():
@@ -98,7 +101,11 @@ class DurableJournalRepository:
             if existing is not None:
                 if existing == payload: return
                 raise Conflict("JOURNAL_ID_CONFLICT")
-            with self.path.open("a", encoding="utf-8") as f: f.write(json.dumps(payload, sort_keys=True) + "\n")
+            encoded = json.dumps(payload, sort_keys=True) + "\n"
+            with self.path.open("a", encoding="utf-8") as f:
+                f.write(encoded)
+                f.flush()
+                os.fsync(f.fileno())
     def all(self):
         with self._lock: return tuple(self._load().values())
     def latest_for_actor(self, actor_id, kind=None):
