@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - agora/recursive-runtime-external-ci-001
+      - noesis/syn-r004-production-effects-qualification-v1-001
   pull_request:
     branches:
       - main
@@ -48,10 +49,9 @@ jobs:
         if: always()
         run: |
           find ci/recursive-runtime -type f -not -path '*/__pycache__/*' -not -path '*/.pytest_cache/*' -print0 | sort -z | xargs -0 sha256sum > ci-evidence/source-files.sha256
-          echo "local_source_bundle_sha256=8c0dc10d4c9319b5170416d025ac8e45588d66208125353a388e540f05bfee4d" > ci-evidence/source-bundle-reference.txt
-          echo "replit_usage=FORBIDDEN_AND_NOT_USED" > ci-evidence/constraints.txt
-          echo "production_execution=FALSE" >> ci-evidence/constraints.txt
-          echo "real_world_autonomous_effects=FALSE" >> ci-evidence/constraints.txt
+          echo "qualification_track=SYN-R004" > ci-evidence/constraints.txt
+          echo "real_production_effect_execution=FALSE" >> ci-evidence/constraints.txt
+          echo "production_activation_requires_founder_final_gate=TRUE" >> ci-evidence/constraints.txt
           echo "authority_expansion=NONE" >> ci-evidence/constraints.txt
       - name: Upload CI evidence
         if: always()
