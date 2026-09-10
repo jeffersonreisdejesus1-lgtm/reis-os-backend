@@ -2,11 +2,12 @@ from recursive_runtime.contracts.model import *
 from recursive_runtime.repositories.state import Stale
 
 class IntegratedRuntime:
-    def __init__(self, states, inspector, reflection, spawn, cancel, recovery, trace, stop_engine, assurance_gate, *, max_cycles=16, ocs_enforcer=None):
+    def __init__(self, states, inspector, reflection, spawn, cancel, recovery, trace, stop_engine, assurance_gate, *, max_cycles=16, ocs_enforcer=None, synaptic_mesh=None, autopoiesis=None):
         self.states=states; self.inspector=inspector; self.reflection=reflection
         self.spawn=spawn; self.cancel=cancel; self.recovery=recovery
         self.trace=trace; self.stop_engine=stop_engine; self.assurance_gate=assurance_gate
         self.max_cycles=max_cycles; self.ocs_enforcer=ocs_enforcer
+        self.synaptic_mesh=synaptic_mesh; self.autopoiesis=autopoiesis
 
     def _fail_closed(self, actor_id, actor, detail):
         with self.states.lock:
@@ -77,3 +78,24 @@ class IntegratedRuntime:
                 self.trace.emit("SPAWN_ABORT",parent,detail)
                 return SpawnResult("ABORTED",None,detail)
         return self.spawn.spawn(request)
+
+    def route_synaptic_signal(self, signal):
+        if self.synaptic_mesh is None:
+            actor=self.states.get(signal.sender_actor_id)
+            self._fail_closed(actor.actor_id,actor,"SYNAPTIC_MESH_NOT_BOUND")
+            raise RuntimeError("SYNAPTIC_MESH_NOT_BOUND")
+        return self.synaptic_mesh.route(signal)
+
+    def run_autopoiesis_cycle(self, actor_id, anomaly_code, recipient_actor_id=None):
+        actor=self.states.get(actor_id)
+        if self.autopoiesis is None:
+            return self._fail_closed(actor_id,actor,"AUTOPOIESIS_NOT_BOUND")
+        try:
+            repair=self.autopoiesis.inspect_and_propose(actor_id,anomaly_code)
+        except Exception as e:
+            return self._fail_closed(actor_id,actor,f"AUTOPOIESIS_FAIL_CLOSED:{e}")
+        if repair is None:
+            return Outcome.HOLD
+        if recipient_actor_id is not None:
+            self.autopoiesis.emit_repair_signal(repair,recipient_actor_id)
+        return Outcome.ESCALATE
