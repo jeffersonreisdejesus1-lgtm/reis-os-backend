@@ -1,10 +1,7 @@
 name: G3 F01 Durable StateCore
 
 on:
-  pull_request:
-  push:
-    branches:
-      - repair/g3-f01-durable-statecore-v0
+  workflow_dispatch:
 
 jobs:
   g3-f01-durable-statecore:

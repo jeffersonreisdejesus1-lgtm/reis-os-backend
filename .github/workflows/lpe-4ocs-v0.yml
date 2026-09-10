@@ -1,9 +1,6 @@
 name: LPE 4 OCS v0
 
 on:
-  push:
-    branches:
-      - experiment/4ocs-lpe-refactor-v0
   workflow_dispatch:
 
 jobs:
