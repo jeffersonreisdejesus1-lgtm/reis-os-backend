@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - agora/recursive-runtime-external-ci-001
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
