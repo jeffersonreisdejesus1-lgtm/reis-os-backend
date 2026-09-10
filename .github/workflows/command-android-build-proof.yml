@@ -1,10 +1,6 @@
 name: Command Android Build Proof
 
 on:
-  pull_request:
-    paths:
-      - 'frontend/command-android/**'
-      - '.github/workflows/command-android-build-proof.yml'
   workflow_dispatch:
 
 permissions:
