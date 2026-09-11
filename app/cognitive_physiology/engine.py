@@ -226,9 +226,12 @@ class UniversalCognitiveEngine:
         commit_context: OperationalCommitContext | None = None,
         provenance_ref: str,
     ) -> CognitiveCycleResult:
-        self.runtime.assert_generation(generation)
         candidate_list = list(candidates)
         competition = self.compete(candidate_list)
+        self.runtime.reserve_cycle(
+            generation=generation,
+            candidate_count=len(candidate_list),
+        )
         by_id = {
             candidate.candidate_id: candidate
             for candidate in candidate_list
