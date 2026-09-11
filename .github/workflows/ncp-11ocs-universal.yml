@@ -1,0 +1,55 @@
+name: NCP 11 OCS Universal Physiology
+
+on:
+  push:
+    branches:
+      - ncp/universal-11ocs-v1
+  pull_request:
+    paths:
+      - 'app/cognitive_physiology/**'
+      - 'app/profile_bindings/**'
+      - 'tests/test_ncp_universal_contracts.py'
+      - 'tests/test_ncp_11ocs_parametric.py'
+      - 'tests/test_ncp_end_to_end_cycle.py'
+      - 'tests/test_ncp_replay_recovery.py'
+      - 'tests/test_ncp_instance_binding.py'
+      - 'tests/test_r2_profile_bindings.py'
+      - '.github/workflows/ncp-11ocs-universal.yml'
+
+jobs:
+  ncp-universal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: Universal physiology fail-closed tests
+        run: pytest -q tests/test_ncp_universal_contracts.py
+      - name: End-to-end cognitive cycle tests
+        run: pytest -q tests/test_ncp_end_to_end_cycle.py
+      - name: Replay and recovery tests
+        run: pytest -q tests/test_ncp_replay_recovery.py
+      - name: Institutional binding tests
+        run: pytest -q tests/test_ncp_instance_binding.py
+      - name: 11 OCS parametric isolation tests
+        run: pytest -q tests/test_ncp_11ocs_parametric.py
+      - name: 11 OCS profile binding regression
+        run: pytest -q tests/test_r2_profile_bindings.py
+      - name: Frozen R1 regression harness
+        run: pytest -q tests/test_universal_kernel_r1a.py
+      - name: Ruff NCP
+        run: >-
+          ruff check
+          app/cognitive_physiology
+          app/profile_bindings
+          tests/test_ncp_universal_contracts.py
+          tests/test_ncp_11ocs_parametric.py
+          tests/test_ncp_end_to_end_cycle.py
+          tests/test_ncp_replay_recovery.py
+          tests/test_ncp_instance_binding.py
+          tests/test_r2_profile_bindings.py
+      - name: Mypy NCP
+        run: mypy app/cognitive_physiology app/profile_bindings
