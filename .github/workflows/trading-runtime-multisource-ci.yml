@@ -1,0 +1,62 @@
+name: REIS OS Trading Runtime Multisource CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "app/trading_runtime/**"
+      - "tests/test_trading_multisource_refactor.py"
+      - ".github/workflows/trading-runtime-multisource-ci.yml"
+  push:
+    branches:
+      - "noesis/trading-runtime-v1-multisource-refactor-001"
+
+permissions:
+  contents: read
+
+jobs:
+  agora-trading-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install test dependencies
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Compile trading runtime
+        run: python -m compileall -q app/trading_runtime
+      - name: Run multisource deterministic tests
+        run: python -m pytest -q tests/test_trading_multisource_refactor.py
+      - name: Prove no live order placement surface in trading package
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RniE 'create_order|new_order|place_order|submit_order|api/v3/order|fapi/v1/order' app/trading_runtime; then
+            echo 'Forbidden live-order surface detected' >&2
+            exit 1
+          fi
+      - name: Emit qualification metadata
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p ci-evidence
+          {
+            echo "qa_id=AGORA-TRADING-RUNTIME-V1-MULTISOURCE-QA-PLAN-001"
+            echo "sha=$GITHUB_SHA"
+            echo "branch=$GITHUB_REF_NAME"
+            echo "real_money_autonomous_execution=FORBIDDEN"
+            echo "paper_trading_boundary=PRESERVED"
+            echo "authority_expansion=NONE"
+          } > ci-evidence/trading-runtime-qualification.txt
+          find app/trading_runtime tests/test_trading_multisource_refactor.py -type f -print0 | sort -z | xargs -0 sha256sum > ci-evidence/source-files.sha256
+      - name: Upload qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trading-runtime-multisource-ci-evidence
+          path: ci-evidence/
+          if-no-files-found: error
