@@ -76,9 +76,9 @@ LOCAL_PROFILES: dict[str, LocalCognitiveProfile] = {
         "implementation_integration_adaptation_stress",
     ),
     "TÊMIS": LocalCognitiveProfile(
-        "TÊMIS", "identity://themis", "REISOS::INST::ANDROID_PLAY::001",
+        "TÊMIS", "identity://temis", "REISOS::INST::ANDROID_PLAY::001",
         "android_google_play_stewardship",
-        "state://themis/r2-v0.1.0", "memory://themis/r2-v0.1.0",
+        "state://temis/r2-v0.1.0", "memory://temis/r2-v0.1.0",
         "specialty_domain_transfer_stress",
     ),
 }
