@@ -29,8 +29,29 @@ R03 — Carry explicit reservations for volatile state and baseline-only securit
 
 R04 — Add tests proving missing/invalid provenance produces HOLD and proving V1 never claims `production_hardened=true`.
 
-## Disposition before repair
+## Repair closure
 
-`TARGETED_REPAIR_REQUIRED`
+R01 = CLOSED. `runner_ref`, `qa_evidence_hash`, and `performance_evidence_hash` are required and SHA-256 format is validated fail-closed.
 
-The implementation candidate remains usable as a repair base; no rebuild-from-zero is required.
+R02 = CLOSED. FounderGateBundle exposes `durability_class`, `security_assurance_class`, `production_hardened`, and `provenance_bound`.
+
+R03 = CLOSED. Passing bounded V1 bundles carry explicit volatile-state and external-security reservations.
+
+R04 = CLOSED. Focused suite now includes provenance HOLD and claim-boundary tests.
+
+REPAIRED_HEAD = `9d10a59f70d6ee8529932f410b57919668743c8d`
+RENDER_DEPLOY = `dep-dahn8lh42hec739lde60`
+RENDER_STATUS = `LIVE`
+FOCUSED_TESTS = `18/18 PASS`
+NEW_PAID_INFRA_SPEND = `0`
+
+## Final conformance disposition
+
+`PASS_WITH_DECLARED_RESERVATIONS_FOR_BOUNDED_V1`
+
+Remaining reservations are architectural scope boundaries, not hidden defects:
+- state durability remains `VOLATILE_PROCESS_MEMORY_V1`;
+- security assurance remains `DETERMINISTIC_BASELINE_V1` without external SAST/SCA/container evidence;
+- therefore `production_hardened=false` is mandatory.
+
+The implementation is conformant to the formal bounded-V1 meta-architecture and may proceed to final implementation assurance and Founder gate. It must not be represented as fully production-hardened enterprise CI/CD.
