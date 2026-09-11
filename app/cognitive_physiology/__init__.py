@@ -4,6 +4,7 @@ This package is intentionally authority-neutral: it provides shared mechanisms
 and fail-closed contracts but never grants institutional authority.
 """
 
+from .binding import CognitiveBindingContext, bind_cognitive_runtime
 from .contracts import (
     BudgetEnvelope,
     Candidate,
@@ -23,25 +24,31 @@ from .engine import (
     ObservedOutcome,
     UniversalCognitiveEngine,
 )
-from .runtime import CognitivePhysiologyRuntime, InstitutionalState, WorkspaceState
+from .runtime import (
+    CognitivePhysiologyRuntime,
+    InstitutionalState,
+    WorkspaceState,
+)
 
 __all__ = [
     "BudgetEnvelope",
     "Candidate",
+    "CognitiveBindingContext",
+    "CognitiveCycleResult",
+    "CognitivePhysiologyRuntime",
+    "CompetitionResult",
     "EvidenceClass",
     "EpistemicGrade",
+    "ExpectedOutcome",
     "HandoffEnvelope",
+    "InstitutionalState",
+    "LocalMemoryStore",
     "MemoryLevel",
     "NMState",
+    "ObservedOutcome",
     "OperationalCommitContext",
     "PredictionResidual",
-    "CognitiveCycleResult",
-    "CompetitionResult",
-    "ExpectedOutcome",
-    "LocalMemoryStore",
-    "ObservedOutcome",
     "UniversalCognitiveEngine",
-    "CognitivePhysiologyRuntime",
-    "InstitutionalState",
     "WorkspaceState",
+    "bind_cognitive_runtime",
 ]
