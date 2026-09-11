@@ -77,7 +77,11 @@ class LocalMemoryStore:
         persistence_authorized: bool,
         generation: int,
     ) -> MemoryRecord:
-        validate_memory_promotion(MemoryLevel.M2, MemoryLevel.M3, qualified=qualified)
+        validate_memory_promotion(
+            MemoryLevel.M2,
+            MemoryLevel.M3,
+            qualified=qualified,
+        )
         if not persistence_authorized:
             raise PermissionError("m3_persistence_authority_required")
         source = self.get(MemoryLevel.M2, source_record_id)
@@ -88,7 +92,10 @@ class LocalMemoryStore:
             generation=generation,
             provenance_ref=source.provenance_ref,
             mission_id=source.mission_id,
-            payload={"derived_from": source.record_id, "qualified_payload": dict(source.payload)},
+            payload={
+                "derived_from": source.record_id,
+                "qualified_payload": dict(source.payload),
+            },
         )
         self.put(target)
         return target
@@ -118,13 +125,31 @@ class UniversalCognitiveEngine:
         candidate_list = list(candidates)
         if not candidate_list:
             raise ValueError("competition_requires_candidates")
-        scores = {candidate.candidate_id: self.score(candidate) for candidate in candidate_list}
-        ranked = tuple(sorted(scores, key=lambda candidate_id: (-scores[candidate_id], candidate_id)))
-        return CompetitionResult(winner_id=ranked[0], ranked_ids=ranked, scores=scores)
+        scores = {
+            candidate.candidate_id: self.score(candidate)
+            for candidate in candidate_list
+        }
+        ranked = tuple(
+            sorted(
+                scores,
+                key=lambda candidate_id: (-scores[candidate_id], candidate_id),
+            )
+        )
+        return CompetitionResult(
+            winner_id=ranked[0],
+            ranked_ids=ranked,
+            scores=scores,
+        )
 
     @staticmethod
-    def compare(expected: ExpectedOutcome, observed: ObservedOutcome) -> PredictionResidual:
-        def mismatch(left: Mapping[str, object], right: Mapping[str, object]) -> float:
+    def compare(
+        expected: ExpectedOutcome,
+        observed: ObservedOutcome,
+    ) -> PredictionResidual:
+        def mismatch(
+            left: Mapping[str, object],
+            right: Mapping[str, object],
+        ) -> float:
             keys = set(left) | set(right)
             if not keys:
                 return 0.0
@@ -132,25 +157,46 @@ class UniversalCognitiveEngine:
             return mismatches / len(keys)
 
         temporal = 0.0
-        if expected.expected_latency_ms is not None and observed.latency_ms is not None:
+        if (
+            expected.expected_latency_ms is not None
+            and observed.latency_ms is not None
+        ):
             denominator = max(expected.expected_latency_ms, 1)
-            temporal = min(abs(observed.latency_ms - expected.expected_latency_ms) / denominator, 1.0)
+            temporal = min(
+                abs(observed.latency_ms - expected.expected_latency_ms)
+                / denominator,
+                1.0,
+            )
 
-        risk = 1.0 if observed.failure_mode and observed.failure_mode not in expected.expected_failure_modes else 0.0
+        unexpected_failure = (
+            observed.failure_mode is not None
+            and observed.failure_mode not in expected.expected_failure_modes
+        )
+        risk = 1.0 if unexpected_failure else 0.0
         return PredictionResidual(
-            semantic=mismatch(expected.expected_observation, observed.observation),
+            semantic=mismatch(
+                expected.expected_observation,
+                observed.observation,
+            ),
             goal=mismatch(expected.expected_effect, observed.effect),
-            causal=mismatch(expected.expected_state_delta, observed.state_delta),
+            causal=mismatch(
+                expected.expected_state_delta,
+                observed.state_delta,
+            ),
             temporal=temporal,
             calibration=0.0,
             risk=risk,
             tool_behavior=mismatch(expected.expected_effect, observed.effect),
-            environment=mismatch(expected.expected_observation, observed.observation),
+            environment=mismatch(
+                expected.expected_observation,
+                observed.observation,
+            ),
         )
 
     @staticmethod
     def modulate(winner: Candidate, residual: PredictionResidual) -> NMState:
-        residual_mean = sum(residual.as_mapping().values()) / len(residual.as_mapping())
+        residual_values = residual.as_mapping().values()
+        residual_mean = sum(residual_values) / len(residual.as_mapping())
         state = NMState(
             salience=winner.salience,
             novelty=winner.novelty,
@@ -183,17 +229,25 @@ class UniversalCognitiveEngine:
         self.runtime.assert_generation(generation)
         candidate_list = list(candidates)
         competition = self.compete(candidate_list)
-        by_id = {candidate.candidate_id: candidate for candidate in candidate_list}
+        by_id = {
+            candidate.candidate_id: candidate
+            for candidate in candidate_list
+        }
         winner = by_id[competition.winner_id]
 
         for candidate in candidate_list:
             self.runtime.ingest_candidate(candidate, generation=generation)
-        self.runtime.cognitive_ignition(winner.candidate_id, generation=generation)
+        self.runtime.cognitive_ignition(
+            winner.candidate_id,
+            generation=generation,
+        )
 
         effect_result: object | None = None
         if action is not None:
             if action_effect_id is None or commit_context is None:
-                raise PermissionError("material_action_requires_explicit_operational_commit")
+                raise PermissionError(
+                    "material_action_requires_explicit_operational_commit"
+                )
             effect_result = self.runtime.operational_commit(
                 effect_id=action_effect_id,
                 context=commit_context,
@@ -205,7 +259,9 @@ class UniversalCognitiveEngine:
         residual = self.compare(expected, observed)
         nm_state = self.modulate(winner, residual)
         episodic = MemoryRecord(
-            record_id=f"episode:{mission_id}:{winner.candidate_id}:{generation}",
+            record_id=(
+                f"episode:{mission_id}:{winner.candidate_id}:{generation}"
+            ),
             ocs_id=self.runtime.ocs_id,
             level=MemoryLevel.M2,
             generation=generation,
