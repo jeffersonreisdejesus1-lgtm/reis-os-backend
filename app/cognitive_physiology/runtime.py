@@ -41,11 +41,13 @@ class InstitutionalState:
         if not authority_validated:
             raise PermissionError("institutional_commit_authority_required")
         if not r6_validated:
-            raise PermissionError("institutional_commit_r6_validation_required")
-        if expected_generation != self.generation:
-            raise PermissionError("institutional_generation_mismatch")
+            raise PermissionError(
+                "institutional_commit_r6_validation_required"
+            )
         if transition_id in self.committed_transition_ids:
             return self.generation
+        if expected_generation != self.generation:
+            raise PermissionError("institutional_generation_mismatch")
         self.values.update(changes)
         self.committed_transition_ids.add(transition_id)
         self.generation += 1
@@ -85,16 +87,28 @@ class CognitivePhysiologyRuntime:
         if generation != self.generation:
             raise PermissionError("stale_generation_writer")
 
-    def ingest_candidate(self, candidate: Candidate, *, generation: int) -> None:
+    def ingest_candidate(
+        self,
+        candidate: Candidate,
+        *,
+        generation: int,
+    ) -> None:
         self.assert_generation(generation)
         if candidate.source_ocs != self.ocs_id:
-            raise PermissionError("foreign_candidate_requires_explicit_handoff")
+            raise PermissionError(
+                "foreign_candidate_requires_explicit_handoff"
+            )
         if self._cycles >= self.budget.max_cycles:
             raise RuntimeError("cognitive_cycle_budget_exhausted")
         self.workspace.add_candidate(candidate)
         self._cycles += 1
 
-    def cognitive_ignition(self, candidate_id: str, *, generation: int) -> Candidate:
+    def cognitive_ignition(
+        self,
+        candidate_id: str,
+        *,
+        generation: int,
+    ) -> Candidate:
         self.assert_generation(generation)
         return self.workspace.broadcast(candidate_id)
 
@@ -124,6 +138,7 @@ class CognitivePhysiologyRuntime:
         authority_validated: bool,
         r6_validated: bool,
     ) -> int:
+        previous_generation = self.world.generation
         new_generation = self.world.commit(
             transition_id=transition_id,
             expected_generation=expected_generation,
@@ -131,7 +146,8 @@ class CognitivePhysiologyRuntime:
             authority_validated=authority_validated,
             r6_validated=r6_validated,
         )
-        self._advance_generation(new_generation)
+        if new_generation > previous_generation:
+            self._advance_generation(new_generation)
         return new_generation
 
     def _advance_generation(self, new_generation: int) -> None:
@@ -143,7 +159,6 @@ class CognitivePhysiologyRuntime:
     def recover_to_generation(self, *, restored_generation: int) -> None:
         if restored_generation < 0:
             raise ValueError("invalid_recovery_generation")
-        # Recovery fences all previously valid writers by advancing generation.
         next_generation = max(self.generation, restored_generation) + 1
         self.generation = next_generation
         self.workspace = WorkspaceState(generation=next_generation)
