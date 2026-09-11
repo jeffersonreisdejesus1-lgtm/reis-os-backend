@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from app.cognitive_physiology.contracts import (
+    BudgetEnvelope,
     Candidate,
     EpistemicGrade,
     MemoryLevel,
@@ -17,13 +18,18 @@ from app.cognitive_physiology.local_profiles import LOCAL_PROFILES
 from app.cognitive_physiology.runtime import CognitivePhysiologyRuntime
 
 
-def runtime(ocs_id: str = "NÓESIS") -> CognitivePhysiologyRuntime:
+def runtime(
+    ocs_id: str = "NÓESIS",
+    *,
+    budget: BudgetEnvelope | None = None,
+) -> CognitivePhysiologyRuntime:
     profile = LOCAL_PROFILES[ocs_id]
     return CognitivePhysiologyRuntime(
         ocs_id=ocs_id,
         identity_ref=profile.identity_ref,
         state_namespace=profile.state_namespace,
         memory_namespace=profile.memory_namespace,
+        budget=budget,
     )
 
 
@@ -175,3 +181,51 @@ def test_m2_to_m3_requires_qualification_and_persistence_authority() -> None:
     )
     assert record.level == MemoryLevel.M3
     assert record.payload["derived_from"] == source_id
+
+
+def test_cycle_budget_counts_cycles_not_candidates() -> None:
+    rt = runtime(budget=BudgetEnvelope(max_cycles=1))
+    engine = UniversalCognitiveEngine(rt)
+    engine.run_cycle(
+        mission_id="budget-1",
+        candidates=(
+            candidate("a", salience=0.8),
+            candidate("b", salience=0.7),
+        ),
+        expected=ExpectedOutcome(),
+        observe=lambda: ObservedOutcome(),
+        generation=0,
+        provenance_ref="evidence://budget-1",
+    )
+    with pytest.raises(
+        RuntimeError,
+        match="cognitive_cycle_budget_exhausted",
+    ):
+        engine.run_cycle(
+            mission_id="budget-2",
+            candidates=(candidate("c", salience=0.9),),
+            expected=ExpectedOutcome(),
+            observe=lambda: ObservedOutcome(),
+            generation=0,
+            provenance_ref="evidence://budget-2",
+        )
+    assert "c" not in rt.workspace.candidates
+
+
+def test_candidate_budget_fails_before_workspace_mutation() -> None:
+    rt = runtime(budget=BudgetEnvelope(max_candidates_per_cycle=1))
+    engine = UniversalCognitiveEngine(rt)
+    with pytest.raises(RuntimeError, match="candidate_budget_exhausted"):
+        engine.run_cycle(
+            mission_id="candidate-budget",
+            candidates=(
+                candidate("a", salience=0.8),
+                candidate("b", salience=0.7),
+            ),
+            expected=ExpectedOutcome(),
+            observe=lambda: ObservedOutcome(),
+            generation=0,
+            provenance_ref="evidence://candidate-budget",
+        )
+    assert rt.workspace.candidates == {}
+    assert rt.workspace.broadcast_ids == []
