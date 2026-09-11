@@ -88,11 +88,7 @@ PROFILES: dict[str, OCSProfile] = {
         "DÉDALA",
         "technical_architecture_systems_integration_security_recovery",
         ("architectural_analysis", "technical_design", "technical_recovery_planning"),
-        (
-            "unmediated_material_effect",
-            "self_assurance",
-            "nontechnical_domain_takeover",
-        ),
+        ("unmediated_material_effect", "self_assurance", "nontechnical_domain_takeover"),
         ("architecture", "systems", "security", "integration"),
     ),
     "SÝNESIS": _profile(
@@ -120,11 +116,7 @@ PROFILES: dict[str, OCSProfile] = {
         "SOFIA",
         "software_implementation_code_incremental_integration",
         ("software_implementation_via_valid_envelope_lease_effector",),
-        (
-            "architecture_rewrite_without_authority",
-            "self_assurance",
-            "lateral_effect_route",
-        ),
+        ("architecture_rewrite_without_authority", "self_assurance", "lateral_effect_route"),
         ("code", "integration", "implementation"),
     ),
     "MÊTIS": _profile(
@@ -151,16 +143,16 @@ PROFILES: dict[str, OCSProfile] = {
     "SYNERGEIA": _profile(
         "SYNERGEIA",
         "gtm_activation_distribution_channels_market_coordination",
-        (
-            "gtm_execution_with_approved_strategy_budget_authority",
-            "channel_coordination",
-        ),
-        (
-            "strategy_invention_as_authority",
-            "unapproved_spend",
-            "unapproved_publication",
-        ),
+        ("gtm_execution_with_approved_strategy_budget_authority", "channel_coordination"),
+        ("strategy_invention_as_authority", "unapproved_spend", "unapproved_publication"),
         ("gtm", "activation", "distribution", "channels"),
+    ),
+    "TÊMIS": _profile(
+        "TÊMIS",
+        "android_google_play_stewardship",
+        ("android_policy_analysis", "play_store_readiness_assessment", "android_architecture_review"),
+        ("production_publication", "self_assurance", "authority_creation", "unapproved_commerce_change"),
+        ("android", "google_play", "policy", "store_readiness"),
     ),
 }
 
@@ -170,13 +162,13 @@ def get_profile(ocs_id: str) -> OCSProfile:
 
 
 def validate_profiles(profiles: dict[str, OCSProfile] = PROFILES) -> None:
-    if len(profiles) != 10:
-        raise ValueError("ten_distinct_ocs_profiles_required")
-    if len({profile.identity for profile in profiles.values()}) != 10:
+    if len(profiles) != 11:
+        raise ValueError("eleven_distinct_ocs_profiles_required")
+    if len({profile.identity for profile in profiles.values()}) != 11:
         raise ValueError("profile_identity_merge_prohibited")
-    if len({profile.state_namespace for profile in profiles.values()}) != 10:
+    if len({profile.state_namespace for profile in profiles.values()}) != 11:
         raise ValueError("state_namespace_isolation_required")
-    if len({profile.memory_namespace for profile in profiles.values()}) != 10:
+    if len({profile.memory_namespace for profile in profiles.values()}) != 11:
         raise ValueError("memory_namespace_isolation_required")
     for profile in profiles.values():
         if not profile.authority_envelope_ref:
