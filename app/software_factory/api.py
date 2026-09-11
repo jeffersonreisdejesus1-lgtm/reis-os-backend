@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from .operations import MigrationPlan
@@ -35,11 +35,6 @@ class CandidateRequest(BaseModel):
     feature_flags: dict[str, bool] = Field(default_factory=dict)
 
 
-class PromotionRequest(BaseModel):
-    bundle_id: str
-    founder_approved: bool
-
-
 @app.get("/health")
 def health() -> dict[str, object]:
     return {
@@ -47,6 +42,7 @@ def health() -> dict[str, object]:
         "runtime": "REIS-OS-INSTITUTIONAL-SOFTWARE-FACTORY-V1-001",
         "autonomous_pre_gate": True,
         "founder_final_gate_required": True,
+        "public_production_promotion_endpoint": False,
         "paid_infra_authorized": False,
     }
 
@@ -94,19 +90,6 @@ def qualify(req: CandidateRequest) -> dict[str, object]:
     bundle = factory.qualify(candidate)
     _bundles[bundle.bundle_id] = bundle
     return asdict(bundle)
-
-
-@app.post("/promote")
-def promote(req: PromotionRequest) -> dict[str, object]:
-    bundle = _bundles.get(req.bundle_id)
-    if bundle is None:
-        raise HTTPException(status_code=404, detail="bundle not found")
-    if not req.founder_approved:
-        raise HTTPException(status_code=403, detail="founder approval required")
-    try:
-        return factory.promote_after_founder(bundle, founder_approved=True)
-    except (ValueError, PermissionError) as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @app.get("/observability")
