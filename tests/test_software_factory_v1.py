@@ -8,6 +8,13 @@ from app.software_factory.core import (
     ReleaseManager,
     SecurityPipeline,
 )
+from app.software_factory.operations import (
+    ConfigManager,
+    FeatureFlagManager,
+    MigrationPlan,
+    MigrationGate,
+    PerformanceGate,
+)
 from app.software_factory.orchestrator import BuildCandidate, SoftwareFactory
 
 
@@ -21,6 +28,11 @@ def candidate(**overrides: object) -> BuildCandidate:
         "tests_failed": 0,
         "changelog": ("initial release",),
         "rollback_ref": "main@previous",
+        "performance_p95_ms": 120.0,
+        "error_rate_pct": 0.1,
+        "migration": MigrationPlan("m1", "CREATE TABLE demo(id int);", "DROP TABLE demo;"),
+        "config": (("LOG_LEVEL", "INFO"), ("API_TOKEN", "ref://render/API_TOKEN")),
+        "feature_flags": (("new_ui", False),),
     }
     data.update(overrides)
     return BuildCandidate(**data)
@@ -33,7 +45,10 @@ def test_end_to_end_stops_at_founder_gate() -> None:
     assert bundle.gate_status == "FOUNDER_FINAL_GATE_REQUIRED"
     assert bundle.security_passed is True
     assert bundle.tests_passed is True
+    assert bundle.migration_passed is True
+    assert bundle.performance_passed is True
     assert bundle.staging_qualified is True
+    assert bundle.release_manifest_hash is not None
     assert factory.environments.current("demo-software").environment is Environment.STAGING
 
 
@@ -69,6 +84,46 @@ def test_failed_tests_hold_pipeline() -> None:
     assert bundle.ready_for_founder_gate is False
     assert bundle.tests_passed is False
     assert "QA_FAILED" in bundle.reservations
+
+
+def test_performance_breach_holds_pipeline() -> None:
+    factory = SoftwareFactory()
+    bundle = factory.qualify(candidate(performance_p95_ms=1000.0))
+    assert bundle.ready_for_founder_gate is False
+    assert bundle.performance_passed is False
+    assert "P95_LATENCY_BREACH" in bundle.reservations
+
+
+def test_destructive_migration_requires_explicit_acknowledgement() -> None:
+    gate = MigrationGate()
+    passed, reason = gate.validate(MigrationPlan("m2", "DROP TABLE users;", "CREATE TABLE users(id int);"))
+    assert passed is False
+    assert reason == "DESTRUCTIVE_MIGRATION_UNACKNOWLEDGED"
+
+
+def test_config_rejects_embedded_secret_and_accepts_reference() -> None:
+    config = ConfigManager()
+    try:
+        config.set("API_TOKEN", "actual-secret-value")
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("embedded secrets must be rejected")
+    config.set("API_TOKEN", "ref://render/API_TOKEN")
+    assert config.snapshot()["API_TOKEN"].startswith("ref://")
+
+
+def test_feature_flag_defaults_off() -> None:
+    flags = FeatureFlagManager()
+    assert flags.enabled("unknown") is False
+    flags.set("new_ui", True)
+    assert flags.enabled("new_ui") is True
+
+
+def test_performance_gate_accepts_bounded_metrics() -> None:
+    passed, reasons = PerformanceGate().validate(200.0, 0.2)
+    assert passed is True
+    assert reasons == ()
 
 
 def test_artifact_registry_is_immutable() -> None:
