@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from app.trading_runtime.contracts import Direction, HoldReason, MarketSnapshot
 from app.trading_runtime.economics import BudgetPolicy, EconomicGovernor
+from app.trading_runtime.paper import PaperResult, simulate
+from app.trading_runtime.pricing import ProviderPrice, ProviderPricingRegistry
 from app.trading_runtime.risk import RiskPolicy
 from app.trading_runtime.runtime import TradingRuntime
 from app.trading_runtime.strategy import Candle, derive_opportunity
@@ -107,3 +109,28 @@ def test_downtrend_generates_bounded_sell_opportunity() -> None:
 def test_insufficient_history_holds() -> None:
     opportunity = derive_opportunity(candles([100, 101, 102]))
     assert opportunity.direction is Direction.HOLD
+
+
+def test_paper_trade_marks_same_candle_stop_and_target_ambiguous() -> None:
+    signal = TradingRuntime().evaluate(
+        snapshot(), capital=1000, technical_stop_price=98, target_price=104
+    )
+    future = [Candle(open=100, high=105, low=97, close=101, close_time_ms=1)]
+    outcome = simulate(signal, future)
+    assert outcome.result is PaperResult.AMBIGUOUS
+
+
+def test_pricing_registry_requires_explicit_configuration() -> None:
+    registry = ProviderPricingRegistry()
+    price = ProviderPrice(
+        provider="example",
+        model="model-v1",
+        input_price=Decimal("0.001"),
+        cached_input_price=Decimal("0.0005"),
+        output_price=Decimal("0.002"),
+        currency="USD",
+        effective_at="2026-09-10",
+        source="provider-config",
+    )
+    registry.register(price)
+    assert registry.get("example", "model-v1") == price
