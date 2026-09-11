@@ -1,9 +1,10 @@
-name: R2 10 OCS Profile Bindings
+name: R2 11 OCS Profile Bindings
 
 on:
   push:
     branches:
       - r2/10ocs-profile-bindings-v0
+      - ncp/universal-11ocs-v1
   pull_request:
     paths:
       - 'app/profile_bindings/**'
