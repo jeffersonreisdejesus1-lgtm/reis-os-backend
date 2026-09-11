@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from dataclasses import dataclass
 
 KERNEL_INTERFACE_REF = "R1-UNIVERSAL-KERNEL@06393743bfc49ba2aa837a0a6e58c6b89bbe1704"
@@ -34,6 +35,11 @@ class OCSProfile:
     kernel_interface_ref: str = KERNEL_INTERFACE_REF
 
 
+def _slugify_ocs_id(ocs_id: str) -> str:
+    normalized = unicodedata.normalize("NFKD", ocs_id)
+    return normalized.encode("ascii", "ignore").decode("ascii").lower()
+
+
 def _profile(
     ocs_id: str,
     specialty: str,
@@ -41,14 +47,7 @@ def _profile(
     denied: tuple[str, ...],
     support: tuple[str, ...],
 ) -> OCSProfile:
-    slug = (
-        ocs_id.lower()
-        .replace("ê", "e")
-        .replace("ý", "y")
-        .replace("ó", "o")
-        .replace("í", "i")
-        .replace("á", "a")
-    )
+    slug = _slugify_ocs_id(ocs_id)
     return OCSProfile(
         ocs_id=ocs_id,
         identity=f"identity://{slug}",
