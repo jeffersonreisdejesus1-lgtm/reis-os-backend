@@ -87,6 +87,22 @@ class CognitivePhysiologyRuntime:
         if generation != self.generation:
             raise PermissionError("stale_generation_writer")
 
+    def reserve_cycle(
+        self,
+        *,
+        generation: int,
+        candidate_count: int,
+    ) -> None:
+        """Reserve one cycle before any workspace mutation occurs."""
+        self.assert_generation(generation)
+        if candidate_count <= 0:
+            raise ValueError("cognitive_cycle_requires_candidates")
+        if candidate_count > self.budget.max_candidates_per_cycle:
+            raise RuntimeError("candidate_budget_exhausted")
+        if self._cycles >= self.budget.max_cycles:
+            raise RuntimeError("cognitive_cycle_budget_exhausted")
+        self._cycles += 1
+
     def ingest_candidate(
         self,
         candidate: Candidate,
@@ -98,10 +114,7 @@ class CognitivePhysiologyRuntime:
             raise PermissionError(
                 "foreign_candidate_requires_explicit_handoff"
             )
-        if self._cycles >= self.budget.max_cycles:
-            raise RuntimeError("cognitive_cycle_budget_exhausted")
         self.workspace.add_candidate(candidate)
-        self._cycles += 1
 
     def cognitive_ignition(
         self,
