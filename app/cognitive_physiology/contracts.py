@@ -29,6 +29,7 @@ class MemoryLevel(str, Enum):
 @dataclass(frozen=True)
 class BudgetEnvelope:
     max_cycles: int = 32
+    max_candidates_per_cycle: int = 32
     max_model_calls: int = 8
     max_tool_calls: int = 8
     max_tokens: int = 32_000
@@ -41,6 +42,7 @@ class BudgetEnvelope:
     def validate(self) -> None:
         fields = {
             "max_cycles": self.max_cycles,
+            "max_candidates_per_cycle": self.max_candidates_per_cycle,
             "max_model_calls": self.max_model_calls,
             "max_tool_calls": self.max_tool_calls,
             "max_tokens": self.max_tokens,
