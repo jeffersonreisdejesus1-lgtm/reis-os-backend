@@ -26,6 +26,9 @@ class CandidateRequest(BaseModel):
     files: dict[str, str]
     tests_total: int = Field(gt=0)
     tests_failed: int = Field(ge=0)
+    runner_ref: str = Field(min_length=1)
+    qa_evidence_hash: str = Field(min_length=64, max_length=64)
+    performance_evidence_hash: str = Field(min_length=64, max_length=64)
     changelog: list[str] = Field(default_factory=list)
     rollback_ref: str = "main"
     performance_p95_ms: float = Field(default=0.0, ge=0)
@@ -44,6 +47,8 @@ def health() -> dict[str, object]:
         "founder_final_gate_required": True,
         "public_production_promotion_endpoint": False,
         "paid_infra_authorized": False,
+        "durability_class": factory.DURABILITY_CLASS,
+        "production_hardened": False,
     }
 
 
@@ -62,8 +67,10 @@ def capabilities() -> dict[str, object]:
         "performance_gate": True,
         "slo_policy": True,
         "sbom": True,
+        "evidence_provenance_binding": True,
         "autonomous_orchestrator": True,
         "production_without_founder": False,
+        "production_hardened": False,
     }
 
 
@@ -79,6 +86,9 @@ def qualify(req: CandidateRequest) -> dict[str, object]:
         files=req.files,
         tests_total=req.tests_total,
         tests_failed=req.tests_failed,
+        runner_ref=req.runner_ref,
+        qa_evidence_hash=req.qa_evidence_hash,
+        performance_evidence_hash=req.performance_evidence_hash,
         changelog=tuple(req.changelog),
         rollback_ref=req.rollback_ref,
         performance_p95_ms=req.performance_p95_ms,
