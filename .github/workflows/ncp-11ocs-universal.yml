@@ -11,6 +11,7 @@ on:
       - 'tests/test_ncp_universal_contracts.py'
       - 'tests/test_ncp_11ocs_parametric.py'
       - 'tests/test_ncp_end_to_end_cycle.py'
+      - 'tests/test_ncp_replay_recovery.py'
       - 'tests/test_r2_profile_bindings.py'
       - '.github/workflows/ncp-11ocs-universal.yml'
 
@@ -28,6 +29,8 @@ jobs:
         run: pytest -q tests/test_ncp_universal_contracts.py
       - name: End-to-end cognitive cycle tests
         run: pytest -q tests/test_ncp_end_to_end_cycle.py
+      - name: Replay and recovery tests
+        run: pytest -q tests/test_ncp_replay_recovery.py
       - name: 11 OCS parametric isolation tests
         run: pytest -q tests/test_ncp_11ocs_parametric.py
       - name: 11 OCS profile binding regression
@@ -35,6 +38,14 @@ jobs:
       - name: Frozen R1 regression harness
         run: pytest -q tests/test_universal_kernel_r1a.py
       - name: Ruff NCP
-        run: ruff check app/cognitive_physiology app/profile_bindings tests/test_ncp_universal_contracts.py tests/test_ncp_11ocs_parametric.py tests/test_ncp_end_to_end_cycle.py tests/test_r2_profile_bindings.py
+        run: >-
+          ruff check
+          app/cognitive_physiology
+          app/profile_bindings
+          tests/test_ncp_universal_contracts.py
+          tests/test_ncp_11ocs_parametric.py
+          tests/test_ncp_end_to_end_cycle.py
+          tests/test_ncp_replay_recovery.py
+          tests/test_r2_profile_bindings.py
       - name: Mypy NCP
         run: mypy app/cognitive_physiology app/profile_bindings
