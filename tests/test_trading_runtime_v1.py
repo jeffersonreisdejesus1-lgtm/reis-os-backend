@@ -5,6 +5,7 @@ from app.trading_runtime.contracts import Direction, HoldReason, MarketSnapshot
 from app.trading_runtime.economics import BudgetPolicy, EconomicGovernor
 from app.trading_runtime.risk import RiskPolicy
 from app.trading_runtime.runtime import TradingRuntime
+from app.trading_runtime.strategy import Candle, derive_opportunity
 
 
 def snapshot(age_seconds: int = 0) -> MarketSnapshot:
@@ -16,6 +17,10 @@ def snapshot(age_seconds: int = 0) -> MarketSnapshot:
         received_at=now,
         data_cutoff=now,
     )
+
+
+def candles(prices: list[float]) -> list[Candle]:
+    return [Candle(p - 0.5, p + 1.0, p - 1.0, p, i) for i, p in enumerate(prices)]
 
 
 def test_buy_signal_contains_net_return_time_and_risk() -> None:
@@ -83,3 +88,22 @@ def test_economic_governor_reserves_reconciles_and_counts_strong_calls() -> None
     assert governor.strong_calls_today == 1
     assert governor.spent_run == Decimal("0.08")
     assert governor.reserve(Decimal("0.10"), strong=True) is None
+
+
+def test_uptrend_generates_bounded_buy_opportunity() -> None:
+    opportunity = derive_opportunity(candles([100 + i for i in range(25)]))
+    assert opportunity.direction is Direction.BUY
+    assert opportunity.stop is not None and opportunity.stop < opportunity.entry
+    assert opportunity.target is not None and opportunity.target > opportunity.entry
+
+
+def test_downtrend_generates_bounded_sell_opportunity() -> None:
+    opportunity = derive_opportunity(candles([150 - i for i in range(25)]))
+    assert opportunity.direction is Direction.SELL
+    assert opportunity.stop is not None and opportunity.stop > opportunity.entry
+    assert opportunity.target is not None and opportunity.target < opportunity.entry
+
+
+def test_insufficient_history_holds() -> None:
+    opportunity = derive_opportunity(candles([100, 101, 102]))
+    assert opportunity.direction is Direction.HOLD
