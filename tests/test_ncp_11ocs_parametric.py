@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from app.cognitive_physiology.contracts import Candidate, EpistemicGrade, OperationalCommitContext
+from app.cognitive_physiology.contracts import (
+    Candidate,
+    EpistemicGrade,
+    OperationalCommitContext,
+)
 from app.cognitive_physiology.local_profiles import LOCAL_PROFILES
 from app.cognitive_physiology.runtime import CognitivePhysiologyRuntime
 
@@ -45,7 +49,9 @@ def test_each_ocs_has_locally_owned_workspace_and_world(ocs_id: str) -> None:
 
 
 @pytest.mark.parametrize("ocs_id", OCS_IDS)
-def test_each_ocs_denies_operational_effect_without_full_commit(ocs_id: str) -> None:
+def test_each_ocs_denies_operational_effect_without_full_commit(
+    ocs_id: str,
+) -> None:
     rt = make_runtime(ocs_id)
     effects: list[str] = []
     context = OperationalCommitContext(
@@ -75,11 +81,17 @@ def test_each_ocs_recovery_fences_prior_generation(ocs_id: str) -> None:
 
 @pytest.mark.parametrize("source_ocs", OCS_IDS)
 @pytest.mark.parametrize("target_ocs", OCS_IDS)
-def test_cross_ocs_candidate_write_is_denied_without_handoff(source_ocs: str, target_ocs: str) -> None:
+def test_cross_ocs_candidate_write_is_denied_without_handoff(
+    source_ocs: str,
+    target_ocs: str,
+) -> None:
     if source_ocs == target_ocs:
         pytest.skip("local candidate is allowed")
     target = make_runtime(target_ocs)
-    with pytest.raises(PermissionError, match="foreign_candidate_requires_explicit_handoff"):
+    with pytest.raises(
+        PermissionError,
+        match="foreign_candidate_requires_explicit_handoff",
+    ):
         target.ingest_candidate(make_candidate(source_ocs), generation=0)
 
 
