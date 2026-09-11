@@ -26,6 +26,9 @@ def candidate(**overrides: object) -> BuildCandidate:
         "files": {"app.py": "print('ok')\n", "README.md": "demo\n"},
         "tests_total": 12,
         "tests_failed": 0,
+        "runner_ref": "render://srv-demo/dep-demo@abcdef1234567890",
+        "qa_evidence_hash": "a" * 64,
+        "performance_evidence_hash": "b" * 64,
         "changelog": ("initial release",),
         "rollback_ref": "main@previous",
         "performance_p95_ms": 120.0,
@@ -47,8 +50,12 @@ def test_end_to_end_stops_at_founder_gate() -> None:
     assert bundle.tests_passed is True
     assert bundle.migration_passed is True
     assert bundle.performance_passed is True
+    assert bundle.provenance_bound is True
     assert bundle.staging_qualified is True
     assert bundle.release_manifest_hash is not None
+    assert bundle.production_hardened is False
+    assert bundle.durability_class == "VOLATILE_PROCESS_MEMORY_V1"
+    assert bundle.security_assurance_class == "DETERMINISTIC_BASELINE_V1"
     assert factory.environments.current("demo-software").environment is Environment.STAGING
 
 
@@ -68,6 +75,30 @@ def test_production_can_follow_explicit_founder_gate() -> None:
     bundle = factory.qualify(candidate())
     state = factory.promote_after_founder(bundle, founder_approved=True)
     assert state["environment"] is Environment.PRODUCTION
+
+
+def test_missing_runner_provenance_holds_pipeline() -> None:
+    factory = SoftwareFactory()
+    bundle = factory.qualify(candidate(runner_ref=""))
+    assert bundle.ready_for_founder_gate is False
+    assert bundle.provenance_bound is False
+    assert "EVIDENCE_PROVENANCE_INVALID" in bundle.reservations
+
+
+def test_malformed_evidence_hash_holds_pipeline() -> None:
+    factory = SoftwareFactory()
+    bundle = factory.qualify(candidate(qa_evidence_hash="not-a-sha256"))
+    assert bundle.ready_for_founder_gate is False
+    assert bundle.provenance_bound is False
+    assert "EVIDENCE_PROVENANCE_INVALID" in bundle.reservations
+
+
+def test_bounded_v1_never_claims_production_hardening() -> None:
+    bundle = SoftwareFactory().qualify(candidate())
+    assert bundle.ready_for_founder_gate is True
+    assert bundle.production_hardened is False
+    assert "VOLATILE_STATE_NOT_PRODUCTION_DURABLE" in bundle.reservations
+    assert "EXTERNAL_SAST_SCA_CONTAINER_ASSURANCE_NOT_ATTACHED" in bundle.reservations
 
 
 def test_security_secret_fails_closed() -> None:
