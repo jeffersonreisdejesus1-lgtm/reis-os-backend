@@ -15,6 +15,14 @@ from .contracts import (
     OperationalCommitContext,
     PredictionResidual,
 )
+from .engine import (
+    CognitiveCycleResult,
+    CompetitionResult,
+    ExpectedOutcome,
+    LocalMemoryStore,
+    ObservedOutcome,
+    UniversalCognitiveEngine,
+)
 from .runtime import CognitivePhysiologyRuntime, InstitutionalState, WorkspaceState
 
 __all__ = [
@@ -27,6 +35,12 @@ __all__ = [
     "NMState",
     "OperationalCommitContext",
     "PredictionResidual",
+    "CognitiveCycleResult",
+    "CompetitionResult",
+    "ExpectedOutcome",
+    "LocalMemoryStore",
+    "ObservedOutcome",
+    "UniversalCognitiveEngine",
     "CognitivePhysiologyRuntime",
     "InstitutionalState",
     "WorkspaceState",
