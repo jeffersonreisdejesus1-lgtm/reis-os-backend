@@ -39,7 +39,18 @@ class BudgetEnvelope:
     max_wall_ms: int = 30_000
 
     def validate(self) -> None:
-        for name, value in self.__dict__.items():
+        fields = {
+            "max_cycles": self.max_cycles,
+            "max_model_calls": self.max_model_calls,
+            "max_tool_calls": self.max_tool_calls,
+            "max_tokens": self.max_tokens,
+            "max_active_populations": self.max_active_populations,
+            "max_recursive_depth": self.max_recursive_depth,
+            "max_retrievals": self.max_retrievals,
+            "max_simulations": self.max_simulations,
+            "max_wall_ms": self.max_wall_ms,
+        }
+        for name, value in fields.items():
             if value <= 0:
                 raise ValueError(f"budget_must_be_positive:{name}")
 
@@ -63,10 +74,18 @@ class Candidate:
             raise ValueError("candidate_identity_required")
         if self.ttl_cycles <= 0:
             raise ValueError("candidate_ttl_required")
-        for field_name in ("confidence", "uncertainty", "salience", "novelty", "risk"):
-            value = getattr(self, field_name)
+        bounded_fields = {
+            "confidence": self.confidence,
+            "uncertainty": self.uncertainty,
+            "salience": self.salience,
+            "novelty": self.novelty,
+            "risk": self.risk,
+        }
+        for field_name, value in bounded_fields.items():
             if not 0.0 <= value <= 1.0:
-                raise ValueError(f"candidate_field_out_of_range:{field_name}")
+                raise ValueError(
+                    f"candidate_field_out_of_range:{field_name}"
+                )
 
 
 @dataclass(frozen=True)
@@ -108,7 +127,20 @@ class NMState:
     resource_pressure: float = 0.0
 
     def validate(self) -> None:
-        for name, value in self.__dict__.items():
+        fields = {
+            "salience": self.salience,
+            "novelty": self.novelty,
+            "uncertainty": self.uncertainty,
+            "confidence": self.confidence,
+            "risk": self.risk,
+            "prediction_error": self.prediction_error,
+            "cognitive_load": self.cognitive_load,
+            "exploration_drive": self.exploration_drive,
+            "exploitation_drive": self.exploitation_drive,
+            "urgency": self.urgency,
+            "resource_pressure": self.resource_pressure,
+        }
+        for name, value in fields.items():
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"nm_field_out_of_range:{name}")
 
@@ -164,7 +196,12 @@ class HandoffEnvelope:
     unresolved_findings: tuple[str, ...] = ()
     rollback_ref: str = ""
 
-    def validate_for_target(self, *, target_generation: int, now: datetime | None = None) -> None:
+    def validate_for_target(
+        self,
+        *,
+        target_generation: int,
+        now: datetime | None = None,
+    ) -> None:
         now = now or datetime.now(timezone.utc)
         if self.source_generation < 0 or self.target_expected_generation < 0:
             raise ValueError("generation_must_be_non_negative")
@@ -181,7 +218,9 @@ class HandoffEnvelope:
         if now >= self.expires_at:
             raise PermissionError("stale_handoff")
         if not self.authority_ref or not self.capability_ref:
-            raise PermissionError("authority_or_capability_reference_missing")
+            raise PermissionError(
+                "authority_or_capability_reference_missing"
+            )
 
 
 @dataclass(frozen=True)
@@ -195,14 +234,25 @@ class MemoryRecord:
     payload: Mapping[str, object] = field(default_factory=dict)
 
     def validate(self) -> None:
-        if not self.record_id or not self.ocs_id or not self.provenance_ref or not self.mission_id:
-            raise ValueError("memory_record_identity_and_provenance_required")
+        required = (
+            self.record_id,
+            self.ocs_id,
+            self.provenance_ref,
+            self.mission_id,
+        )
+        if not all(required):
+            raise ValueError(
+                "memory_record_identity_and_provenance_required"
+            )
         if self.generation < 0:
             raise ValueError("memory_generation_must_be_non_negative")
 
 
-def validate_memory_promotion(source: MemoryLevel, target: MemoryLevel, *, qualified: bool) -> None:
+def validate_memory_promotion(
+    source: MemoryLevel,
+    target: MemoryLevel,
+    *,
+    qualified: bool,
+) -> None:
     if source == MemoryLevel.M2 and target == MemoryLevel.M3 and not qualified:
         raise PermissionError("m2_to_m3_direct_forbidden")
-    if target not in MemoryLevel:
-        raise ValueError("unknown_memory_level")
