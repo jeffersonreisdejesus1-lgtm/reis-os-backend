@@ -25,13 +25,7 @@ class LongitudinalBrainResult:
 
 
 class LongitudinalArtificialBrainQualification:
-    """Deterministic AB11 qualification harness.
-
-    The treatment retains learned task-family policy across restart boundaries,
-    adapts after an environment drift, fences injected faults, and preserves
-    identity across generation changes. Baselines deliberately remove learning,
-    memory, or actor diversity.
-    """
+    """Deterministic AB11 qualification harness with explicit baselines."""
 
     task_families = ("planning", "evidence", "recovery")
 
@@ -54,43 +48,36 @@ class LongitudinalArtificialBrainQualification:
             drifted = cycle >= drift_cycle
             target = (self.task_families.index(family) + (1 if drifted else 0)) % 2
 
-            # Full treatment: memory-backed policy. One miss after first exposure to
-            # a new family/regime is allowed, then the policy is causally revised.
             prior = learned.get(family)
             prediction = 0 if prior is None else prior
-            if prediction == target:
+            treatment_correct = prediction == target
+            if treatment_correct:
                 full_hits += 1
-            else:
+            if prior is None or not treatment_correct:
                 learned[family] = target
-                if drifted:
+                if drifted and not treatment_correct:
                     adaptation_seen = True
                     metacognitive_revision_seen = True
 
-            # Frozen policy cannot adapt to the drift.
             frozen_prediction = self.task_families.index(family) % 2
             if frozen_prediction == target:
                 frozen_hits += 1
 
-            # Memory ablation removes retained causal state every cycle.
             memory_prediction = 0
             if memory_prediction == target:
                 memory_hits += 1
 
-            # Reduced-actor baseline deterministically loses every fourth decision.
-            if prediction == target and cycle % 4 != 0:
+            if treatment_correct and cycle % 4 != 0:
                 reduced_hits += 1
 
             if cycle and cycle % 211 == 0:
                 model_restarts += 1
-                # Learned policy intentionally survives model restart.
             if cycle and cycle % 307 == 0:
                 ocs_restarts += 1
                 generation += 1
                 generation_changes += 1
-
             if cycle and cycle % 137 == 0:
                 injected_faults += 1
-                # Fault is fenced before cognitive commit; learned state is intact.
                 contained_faults += 1
                 self_regulation_seen = True
 
