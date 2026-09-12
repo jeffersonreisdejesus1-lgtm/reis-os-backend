@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.cognitive_validation import phase_d2_adversarial_semantic as d2
+from app.cognitive_validation import phase_d2_adversarial_semantic_v2 as d2
 
 
 def test_phase_d2_semantic_adversarial_closure(tmp_path, monkeypatch):
