@@ -210,12 +210,12 @@ def _guard(tmp_path: Path, name: str) -> IdentityKernelGuard:
 
 def test_ib8_profile_resolution_and_static_invariants() -> None:
     validate_profiles()
-    assert len(OCS_IDS) == 10
-    assert len(DIRECTIONAL_PAIRS) == 90
-    assert len({PROFILES[o].identity for o in OCS_IDS}) == 10
-    assert len({PROFILES[o].authority_envelope_ref for o in OCS_IDS}) == 10
-    assert len({PROFILES[o].state_namespace for o in OCS_IDS}) == 10
-    assert len({PROFILES[o].memory_namespace for o in OCS_IDS}) == 10
+    assert len(OCS_IDS) == 11
+    assert len(DIRECTIONAL_PAIRS) == 110
+    assert len({PROFILES[o].identity for o in OCS_IDS}) == 11
+    assert len({PROFILES[o].authority_envelope_ref for o in OCS_IDS}) == 11
+    assert len({PROFILES[o].state_namespace for o in OCS_IDS}) == 11
+    assert len({PROFILES[o].memory_namespace for o in OCS_IDS}) == 11
     for profile in PROFILES.values():
         assert "authority_transfer=false" in profile.handoff_policy
         assert "memory_import=false" in profile.handoff_policy
@@ -307,7 +307,7 @@ def test_ib8_authority_negative_matrix_fail_closed_zero_mutation(
 
 
 @pytest.mark.parametrize("ocs_id", OCS_IDS)
-def test_ib8_ten_ocs_replacement_fencing_and_recovery(
+def test_ib8_eleven_ocs_replacement_fencing_and_recovery(
     tmp_path: Path,
     ocs_id: str,
 ) -> None:
