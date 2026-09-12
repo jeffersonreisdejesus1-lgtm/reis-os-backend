@@ -32,6 +32,8 @@ def _discovery(capability_id="github", mission_id="mission-1", governed="gdr-1")
         authorized_missions=(mission_id,),
     )
     capability = CapabilityDiscoveryResult(
+        mission_id=mission_id,
+        requested_capability_id=capability_id,
         selected_capability=record,
         registry_snapshot="registry",
         health_snapshot="health",
