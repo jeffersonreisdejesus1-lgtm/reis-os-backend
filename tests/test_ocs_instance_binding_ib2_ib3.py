@@ -742,7 +742,7 @@ def test_shared_store_rejects_all_directional_cross_ocs_lineages(
                     )
                 )
             denied += 1
-    assert denied == 90
+    assert denied == 110
     for ocs_id, predecessor in bindings.items():
         with pytest.raises(
             InstanceBindingError, match="replacement_lineage_mismatch"

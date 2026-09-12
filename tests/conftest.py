@@ -1,4 +1,5 @@
 import os
+import sys
 from collections.abc import AsyncIterator
 
 import pytest
@@ -22,6 +23,11 @@ from app.shared.database.models import (  # noqa: F401
     WorkspaceModel,
 )
 from app.shared.database.session import get_db_session
+
+# Pytest can load this file as top-level ``conftest`` while test modules import
+# ``tests.conftest``. Ensure both names resolve to the same module so there is
+# exactly one in-memory SQLite engine and one TestSessionLocal.
+sys.modules.setdefault("tests.conftest", sys.modules[__name__])
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
