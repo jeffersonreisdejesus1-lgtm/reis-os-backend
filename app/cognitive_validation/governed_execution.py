@@ -33,7 +33,7 @@ class GovernedSoftwareExecutor:
         self._authority_discovery=authority_discovery; self._anti_bypass=anti_bypass; self._adapter_fabric=adapter_fabric
     def execute(self, *, selection: SoftwareSelectionRequest, composition: OCSCompositionResult, discovery: AuthorityAwareDiscoveryResult, action_receipt: ActionCognitiveReceipt, runtime_context: RuntimeExecutionContext, payload: Mapping[str, object], input_schema_version: str, expected_output_schema_version: str) -> GovernedSoftwareExecutionResult:
         selection.validate(); capability=discovery.capability_discovery.selected_capability; authority=discovery.authority_receipt
-        if composition.mission_id != selection.mission_id or discovery.mission_id != selection.mission_id: raise GovernedSoftwareExecutionError("governed_execution_mission_mismatch")
+        if composition.mission_id != selection.mission_id or discovery.capability_discovery.mission_id != selection.mission_id: raise GovernedSoftwareExecutionError("governed_execution_mission_mismatch")
         if composition.composition_receipt != selection.composition_receipt: raise GovernedSoftwareExecutionError("governed_execution_composition_receipt_mismatch")
         if discovery.governed_discovery_receipt != selection.governed_discovery_receipt: raise GovernedSoftwareExecutionError("governed_execution_discovery_receipt_mismatch")
         if capability.capability_id != selection.capability_id: raise GovernedSoftwareExecutionError("governed_execution_capability_mismatch")
