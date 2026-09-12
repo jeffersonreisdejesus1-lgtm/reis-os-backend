@@ -24,6 +24,14 @@ from .longitudinal_learning import (
     LongitudinalMetrics,
     run_longitudinal_learning_experiment,
 )
+from .plasticity import (
+    DriftAdaptivePolicy,
+    FrozenPolicy,
+    PlasticityCycle,
+    PlasticityExperimentResult,
+    PlasticityMetrics,
+    run_plasticity_experiment,
+)
 
 __all__ = [
     "AB0_REQUIRED_DEFINITIONS",
@@ -44,4 +52,10 @@ __all__ = [
     "LongitudinalExperimentResult",
     "LongitudinalMetrics",
     "run_longitudinal_learning_experiment",
+    "DriftAdaptivePolicy",
+    "FrozenPolicy",
+    "PlasticityCycle",
+    "PlasticityExperimentResult",
+    "PlasticityMetrics",
+    "run_plasticity_experiment",
 ]
