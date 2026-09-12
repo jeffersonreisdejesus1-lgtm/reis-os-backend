@@ -11,6 +11,12 @@ from .closed_loop import (
     CognitiveObservation,
     CognitiveState,
 )
+from .causal_memory import (
+    CausalMemoryStore,
+    MemoryAugmentedDecision,
+    MemoryAugmentedDecisionEngine,
+    MemoryRecord,
+)
 
 __all__ = [
     "AB0_REQUIRED_DEFINITIONS",
@@ -22,4 +28,8 @@ __all__ = [
     "CognitiveDecision",
     "CognitiveObservation",
     "CognitiveState",
+    "CausalMemoryStore",
+    "MemoryAugmentedDecision",
+    "MemoryAugmentedDecisionEngine",
+    "MemoryRecord",
 ]
