@@ -42,6 +42,24 @@ class RecoveredMissionResult:
     recovery: RecoveryEvent
 
 
+@dataclass(frozen=True, slots=True)
+class LiveStaleFenceEvidence:
+    ocs_id: str
+    stale_instance_id: str
+    current_instance_id: str
+    stale_generation: int
+    current_generation: int
+    stale_process_alive_after_advance: bool
+    stale_receipt_produced: bool
+    stale_commit_denied: bool
+    stale_effect_denied: bool
+    current_receipt_produced: bool
+    current_commit_allowed: bool
+    current_effect_allowed: bool
+    stale_message_id: str
+    current_message_id: str
+
+
 class GenerationFenceRegistry:
     """Supervisor-owned generation fencing used by DR6 commit/effect guards."""
 
@@ -107,6 +125,121 @@ class RecoverableElevenOCSFleet:
 
     def assert_commit_allowed(self, ocs_id: str, generation: int) -> None:
         self._fence.assert_current(ocs_id, generation)
+
+    def assert_effect_allowed(self, ocs_id: str, generation: int) -> None:
+        self._fence.assert_current(ocs_id, generation)
+
+    def exercise_live_stale_writer_fencing(
+        self,
+        ocs_id: str = "DÉDALA",
+    ) -> LiveStaleFenceEvidence:
+        """Prove fencing while the old worker remains alive and can still compute.
+
+        The stale worker is deliberately kept alive after generation advances.
+        It may produce a local receipt, but supervisor-owned commit/effect gates
+        must deny generation N while generation N+1 is current. A replacement
+        worker at N+1 must be able to compute and cross those same gates.
+        """
+        if len(self._workers) != 11:
+            raise RuntimeError("dr6_fleet_not_started")
+        if ocs_id not in DR5A_ORDER:
+            raise ValueError("dr6_unknown_failed_ocs")
+
+        with self._worker_locks[ocs_id]:
+            stale_worker = self._workers[ocs_id]
+            stale_binding = self._bindings[ocs_id]
+            stale_health = stale_worker.health()
+            stale_generation = stale_binding.generation
+            current_generation = self._fence.advance(ocs_id, stale_generation)
+
+            current_binding = replace(
+                stale_binding,
+                generation=current_generation,
+                predecessor_binding_id=stale_binding.binding_id,
+                binding_id=f"{stale_binding.binding_id}:g{current_generation}:supplemental",
+                version=stale_binding.version + 1,
+            )
+            current_worker = CausalMissionWorker(
+                current_binding,
+                stale_worker.logical_runtime_id,
+            )
+            current_worker.start()
+
+            try:
+                stale_alive_after_advance = stale_worker.health().instance_id == stale_health.instance_id
+                mission_id = f"mission:dr6s:{uuid.uuid4()}"
+                trace_id = f"dr6s-trace:{uuid.uuid4()}"
+                correlation_id = f"dr6s-correlation:{uuid.uuid4()}"
+                payload = {
+                    "goal": "live stale writer fencing supplemental qualification",
+                    "mission_id": mission_id,
+                    "contributions": {},
+                }
+                payload_hash = _hash_payload(payload)
+
+                stale_envelope = CausalMissionEnvelope(
+                    message_id=f"dr6s-stale-msg:{uuid.uuid4()}",
+                    mission_id=mission_id,
+                    source_ocs="FOUNDER_INPUT",
+                    source_instance_id="external",
+                    source_generation=0,
+                    target_ocs=ocs_id,
+                    target_expected_generation=stale_generation,
+                    payload=payload,
+                    payload_hash=payload_hash,
+                    predecessor_output_hash=payload_hash,
+                    causation_id="FOUNDER_ROOT",
+                    correlation_id=correlation_id,
+                    trace_id=trace_id,
+                )
+                stale_receipt = stale_worker.process(stale_envelope)
+
+                stale_commit_denied = False
+                stale_effect_denied = False
+                try:
+                    self.assert_commit_allowed(ocs_id, stale_generation)
+                except PermissionError as exc:
+                    stale_commit_denied = str(exc) == "dr6_stale_generation_fenced"
+                try:
+                    self.assert_effect_allowed(ocs_id, stale_generation)
+                except PermissionError as exc:
+                    stale_effect_denied = str(exc) == "dr6_stale_generation_fenced"
+
+                current_envelope = replace(
+                    stale_envelope,
+                    message_id=f"dr6s-current-msg:{uuid.uuid4()}",
+                    target_expected_generation=current_generation,
+                )
+                current_receipt = current_worker.process(current_envelope)
+                self.assert_commit_allowed(ocs_id, current_generation)
+                self.assert_effect_allowed(ocs_id, current_generation)
+
+                evidence = LiveStaleFenceEvidence(
+                    ocs_id=ocs_id,
+                    stale_instance_id=stale_health.instance_id,
+                    current_instance_id=current_worker.instance_id,
+                    stale_generation=stale_generation,
+                    current_generation=current_generation,
+                    stale_process_alive_after_advance=stale_alive_after_advance,
+                    stale_receipt_produced=stale_receipt.target_generation == stale_generation,
+                    stale_commit_denied=stale_commit_denied,
+                    stale_effect_denied=stale_effect_denied,
+                    current_receipt_produced=current_receipt.target_generation == current_generation,
+                    current_commit_allowed=True,
+                    current_effect_allowed=True,
+                    stale_message_id=stale_envelope.message_id,
+                    current_message_id=current_envelope.message_id,
+                )
+            except BaseException:
+                current_worker.stop()
+                raise
+
+            # Retire the deliberately stale split-brain incarnation only after
+            # its compute + denied commit/effect attempt has been observed.
+            stale_worker.stop()
+            self._bindings[ocs_id] = current_binding
+            self._workers[ocs_id] = current_worker
+            return evidence
 
     def _restart_actor(self, ocs_id: str, replayed_message_id: str) -> RecoveryEvent:
         with self._worker_locks[ocs_id]:
@@ -193,9 +326,6 @@ class RecoverableElevenOCSFleet:
 
             if ocs_id == failed_ocs:
                 recovery = self._restart_actor(ocs_id, envelope.message_id)
-                # The old generation is now fenced before replay. The same
-                # message/payload/causation identity is replayed exactly once
-                # against the replacement's generation.
                 self._fence.assert_current(ocs_id, recovery.new_generation)
                 envelope = replace(
                     envelope,

@@ -91,6 +91,32 @@ def test_dr6_generation_advances_exactly_once_and_old_generation_is_fenced():
         fleet.stop_all()
 
 
+def test_dr6_live_stale_worker_can_compute_but_commit_and_effect_are_fenced():
+    fleet = _fleet()
+    try:
+        fleet.start()
+        before = fleet.health_instance_ids()
+        evidence = fleet.exercise_live_stale_writer_fencing("DÉDALA")
+        after = fleet.health_instance_ids()
+
+        assert evidence.stale_generation == 1
+        assert evidence.current_generation == 2
+        assert evidence.stale_process_alive_after_advance
+        assert evidence.stale_receipt_produced
+        assert evidence.stale_commit_denied
+        assert evidence.stale_effect_denied
+        assert evidence.current_receipt_produced
+        assert evidence.current_commit_allowed
+        assert evidence.current_effect_allowed
+        assert evidence.stale_instance_id != evidence.current_instance_id
+        assert before["DÉDALA"] != after["DÉDALA"]
+        for ocs_id in DR5A_ORDER:
+            if ocs_id != "DÉDALA":
+                assert before[ocs_id] == after[ocs_id]
+    finally:
+        fleet.stop_all()
+
+
 def test_dr6_rebind_preserves_identity_authority_profile_and_namespaces():
     fleet = _fleet()
     try:
