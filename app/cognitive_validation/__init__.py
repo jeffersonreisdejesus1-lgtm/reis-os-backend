@@ -32,6 +32,12 @@ from .plasticity import (
     PlasticityMetrics,
     run_plasticity_experiment,
 )
+from .self_regulation import (
+    CognitiveControlState,
+    RegulatoryAction,
+    RegulatoryDecision,
+    SelfRegulationEngine,
+)
 
 __all__ = [
     "AB0_REQUIRED_DEFINITIONS",
@@ -58,4 +64,8 @@ __all__ = [
     "PlasticityExperimentResult",
     "PlasticityMetrics",
     "run_plasticity_experiment",
+    "CognitiveControlState",
+    "RegulatoryAction",
+    "RegulatoryDecision",
+    "SelfRegulationEngine",
 ]
