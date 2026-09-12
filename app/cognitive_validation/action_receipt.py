@@ -171,12 +171,17 @@ class ActionCognitiveReceiptIssuer:
         signature = hmac.new(self._secret, integrity_hash.encode("utf-8"), sha256).hexdigest()
         return replace(provisional, integrity_hash=integrity_hash, signature=signature)
 
-    def verify(self, receipt: ActionCognitiveReceipt, *, now: float | None = None) -> bool:
+    def verify_integrity(self, receipt: ActionCognitiveReceipt, *, now: float | None = None) -> bool:
+        """Verify immutable receipt authenticity without asserting replay eligibility.
+
+        Provenance reconstruction happens after execution, when the anti-replay ledger
+        has correctly marked the receipt as consumed. Consumption must therefore not
+        erase the ability to verify the original signed receipt. `verify()` remains
+        the stricter pre-execution eligibility check and still rejects consumed IDs.
+        """
         if receipt.status != "ISSUED":
             return False
         if receipt.authority_granted or receipt.effects_permitted:
-            return False
-        if self._ledger.is_consumed(receipt.receipt_id):
             return False
         current_time = float(self._clock() if now is None else now)
         if current_time >= receipt.expires_at or receipt.expires_at <= receipt.issued_at:
@@ -188,6 +193,13 @@ class ActionCognitiveReceiptIssuer:
             self._secret, expected_hash.encode("utf-8"), sha256
         ).hexdigest()
         return hmac.compare_digest(receipt.signature, expected_signature)
+
+    def verify(self, receipt: ActionCognitiveReceipt, *, now: float | None = None) -> bool:
+        if not self.verify_integrity(receipt, now=now):
+            return False
+        if self._ledger.is_consumed(receipt.receipt_id):
+            return False
+        return True
 
     def consume(self, receipt: ActionCognitiveReceipt, *, now: float | None = None) -> ActionCognitiveReceipt:
         if not self.verify(receipt, now=now):

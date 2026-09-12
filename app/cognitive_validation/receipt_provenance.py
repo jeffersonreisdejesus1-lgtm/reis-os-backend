@@ -35,6 +35,8 @@ class ReceiptProvenanceVerifier:
     Trusted issuer/verifier objects are injected; strings alone never qualify.
     The verifier checks cryptographic issuer authenticity where those receipts are
     signed, exact mission/context lineage, and deterministic downstream receipts.
+    Post-execution provenance validates the immutable signed action receipt even
+    though the anti-replay ledger has correctly marked its ID as consumed.
     """
 
     def __init__(self, *, mission_issuer: MissionCognitiveReceiptIssuer,
@@ -51,7 +53,7 @@ class ReceiptProvenanceVerifier:
                verification_time: float) -> ReceiptProvenanceResult:
         if not self._mission_issuer.verify(mission):
             raise ReceiptProvenanceError("provenance_invalid_mission_receipt")
-        if not self._action_issuer.verify(action, now=verification_time):
+        if not self._action_issuer.verify_integrity(action, now=verification_time):
             raise ReceiptProvenanceError("provenance_invalid_action_receipt")
         if not self._authority_discovery.verify_authority_receipt(
             authority, action_receipt=action, now=verification_time
