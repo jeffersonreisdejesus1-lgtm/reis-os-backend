@@ -38,6 +38,14 @@ from .self_regulation import (
     RegulatoryDecision,
     SelfRegulationEngine,
 )
+from .distributed_integrated_cognition import (
+    CognitiveActor,
+    DistributedCognitionResult,
+    DistributedIntegratedCognition,
+    GovernedBus,
+    Message,
+    OCS_IDS,
+)
 
 __all__ = [
     "AB0_REQUIRED_DEFINITIONS",
@@ -68,4 +76,10 @@ __all__ = [
     "RegulatoryAction",
     "RegulatoryDecision",
     "SelfRegulationEngine",
+    "CognitiveActor",
+    "DistributedCognitionResult",
+    "DistributedIntegratedCognition",
+    "GovernedBus",
+    "Message",
+    "OCS_IDS",
 ]
