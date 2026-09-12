@@ -33,6 +33,7 @@ OCS_SLUGS: dict[str, str] = {
     "ÁGORA": "agora",
     "AURI": "auri",
     "SYNERGEIA": "synergeia",
+    "TÊMIS": "temis",
 }
 SLUG_TO_OCS_ID = {slug: ocs_id for ocs_id, slug in OCS_SLUGS.items()}
 
