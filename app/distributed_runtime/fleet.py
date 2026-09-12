@@ -8,6 +8,7 @@ from multiprocessing.connection import Connection
 from typing import Any
 
 from app.cognitive_physiology.binding import bind_cognitive_runtime
+from app.cognitive_validation.bootstrap_binding import bind_bootstrap_to_cognition
 from app.profile_bindings.profiles import PROFILES
 from app.ocs_instances.contracts import InstanceBinding
 
@@ -56,6 +57,9 @@ def _worker_main(
     sequence = 0
     try:
         context = bind_cognitive_runtime(binding)
+        cognitive_binding = bind_bootstrap_to_cognition(
+            binding, ocs_instance_id=instance_id
+        )
         sequence += 1
         conn.send(("snapshot", asdict(_snapshot(binding, logical_runtime_id, instance_id, WorkerLifecycle.ACTIVE, sequence))))
         while True:
@@ -75,6 +79,9 @@ def _worker_main(
                     "state_namespace": binding.state_namespace,
                     "memory_namespace": binding.memory_namespace,
                     "authority_ref": binding.authority_ref,
+                    "cognitive_entrypoint": cognitive_binding.cognitive_entrypoint,
+                    "brain_path": cognitive_binding.brain_path,
+                    "cognitive_path_required": cognitive_binding.cognitive_path_required,
                     "sequence": sequence,
                 }))
                 continue
@@ -99,6 +106,7 @@ class MaterialOCSWorker:
         self.binding = binding
         self.logical_runtime_id = logical_runtime_id
         self.instance_id = f"{logical_runtime_id}:{uuid.uuid4()}"
+        bind_bootstrap_to_cognition(binding, ocs_instance_id=self.instance_id)
         self._timeout = timeout
         self._ctx = mp.get_context("spawn")
         self._conn: Connection | None = None
@@ -180,69 +188,6 @@ class MaterialOCSWorker:
             raise RuntimeError("invalid_fleet_worker_response")
         return payload
 
-    def _recv(self, expected: str, model: type[Any]) -> Any:
+    def _recv(self, expected: str, cls: type[MaterialWorkerSnapshot]) -> MaterialWorkerSnapshot:
         payload = self._recv_raw(expected)
-        if model is MaterialWorkerSnapshot:
-            payload["lifecycle_state"] = WorkerLifecycle(payload["lifecycle_state"])
-        return model(**payload)
-
-
-class ElevenOCSFleet:
-    def __init__(self, bindings: dict[str, InstanceBinding]) -> None:
-        if tuple(bindings.keys()) != DR4_OCS_ORDER:
-            raise PermissionError("dr4_requires_exact_canonical_11_ocs_order")
-        if len(bindings) != 11:
-            raise PermissionError("dr4_requires_exactly_eleven_bindings")
-        self._bindings = bindings
-        self._workers: dict[str, MaterialOCSWorker] = {}
-        self._snapshots: dict[str, MaterialWorkerSnapshot] = {}
-
-    def start_all(self) -> dict[str, MaterialWorkerSnapshot]:
-        try:
-            for ocs_id in DR4_OCS_ORDER:
-                logical_runtime_id = f"{ocs_id.casefold()}-runtime-primary"
-                worker = MaterialOCSWorker(self._bindings[ocs_id], logical_runtime_id)
-                self._workers[ocs_id] = worker
-                self._snapshots[ocs_id] = worker.start()
-            self._validate_material_distinctness()
-            return dict(self._snapshots)
-        except BaseException:
-            self.stop_all()
-            raise
-
-    def _validate_material_distinctness(self) -> None:
-        snapshots = tuple(self._snapshots.values())
-        invariants = {
-            "instance_id": {s.instance_id for s in snapshots},
-            "execution_context_id": {s.execution_context_id for s in snapshots},
-            "failure_domain_id": {s.failure_domain_id for s in snapshots},
-            "state_namespace": {s.state_namespace for s in snapshots},
-            "memory_namespace": {s.memory_namespace for s in snapshots},
-        }
-        for name, values in invariants.items():
-            if len(values) != 11:
-                raise RuntimeError(f"dr4_distinctness_failed:{name}")
-        if {s.ocs_id for s in snapshots} != set(DR4_OCS_ORDER):
-            raise RuntimeError("dr4_canonical_ocs_coverage_failed")
-        if not all(s.lifecycle_state is WorkerLifecycle.ACTIVE for s in snapshots):
-            raise RuntimeError("dr4_all_lifecycles_must_be_active")
-
-    def health_all(self) -> dict[str, MaterialWorkerSnapshot]:
-        return {ocs_id: worker.health() for ocs_id, worker in self._workers.items()}
-
-    def checkpoint_all(self) -> dict[str, dict[str, Any]]:
-        return {ocs_id: worker.checkpoint() for ocs_id, worker in self._workers.items()}
-
-    def kill_one(self, ocs_id: str) -> None:
-        self._workers[ocs_id].crash()
-
-    def peer_health_after_kill(self, ocs_id: str) -> dict[str, MaterialWorkerSnapshot]:
-        return {
-            peer: worker.health()
-            for peer, worker in self._workers.items()
-            if peer != ocs_id
-        }
-
-    def stop_all(self) -> None:
-        for worker in self._workers.values():
-            worker.stop()
+        return cls(**payload)
