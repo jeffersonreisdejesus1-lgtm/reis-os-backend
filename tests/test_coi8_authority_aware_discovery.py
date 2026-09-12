@@ -9,6 +9,7 @@ from app.cognitive_validation.authority_aware_discovery import (
     AuthorityGrant,
     InstitutionalAuthorityRegistry,
 )
+from app.cognitive_validation.bootstrap_binding import BootstrapCognitiveBinding
 from app.cognitive_validation.capability_fabric import (
     CapabilityHealth,
     CapabilityRecord,
@@ -23,10 +24,24 @@ def _system(now=100.0):
     action_issuer = ActionCognitiveReceiptIssuer(
         signing_secret=b"action", mission_issuer=mission_issuer, clock=clock
     )
+    binding = BootstrapCognitiveBinding(
+        binding_id="binding-1",
+        mission_id="mission-1",
+        ocs_id="NOESIS",
+        ocs_instance_id="noesis-1",
+        generation=1,
+        cognitive_entrypoint="UNIVERSAL_COGNITIVE_ENTRYPOINT",
+        brain_path="AB0-AB13/canonical",
+        authority_ref="authority:mission-1",
+        state_namespace="state:mission-1",
+        memory_namespace="memory:mission-1",
+    )
     mission = mission_issuer.issue(
-        mission_id="mission-1", cognition_cycle_id="cycle-1", ocs_id="NOESIS",
-        ocs_instance_id="noesis-1", generation=1, brain_version="brain-v1",
-        brain_state_revision="state-r1", intent_hash="intent", state_hash="state",
+        binding,
+        intent="intent",
+        state_revision="state-r1",
+        state_hash="state",
+        cognition_cycle_id="cycle-1",
     )
     action = action_issuer.issue(
         mission, plan_hash="plan", action_digest="act", capability_id="github",
