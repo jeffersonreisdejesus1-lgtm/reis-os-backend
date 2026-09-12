@@ -18,6 +18,10 @@ class CognitiveClaim(str, Enum):
     STALE_COGNITIVE_STATE = "stale_cognitive_state"
 
 
+class CognitiveConstitutionError(RuntimeError):
+    """Fail-closed denial of a cognitive constitutional invariant violation."""
+
+
 @dataclass(frozen=True)
 class CognitiveValidationContract:
     learning_may_expand_authority: bool = False
@@ -42,6 +46,15 @@ class CognitiveValidationContract:
         if not self.stale_generation_commit_denied:
             violations.append("STALE_GENERATION -> COGNITIVE_COMMIT_DENIED")
         return (not violations, tuple(violations))
+
+
+def enforce_cognitive_contract(contract: CognitiveValidationContract) -> None:
+    """Materialize the AB0 contract as an executable fail-closed runtime guard."""
+    valid, violations = contract.validate()
+    if not valid:
+        raise CognitiveConstitutionError(
+            "cognitive_constitution_violation:" + "|".join(violations)
+        )
 
 
 AB0_REQUIRED_DEFINITIONS: tuple[CognitiveClaim, ...] = tuple(CognitiveClaim)
