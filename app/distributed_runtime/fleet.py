@@ -8,6 +8,7 @@ from multiprocessing.connection import Connection
 from typing import Any
 
 from app.cognitive_physiology.binding import bind_cognitive_runtime
+from app.cognitive_validation.bootstrap_binding import bind_bootstrap_to_cognition
 from app.profile_bindings.profiles import PROFILES
 from app.ocs_instances.contracts import InstanceBinding
 
@@ -56,6 +57,7 @@ def _worker_main(
     sequence = 0
     try:
         context = bind_cognitive_runtime(binding)
+        cognitive_binding = bind_bootstrap_to_cognition(binding, ocs_instance_id=instance_id)
         sequence += 1
         conn.send(("snapshot", asdict(_snapshot(binding, logical_runtime_id, instance_id, WorkerLifecycle.ACTIVE, sequence))))
         while True:
@@ -75,6 +77,9 @@ def _worker_main(
                     "state_namespace": binding.state_namespace,
                     "memory_namespace": binding.memory_namespace,
                     "authority_ref": binding.authority_ref,
+                    "cognitive_entrypoint": cognitive_binding.cognitive_entrypoint,
+                    "brain_path": cognitive_binding.brain_path,
+                    "cognitive_path_required": cognitive_binding.cognitive_path_required,
                     "sequence": sequence,
                 }))
                 continue
@@ -99,6 +104,7 @@ class MaterialOCSWorker:
         self.binding = binding
         self.logical_runtime_id = logical_runtime_id
         self.instance_id = f"{logical_runtime_id}:{uuid.uuid4()}"
+        bind_bootstrap_to_cognition(binding, ocs_instance_id=self.instance_id)
         self._timeout = timeout
         self._ctx = mp.get_context("spawn")
         self._conn: Connection | None = None
