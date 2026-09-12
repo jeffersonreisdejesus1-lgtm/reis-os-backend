@@ -4,6 +4,9 @@ import pytest
 
 from app.profile_bindings.profiles import (
     KERNEL_INTERFACE_REF,
+    OWNED_SYSTEM_ACCESS_CLASS,
+    OWNED_SYSTEM_CAPABILITY_ADAPTERS,
+    OWNED_SYSTEM_TOOL_PERMISSIONS,
     PROFILES,
     get_profile,
     validate_profiles,
@@ -117,15 +120,29 @@ def test_cross_ocs_memory_import_policy_is_rejected() -> None:
         validate_profiles(profiles)
 
 
-def test_direct_adapter_or_tool_permission_route_is_rejected() -> None:
+def test_unbound_or_unapproved_direct_route_is_rejected() -> None:
     profiles = dict(PROFILES)
     profiles["DÉDALA"] = replace(
         PROFILES["DÉDALA"],
         capability_adapters=("mutable.repo",),
+        tool_permissions=("owned_system.read",),
     )
     with pytest.raises(
         ValueError,
         match="direct_effect_route_prohibited",
+    ):
+        validate_profiles(profiles)
+
+
+def test_sofia_rejects_unapproved_adapter_even_with_owned_system_class() -> None:
+    profiles = dict(PROFILES)
+    profiles["SOFIA"] = replace(
+        PROFILES["SOFIA"],
+        capability_adapters=("mutable.repo",),
+    )
+    with pytest.raises(
+        ValueError,
+        match="unapproved_owned_system_adapter",
     ):
         validate_profiles(profiles)
 
@@ -165,11 +182,20 @@ def test_self_assurance_denied_for_relevant_profiles() -> None:
         assert "self_assurance" in get_profile(ocs_id).denied_action_classes
 
 
-def test_sofia_material_effect_boundary_remains_kernel_mediated() -> None:
+def test_sofia_owned_system_access_is_bounded_not_lateral() -> None:
     sofia = get_profile("SOFIA")
-    assert sofia.allowed_action_classes == (
-        "software_implementation_via_valid_envelope_lease_effector",
+    assert "software_implementation_via_valid_envelope_lease_effector" in (
+        sofia.allowed_action_classes
     )
+    assert OWNED_SYSTEM_ACCESS_CLASS in sofia.allowed_action_classes
     assert "lateral_effect_route" in sofia.denied_action_classes
-    assert sofia.capability_adapters == ()
-    assert sofia.tool_permissions == ()
+    assert set(sofia.capability_adapters).issubset(
+        OWNED_SYSTEM_CAPABILITY_ADAPTERS
+    )
+    assert set(sofia.tool_permissions).issubset(
+        OWNED_SYSTEM_TOOL_PERMISSIONS
+    )
+    assert "github.authenticated_connector" in sofia.capability_adapters
+    assert "codemagic.authenticated_connector" in sofia.capability_adapters
+    assert "owned_system.read" in sofia.tool_permissions
+    assert "owned_system.build_trigger" in sofia.tool_permissions
