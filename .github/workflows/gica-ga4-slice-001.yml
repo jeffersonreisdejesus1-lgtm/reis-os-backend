@@ -1,0 +1,25 @@
+name: GICA GA4 Slice 001
+
+on:
+  pull_request:
+    paths:
+      - 'app/gica/**'
+      - 'tests/test_gica_ga4_slice_001_contracts.py'
+      - '.github/workflows/gica-ga4-slice-001.yml'
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: GICA slice acceptance tests
+        run: pytest -q tests/test_gica_ga4_slice_001_contracts.py
+      - name: Ruff
+        run: ruff check app/gica tests/test_gica_ga4_slice_001_contracts.py
+      - name: Mypy
+        run: mypy app/gica
