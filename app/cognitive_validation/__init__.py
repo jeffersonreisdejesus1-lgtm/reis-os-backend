@@ -17,6 +17,13 @@ from .causal_memory import (
     MemoryAugmentedDecisionEngine,
     MemoryRecord,
 )
+from .longitudinal_learning import (
+    ContextualPolicy,
+    LearningCycle,
+    LongitudinalExperimentResult,
+    LongitudinalMetrics,
+    run_longitudinal_learning_experiment,
+)
 
 __all__ = [
     "AB0_REQUIRED_DEFINITIONS",
@@ -32,4 +39,9 @@ __all__ = [
     "MemoryAugmentedDecision",
     "MemoryAugmentedDecisionEngine",
     "MemoryRecord",
+    "ContextualPolicy",
+    "LearningCycle",
+    "LongitudinalExperimentResult",
+    "LongitudinalMetrics",
+    "run_longitudinal_learning_experiment",
 ]
