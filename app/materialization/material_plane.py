@@ -12,6 +12,12 @@ from pathlib import Path
 
 from app.materialization.authority import AuthorityBoundary, MutationKind
 
+# MAT-A004 claim boundary:
+# ACTOR / GENERATION / CAPABILITY are checked locally.
+# authority_ref is persisted metadata only. AUTHORITY_REF_VALIDATED = False.
+AUTHORITY_REF_VALIDATED = False
+INITIAL_OBJECT_VERSION = "v0"
+
 
 class Outcome(StrEnum):
     SUCCEEDED = "SUCCEEDED"
@@ -42,6 +48,7 @@ class EffectState(StrEnum):
     EVIDENCE_READY = "EVIDENCE_READY"
     DENIED = "DENIED"
     HOLD = "HOLD"
+    MATERIAL_DRIFT = "MATERIAL_DRIFT"
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +66,27 @@ class MaterialExecutionRequest:
     authority_ref: str
     generation: int = 1
 
+    def identity_digest(self) -> str:
+        canonical = json.dumps(
+            {
+                "mission_id": self.mission_id,
+                "logical_operation_id": self.logical_operation_id,
+                "effect_id": self.effect_id,
+                "program_id": self.program_id,
+                "actor": self.actor,
+                "bound_object": self.bound_object,
+                "expected_object_version": self.expected_object_version,
+                "capability": self.capability,
+                "authorized_intent_hash": self.authorized_intent_hash,
+                "authority_ref": self.authority_ref,
+                "generation": self.generation,
+                "payload_digest": sha256(self.payload.encode()).hexdigest(),
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        return sha256(canonical.encode()).hexdigest()
+
 
 @dataclass(frozen=True, slots=True)
 class MaterialReadback:
@@ -69,6 +97,8 @@ class MaterialReadback:
     observed_state: str
     timestamp: float
     reconciliation: Reconciliation
+    pre_effect_version: str = ""
+    expected_version: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +121,7 @@ class MaterialExecutionResult:
     promoted: bool
     failure: str | None
     material: bool
+    authority_ref_validated: bool = AUTHORITY_REF_VALIDATED
 
 
 class DurableEffectStore:
@@ -101,15 +132,22 @@ class DurableEffectStore:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS effects (
                     effect_id TEXT PRIMARY KEY,
-                logical_operation_id TEXT NOT NULL,
-                generation INTEGER NOT NULL,
-                state TEXT NOT NULL,
-                payload TEXT NOT NULL,
-                artifact TEXT,
-                content_hash TEXT,
-                receipt TEXT
+                    logical_operation_id TEXT NOT NULL,
+                    generation INTEGER NOT NULL,
+                    state TEXT NOT NULL,
+                    payload TEXT NOT NULL,
+                    artifact TEXT,
+                    content_hash TEXT,
+                    receipt TEXT,
+                    request_identity TEXT,
+                    expected_version TEXT,
+                    pre_effect_version TEXT
                 )"""
             )
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(effects)")}
+            for name in ("request_identity", "expected_version", "pre_effect_version"):
+                if name not in cols:
+                    conn.execute(f"ALTER TABLE effects ADD COLUMN {name} TEXT")
 
     def _conn(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.path)
@@ -124,12 +162,13 @@ class DurableEffectStore:
         keys = ",".join(fields)
         marks = ",".join("?" * len(fields))
         with self._conn() as conn:
-            conn.execute(f"INSERT OR REPLACE INTO effects ({keys}) VALUES ({marks})", tuple(fields.values()))
+            conn.execute(
+                f"INSERT OR REPLACE INTO effects ({keys}) VALUES ({marks})",
+                tuple(fields.values()),
+            )
 
 
 class FilesystemMaterialProvider:
-    """Program-isolated provider. Writes a bound file and reads it back."""
-
     identity = "filesystem-fixture-provider"
 
     def __init__(self, root: Path) -> None:
@@ -140,11 +179,20 @@ class FilesystemMaterialProvider:
         safe = bound_object.replace("://", "_").replace("/", "_")
         return self.root / f"{safe}.txt"
 
+    def pre_effect_version(self, bound_object: str) -> tuple[str, bool]:
+        path = self.artifact_path(bound_object)
+        if not path.exists():
+            return INITIAL_OBJECT_VERSION, True
+        try:
+            digest = sha256(path.read_bytes()).hexdigest()
+        except OSError:
+            return "UNKNOWN", False
+        return digest, True
+
     def apply(self, request: MaterialExecutionRequest) -> tuple[Path, str]:
         path = self.artifact_path(request.bound_object)
         path.write_text(request.payload, encoding="utf-8")
-        digest = sha256(path.read_bytes()).hexdigest()
-        return path, digest
+        return path, sha256(path.read_bytes()).hexdigest()
 
     def readback(self, request: MaterialExecutionRequest, expected_hash: str) -> MaterialReadback:
         path = self.artifact_path(request.bound_object)
@@ -154,7 +202,7 @@ class FilesystemMaterialProvider:
             )
         observed = path.read_text(encoding="utf-8")
         digest = sha256(observed.encode()).hexdigest()
-        match = digest == expected_hash and observed == request.payload
+        match = bool(expected_hash) and digest == expected_hash and observed == request.payload
         return MaterialReadback(
             request.effect_id,
             str(path),
@@ -167,17 +215,23 @@ class FilesystemMaterialProvider:
 
     def run_tests(self, request: MaterialExecutionRequest, artifact: Path) -> tuple[str, bool]:
         probe = artifact.with_suffix(".probe.py")
-        probe.write_text(
+        body = (
             "from pathlib import Path\n"
             f"p = Path({str(artifact)!r})\n"
-            f"assert p.read_text(encoding='utf-8') == {request.payload!r}\n",
-            encoding="utf-8",
+            f"assert p.read_text(encoding='utf-8') == {request.payload!r}\n"
         )
-        completed = subprocess.run(
-            [sys.executable, str(probe)], capture_output=True, text=True, check=False
-        )
-        ref = f"proc:{completed.returncode}:{sha256(completed.stdout.encode()).hexdigest()[:12]}"
-        return ref, completed.returncode == 0
+        probe.write_text(body, encoding="utf-8")
+        command = [sys.executable, str(probe)]
+        completed = subprocess.run(command, capture_output=True, text=True, check=False)
+        provenance = {
+            "command": command,
+            "returncode": completed.returncode,
+            "stdout_digest": sha256(completed.stdout.encode()).hexdigest(),
+            "stderr_digest": sha256(completed.stderr.encode()).hexdigest(),
+            "probe_digest": sha256(body.encode()).hexdigest(),
+            "artifact_digest": sha256(artifact.read_bytes()).hexdigest() if artifact.exists() else "",
+        }
+        return json.dumps(provenance, sort_keys=True, separators=(",", ":")), completed.returncode == 0
 
 
 class MaterialPlane:
@@ -197,115 +251,67 @@ class MaterialPlane:
                 post_effect_unknown: bool = False,
                 fail_tests: bool = False) -> MaterialExecutionResult:
         started = time.time()
+        if request.bound_object.startswith("candidate://"):
+            return self._result(request, started, Outcome.FAILED, EffectState.DENIED,
+                                failure="non_material_object_namespace")
         auth = self._boundary.decide(actor=request.actor, kind=MutationKind.EDIT_FILE)
         if not auth.allowed:
             return self._result(request, started, Outcome.FAILED, EffectState.DENIED, failure=auth.reason)
         if request.generation != self._generation:
             return self._result(request, started, Outcome.FAILED, EffectState.DENIED, failure="stale_generation")
         if request.capability in {"GITHUB_MERGE_PR", "FOUNDER_PROMOTION", "GATE_PROMOTION"}:
-            return self._result(request, started, Outcome.FAILED, EffectState.DENIED, failure="authority_expansion_denied")
+            return self._result(request, started, Outcome.FAILED, EffectState.DENIED,
+                                failure="authority_expansion_denied")
         if not provider_available:
-            return self._result(request, started, Outcome.FAILED, EffectState.HOLD, failure="provider_unavailable")
+            return self._result(request, started, Outcome.FAILED, EffectState.HOLD,
+                                failure="provider_unavailable")
 
         existing = self._store.get(request.effect_id)
         if existing is not None:
-            receipt = json.loads(existing["receipt"] or "{}")
-            return MaterialExecutionResult(
-                operation_id=request.logical_operation_id,
-                effect_id=request.effect_id,
-                provider_identity=self._provider.identity,
-                started_at=started,
-                completed_at=time.time(),
-                unknown_at=None,
-                outcome=Outcome(receipt.get("outcome", Outcome.SUCCEEDED)),
-                state=EffectState(existing["state"]),
-                material_artifact_ref=existing["artifact"] or "",
-                observed_object_version=existing["content_hash"][:12] if existing["content_hash"] else "",
-                execution_hash=existing["content_hash"] or "",
-                test_execution_ref=receipt.get("test_execution_ref", ""),
-                raw_receipt_ref=existing["effect_id"],
-                readback=None,
-                replayed=True,
-                promoted=False,
-                failure=None,
-                material=True,
-            )
+            return self._replay(request, existing, started)
+
+        pre_version, readable = self._provider.pre_effect_version(request.bound_object)
+        if not readable:
+            return self._result(request, started, Outcome.EXECUTION_UNKNOWN, EffectState.HOLD,
+                                failure="pre_effect_version_unknown")
+        if request.expected_object_version != pre_version:
+            return self._result(request, started, Outcome.FAILED, EffectState.DENIED,
+                                failure="version_conflict")
 
         if pretick_timeout:
-            self._store.put(
-                effect_id=request.effect_id,
-                logical_operation_id=request.logical_operation_id,
-                generation=request.generation,
-                state=EffectState.EXECUTION_UNKNOWN.value,
-                payload=request.payload,
-                artifact="",
-                content_hash="",
-                receipt=json.dumps({"outcome": Outcome.EXECUTION_UNKNOWN.value}),
-            )
-            return self._result(
-                request, started, Outcome.EXECUTION_UNKNOWN, EffectState.EXECUTION_UNKNOWN,
-                unknown_at=time.time(), failure="timeout_before_known_effect"
-            )
+            self._record(request, EffectState.EXECUTION_UNKNOWN, "", "",
+                         {"outcome": Outcome.EXECUTION_UNKNOWN.value}, pre_version)
+            return self._result(request, started, Outcome.EXECUTION_UNKNOWN, EffectState.EXECUTION_UNKNOWN,
+                                unknown_at=time.time(), failure="timeout_before_known_effect")
 
-        self._store.put(
-            effect_id=request.effect_id,
-            logical_operation_id=request.logical_operation_id,
-            generation=request.generation,
-            state=EffectState.EXECUTING.value,
-            payload=request.payload,
-            artifact="",
-            content_hash="",
-            receipt="{}",
-        )
+        self._record(request, EffectState.EXECUTING, "", "", {}, pre_version)
         path, digest = self._provider.apply(request)
         if post_effect_unknown:
-            self._store.put(
-                effect_id=request.effect_id,
-                logical_operation_id=request.logical_operation_id,
-                generation=request.generation,
-                state=EffectState.EXECUTION_UNKNOWN.value,
-                payload=request.payload,
-                artifact=str(path),
-                content_hash=digest,
-                receipt=json.dumps({"outcome": Outcome.EXECUTION_UNKNOWN.value}),
-            )
-            return self._result(
-                request, started, Outcome.EXECUTION_UNKNOWN, EffectState.RECONCILING,
-                artifact=str(path), digest=digest, unknown_at=time.time(),
-                failure="timeout_after_potential_effect",
-            )
+            self._record(request, EffectState.EXECUTION_UNKNOWN, str(path), digest,
+                         {"outcome": Outcome.EXECUTION_UNKNOWN.value}, pre_version)
+            return self._result(request, started, Outcome.EXECUTION_UNKNOWN, EffectState.RECONCILING,
+                                artifact=str(path), digest=digest, unknown_at=time.time(),
+                                failure="timeout_after_potential_effect")
 
         observed = self._provider.readback(request, digest)
         if observed.reconciliation != Reconciliation.MATCH:
-            self._store.put(
-                effect_id=request.effect_id,
-                logical_operation_id=request.logical_operation_id,
-                generation=request.generation,
-                state=EffectState.RECONCILED_FAILURE.value,
-                payload=request.payload,
-                artifact=str(path),
-                content_hash=digest,
-                receipt=json.dumps({"outcome": Outcome.FAILED.value}),
-            )
-            return self._result(
-                request, started, Outcome.FAILED, EffectState.RECONCILED_FAILURE,
-                artifact=str(path), digest=digest, readback=observed, failure="readback_mismatch"
-            )
+            self._record(request, EffectState.RECONCILED_FAILURE, str(path), digest,
+                         {"outcome": Outcome.FAILED.value}, pre_version)
+            return self._result(request, started, Outcome.FAILED, EffectState.RECONCILED_FAILURE,
+                                artifact=str(path), digest=digest, readback=observed,
+                                failure="readback_mismatch")
 
-        payload_for_test = "INTENTIONAL_FAIL" if fail_tests else request.payload
-        test_req = MaterialExecutionRequest(**{**asdict(request), "payload": payload_for_test})
+        test_payload = "INTENTIONAL_FAIL" if fail_tests else request.payload
+        test_req = MaterialExecutionRequest(**{**asdict(request), "payload": test_payload})
         test_ref, tests_ok = self._provider.run_tests(test_req, path)
-        if not tests_ok:
-            self._persist_ready(request, path, digest, test_ref, EffectState.RECONCILED_FAILURE, Outcome.FAILED)
-            return self._result(
-                request, started, Outcome.FAILED, EffectState.RECONCILED_FAILURE,
-                artifact=str(path), digest=digest, readback=observed,
-                test_ref=test_ref, failure="tests_failed"
-            )
-        self._persist_ready(request, path, digest, test_ref, EffectState.EVIDENCE_READY, Outcome.SUCCEEDED)
+        state = EffectState.EVIDENCE_READY if tests_ok else EffectState.RECONCILED_FAILURE
+        outcome = Outcome.SUCCEEDED if tests_ok else Outcome.FAILED
+        self._record(request, state, str(path), digest,
+                     {"outcome": outcome.value, "test_execution_ref": test_ref}, pre_version)
         return self._result(
-            request, started, Outcome.SUCCEEDED, EffectState.EVIDENCE_READY,
+            request, started, outcome, state,
             artifact=str(path), digest=digest, readback=observed, test_ref=test_ref,
+            failure=None if tests_ok else "tests_failed",
         )
 
     def reconcile(self, request: MaterialExecutionRequest) -> MaterialExecutionResult:
@@ -318,14 +324,14 @@ class MaterialPlane:
                 return self._result(
                     request, time.time(), Outcome.SUCCEEDED, EffectState.RECONCILED_SUCCESS,
                     artifact=existing["artifact"], digest=existing["content_hash"] or "",
-                    readback=observed,
+                    readback=observed, replayed=True,
                 )
             if observed.reconciliation == Reconciliation.ABSENT:
                 return self.execute(request)
             return self._result(
                 request, time.time(), Outcome.FAILED, EffectState.RECONCILED_FAILURE,
                 artifact=existing["artifact"], digest=existing["content_hash"] or "",
-                readback=observed, failure="reconcile_mismatch",
+                readback=observed, failure="reconcile_mismatch", replayed=True,
             )
         return self._result(
             request, time.time(), Outcome.EXECUTION_UNKNOWN, EffectState.UNKNOWN,
@@ -334,27 +340,52 @@ class MaterialPlane:
 
     def restart(self) -> MaterialPlane:
         return MaterialPlane(
-            store=self._store,
-            provider=self._provider,
+            store=DurableEffectStore(self._store.path),
+            provider=FilesystemMaterialProvider(self._provider.root),
             boundary=self._boundary,
             live_generation=self._generation,
         )
 
-    def _persist_ready(self, request, path, digest, test_ref, state, outcome) -> None:
+    def _replay(self, request, existing, started) -> MaterialExecutionResult:
+        persisted_identity = existing["request_identity"] or ""
+        if persisted_identity and persisted_identity != request.identity_digest():
+            return self._result(request, started, Outcome.FAILED, EffectState.DENIED,
+                                failure="effect_identity_conflict", replayed=False)
+        digest = existing["content_hash"] or ""
+        observed = self._provider.readback(request, digest) if existing["artifact"] else None
+        if observed is not None and observed.reconciliation != Reconciliation.MATCH:
+            return self._result(
+                request, started, Outcome.FAILED, EffectState.MATERIAL_DRIFT,
+                artifact=existing["artifact"] or "", digest=digest, readback=observed,
+                failure="material_drift", replayed=True,
+            )
+        receipt = json.loads(existing["receipt"] or "{}")
+        return self._result(
+            request, started,
+            Outcome(receipt.get("outcome", Outcome.SUCCEEDED)),
+            EffectState(existing["state"]),
+            artifact=existing["artifact"] or "", digest=digest, readback=observed,
+            test_ref=receipt.get("test_execution_ref", ""), replayed=True,
+        )
+
+    def _record(self, request, state, artifact, digest, receipt, pre_version) -> None:
         self._store.put(
             effect_id=request.effect_id,
             logical_operation_id=request.logical_operation_id,
             generation=request.generation,
             state=state.value,
             payload=request.payload,
-            artifact=str(path),
+            artifact=artifact,
             content_hash=digest,
-            receipt=json.dumps({"outcome": outcome.value, "test_execution_ref": test_ref}),
+            receipt=json.dumps(receipt),
+            request_identity=request.identity_digest(),
+            expected_version=request.expected_object_version,
+            pre_effect_version=pre_version,
         )
 
     def _result(self, request, started, outcome, state, *,
                 artifact="", digest="", readback=None, test_ref="",
-                unknown_at=None, failure=None) -> MaterialExecutionResult:
+                unknown_at=None, failure=None, replayed=False) -> MaterialExecutionResult:
         return MaterialExecutionResult(
             operation_id=request.logical_operation_id,
             effect_id=request.effect_id,
@@ -370,8 +401,9 @@ class MaterialPlane:
             test_execution_ref=test_ref,
             raw_receipt_ref=request.effect_id,
             readback=readback,
-            replayed=False,
+            replayed=replayed,
             promoted=False,
             failure=failure,
             material=True,
+            authority_ref_validated=AUTHORITY_REF_VALIDATED,
         )
