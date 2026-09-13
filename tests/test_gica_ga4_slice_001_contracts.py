@@ -150,6 +150,10 @@ def attacker_founder():
     return sign(value, ATTACKER_KEY)
 
 
+
+def legitimate_ga12() -> GicaProgramContract:
+    return advance(contract_at(GicaGate.GA11), GicaGate.GA12, evidence(GicaGate.GA11, assurance_pass=True))
+
 def test_exact_object_binding_uses_checked_out_git_head() -> None:
     assert len(HEAD) == 40
     assert HEAD == _git_head()
@@ -237,13 +241,13 @@ def test_empty_or_invalid_evidence_lineage_denied() -> None:
 
 
 def test_wrong_program_founder_authorization_denied() -> None:
-    target = contract_at(GicaGate.GA12, GicaProgramState.READY_FOR_FOUNDER, history=(GicaGate.GA11,))
+    target = legitimate_ga12()
     with pytest.raises(ProgramTransitionError, match="founder_wrong_program_denied"):
         target.founder_promote(authorization=founder(program_id="OTHER"), now=NOW)
 
 
 def test_wrong_operation_founder_authorization_denied() -> None:
-    target = contract_at(GicaGate.GA12, GicaProgramState.READY_FOR_FOUNDER, history=(GicaGate.GA11,))
+    target = legitimate_ga12()
     with pytest.raises(ProgramTransitionError, match="founder_wrong_operation_denied"):
         target.founder_promote(authorization=founder(operation="OTHER"), now=NOW)
 
@@ -310,13 +314,13 @@ def test_entirely_self_rooted_ga2_universe_denied() -> None:
 
 
 def test_attacker_selected_founder_issuer_denied() -> None:
-    target = contract_at(GicaGate.GA12, GicaProgramState.READY_FOR_FOUNDER, history=(GicaGate.GA11,))
+    target = legitimate_ga12()
     with pytest.raises(ProgramTransitionError, match="founder_reserved_authority_required"):
         target.founder_promote(authorization=attacker_founder(), now=NOW)
 
 
 def test_attacker_selected_founder_key_denied() -> None:
-    target = contract_at(GicaGate.GA12, GicaProgramState.READY_FOR_FOUNDER, history=(GicaGate.GA11,))
+    target = legitimate_ga12()
     malicious = sign(replace(founder(), signature=""), ATTACKER_KEY)
     with pytest.raises(ProgramTransitionError, match="founder_authorization_forged_denied"):
         target.founder_promote(authorization=malicious, now=NOW)
