@@ -346,6 +346,6 @@ def test_legitimate_ga11_to_ga12_sequence_succeeds() -> None:
     assert ga12.gate_history[-1] is GicaGate.GA11
 
 
-def test_externally_anchored_reserved_founder_authorization_permits_complete_only_at_final_gate() -> None:
+def test_directly_constructed_ga12_ready_with_synthetic_ga11_history_is_denied() -> None:\n    target = contract_at(GicaGate.GA12, GicaProgramState.READY_FOR_FOUNDER, history=(GicaGate.GA11,))\n    with pytest.raises(ProgramTransitionError, match="legitimate_ga11_to_ga12_transition_proof_required"):\n        target.founder_promote(authorization=founder(), now=NOW)\n\n\ndef test_externally_anchored_reserved_founder_authorization_permits_complete_only_at_final_gate() -> None:
     ga12 = advance(contract_at(GicaGate.GA11), GicaGate.GA12, evidence(GicaGate.GA11, assurance_pass=True))
     assert ga12.founder_promote(authorization=founder(), now=NOW).state is GicaProgramState.COMPLETE
