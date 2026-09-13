@@ -1,3 +1,0 @@
-REIS OS materialization write probe.
-Purpose: verify repository write capability after removal of the COI5 runtime anti-bypass gateway on the isolated materialization branch.
-This file has no runtime authority and performs no execution.
