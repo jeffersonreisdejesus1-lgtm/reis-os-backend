@@ -39,8 +39,6 @@ class RecursiveReceipt:
 
 
 class RecursiveEngine:
-    """Bounded loop with cycle detection and replay protection."""
-
     def __init__(self, *,
                  max_depth: int = 4,
                  boundary: AuthorityBoundary | None = None) -> None:
@@ -51,8 +49,8 @@ class RecursiveEngine:
         self._seen_missions: set[str] = set()
 
     @staticmethod
-    def _hash(state: str, version: int) -> str:
-        return sha256(f"{version}:{state}".encode()).hexdigest()
+    def _state_hash(state: str) -> str:
+        return sha256(state.encode()).hexdigest()
 
     def run(self, *,
             actor: str,
@@ -79,7 +77,7 @@ class RecursiveEngine:
         self._seen_missions.add(replay_key)
 
         state = initial_state
-        seen_hashes: set[str] = {self._hash(state, 0)}
+        seen_states: set[str] = {state}
         records: list[IterationRecord] = []
         transformer = step or (lambda current, index: f"{current}|nudge:{index}")
 
@@ -94,8 +92,8 @@ class RecursiveEngine:
                     failure="invalid_state",
                     authority_gained=False,
                 )
-            digest = self._hash(executed, index)
-            if digest in seen_hashes:
+            digest = self._state_hash(executed)
+            if executed in seen_states:
                 records.append(
                     IterationRecord(
                         index, CyclePhase.FAILED, executed, digest, executed, "cycle"
@@ -109,7 +107,7 @@ class RecursiveEngine:
                     failure="cycle_detected",
                     authority_gained=False,
                 )
-            seen_hashes.add(digest)
+            seen_states.add(executed)
             reached = goal in executed or executed == goal
             phase = CyclePhase.TERMINATED if reached or index == self._max_depth else CyclePhase.EVALUATE
             records.append(
