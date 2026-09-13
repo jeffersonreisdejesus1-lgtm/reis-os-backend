@@ -181,3 +181,19 @@ def test_t26_exact_intent_replay_includes_readback(tmp_path: Path) -> None:
     assert replay.replayed is True
     assert replay.readback is not None
     assert replay.readback.reconciliation is Reconciliation.MATCH
+
+
+def test_t27_same_effect_different_capability_conflict(tmp_path: Path) -> None:
+    plane = _plane(tmp_path)
+    plane.execute(_req())
+    conflict = plane.execute(_req(capability="other_write"))
+    assert conflict.failure == "effect_identity_conflict"
+    assert conflict.replayed is False
+
+
+def test_t28_same_effect_different_logical_operation_conflict(tmp_path: Path) -> None:
+    plane = _plane(tmp_path)
+    plane.execute(_req())
+    conflict = plane.execute(_req(logical_operation_id="op-other"))
+    assert conflict.failure == "effect_identity_conflict"
+    assert conflict.replayed is False
