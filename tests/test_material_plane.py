@@ -1,4 +1,5 @@
 import json
+from hashlib import sha256
 from pathlib import Path
 
 from app.materialization.material_plane import (
@@ -44,29 +45,38 @@ def test_t01_t02_t03_real_write_readback_and_tests(tmp_path: Path) -> None:
     result = _plane(tmp_path).execute(_req())
     assert result.outcome is Outcome.SUCCEEDED
     assert result.material is True
+    assert result.promoted is False
     assert result.readback is not None
     assert result.readback.reconciliation is Reconciliation.MATCH
     assert Path(result.material_artifact_ref).read_text(encoding="utf-8") == "R$ 25,90"
     provenance = json.loads(result.test_execution_ref)
     assert provenance["returncode"] == 0
+    assert "probe_digest" in provenance
+    assert "artifact_digest" in provenance
+    assert len(provenance["probe_digest"]) == 64
+    assert len(provenance["artifact_digest"]) == 64
     assert AUTHORITY_REF_VALIDATED is False
+    assert result.authority_ref_validated is False
 
 
 def test_t04_failing_test_is_not_pass(tmp_path: Path) -> None:
     result = _plane(tmp_path).execute(_req(), fail_tests=True)
     assert result.outcome is Outcome.FAILED
+    assert result.failure == "tests_failed"
     assert result.material is True
 
 
 def test_t05_provider_unavailable(tmp_path: Path) -> None:
     result = _plane(tmp_path).execute(_req(), provider_available=False)
     assert result.state is EffectState.HOLD
+    assert result.failure == "provider_unavailable"
     assert result.material is False
 
 
 def test_t06_timeout_before_effect_stays_unknown(tmp_path: Path) -> None:
     result = _plane(tmp_path).execute(_req(), pretick_timeout=True)
     assert result.outcome is Outcome.EXECUTION_UNKNOWN
+    assert result.outcome is not Outcome.SUCCEEDED
     assert result.material is False
 
 
@@ -77,6 +87,8 @@ def test_t07_t08_timeout_after_effect_then_reconcile(tmp_path: Path) -> None:
     assert unknown.material is True
     reconciled = plane.reconcile(_req())
     assert reconciled.outcome is Outcome.SUCCEEDED
+    assert reconciled.readback is not None
+    assert reconciled.readback.reconciliation is Reconciliation.MATCH
     assert reconciled.material is True
 
 
@@ -87,6 +99,7 @@ def test_t09_t23_tamper_replay_is_drift_without_rewrite(tmp_path: Path) -> None:
     second = plane.execute(_req())
     assert second.replayed is True
     assert second.state is EffectState.MATERIAL_DRIFT
+    assert second.outcome is not Outcome.SUCCEEDED
     assert second.material is True
     assert Path(first.material_artifact_ref).read_text(encoding="utf-8") == "tamper"
 
@@ -95,6 +108,9 @@ def test_t10_restart_new_store_object(tmp_path: Path) -> None:
     _plane(tmp_path).execute(_req())
     again = _plane(tmp_path).execute(_req())
     assert again.replayed is True
+    assert again.outcome is Outcome.SUCCEEDED
+    assert again.readback is not None
+    assert again.readback.reconciliation is Reconciliation.MATCH
     assert again.material is True
 
 
@@ -113,6 +129,7 @@ def test_t12_authority_denial(tmp_path: Path) -> None:
 def test_t16_provider_cannot_expand_authority(tmp_path: Path) -> None:
     result = _plane(tmp_path).execute(_req(capability="FOUNDER_PROMOTION"))
     assert result.failure == "authority_expansion_denied"
+    assert result.promoted is False
     assert result.material is False
 
 
@@ -121,33 +138,46 @@ def test_t17_same_effect_different_payload_conflict(tmp_path: Path) -> None:
     plane.execute(_req())
     conflict = plane.execute(_req(payload="other"))
     assert conflict.failure == "effect_identity_conflict"
-    assert conflict.material is False
     assert conflict.replayed is False
+    assert conflict.material is False
 
 
 def test_t18_different_intent_hash_conflict(tmp_path: Path) -> None:
     plane = _plane(tmp_path)
     plane.execute(_req())
-    assert plane.execute(_req(authorized_intent_hash="other")).material is False
+    conflict = plane.execute(_req(authorized_intent_hash="other"))
+    assert conflict.failure == "effect_identity_conflict"
+    assert conflict.material is False
 
 
 def test_t19_different_object_conflict(tmp_path: Path) -> None:
     plane = _plane(tmp_path)
     plane.execute(_req())
-    assert plane.execute(_req(bound_object="object://other")).material is False
+    conflict = plane.execute(_req(bound_object="object://other"))
+    assert conflict.failure == "effect_identity_conflict"
+    assert conflict.material is False
 
 
 def test_t20_t21_expected_version_enforced(tmp_path: Path) -> None:
     plane = _plane(tmp_path)
     first = plane.execute(_req())
-    digest = Path(first.material_artifact_ref)
-    content_hash = __import__("hashlib").sha256(digest.read_bytes()).hexdigest()
+    artifact = Path(first.material_artifact_ref)
+    content_hash = sha256(artifact.read_bytes()).hexdigest()
     stale = plane.execute(_req(effect_id="eff-2", expected_object_version="v0", logical_operation_id="op-2"))
     assert stale.failure == "version_conflict"
     assert stale.material is False
-    ok = plane.execute(_req(effect_id="eff-3", logical_operation_id="op-3", expected_object_version=content_hash, payload="next"))
+    assert artifact.read_text(encoding="utf-8") == "R$ 25,90"
+    ok = plane.execute(
+        _req(
+            effect_id="eff-3",
+            logical_operation_id="op-3",
+            expected_object_version=content_hash,
+            payload="next",
+        )
+    )
     assert ok.outcome is Outcome.SUCCEEDED
     assert ok.material is True
+    assert Path(ok.material_artifact_ref).read_text(encoding="utf-8") == "next"
 
 
 def test_t22_candidate_namespace_does_not_write(tmp_path: Path) -> None:
@@ -165,17 +195,25 @@ def test_t24_new_process_equivalent_new_store_replay(tmp_path: Path) -> None:
     fx = tmp_path / "fx"
     first = MaterialPlane(store=DurableEffectStore(db), provider=FilesystemMaterialProvider(fx))
     written = first.execute(_req())
+    assert written.replayed is False
     assert written.material is True
     second = MaterialPlane(store=DurableEffectStore(db), provider=FilesystemMaterialProvider(fx))
     replay = second.execute(_req())
     assert replay.replayed is True
     assert replay.material is True
+    assert replay.readback is not None
+    assert replay.readback.reconciliation is Reconciliation.MATCH
 
 
 def test_t25_provenance_binds_command_and_digests(tmp_path: Path) -> None:
     result = _plane(tmp_path).execute(_req())
     body = json.loads(result.test_execution_ref)
     assert body["command"][-1].endswith(".probe.py")
+    assert body["returncode"] == 0
+    assert len(body["stdout_digest"]) == 64
+    assert len(body["stderr_digest"]) == 64
+    assert len(body["probe_digest"]) == 64
+    assert len(body["artifact_digest"]) == 64
     assert result.material is True
 
 
@@ -194,6 +232,7 @@ def test_t27_same_effect_different_capability_conflict(tmp_path: Path) -> None:
     plane.execute(_req())
     conflict = plane.execute(_req(capability="other_write"))
     assert conflict.failure == "effect_identity_conflict"
+    assert conflict.replayed is False
     assert conflict.material is False
 
 
@@ -202,4 +241,5 @@ def test_t28_same_effect_different_logical_operation_conflict(tmp_path: Path) ->
     plane.execute(_req())
     conflict = plane.execute(_req(logical_operation_id="op-other"))
     assert conflict.failure == "effect_identity_conflict"
+    assert conflict.replayed is False
     assert conflict.material is False
