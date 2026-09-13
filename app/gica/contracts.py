@@ -121,6 +121,23 @@ class GateEvidence:
 
 
 @dataclass(frozen=True)
+class TransitionReceipt:
+    program_id: str
+    object_version: str
+    from_gate: GicaGate
+    to_gate: GicaGate
+    resulting_state: GicaProgramState
+    criteria_version: str
+    issuer: str
+    verifier: str
+    issued_at: datetime
+    expires_at: datetime
+    policy_version: str
+    provenance: str
+    signature: str
+
+
+@dataclass(frozen=True)
 class FounderAuthorizationEvidence:
     program_id: str
     gate: GicaGate
@@ -279,6 +296,7 @@ class GicaProgramContract:
     object_version: str
     state: GicaProgramState = GicaProgramState.ACTIVE
     gate_history: tuple[GicaGate, ...] = field(default_factory=tuple)
+    transition_receipt: TransitionReceipt | None = None
 
     def validate_roster(self) -> None:
         if len(CANONICAL_OCS_ROSTER) != 11:
@@ -297,12 +315,20 @@ class GicaProgramContract:
         root = _resolve_institutional_trust()
         root.verify_authority(authority, program_id=self.program_id, operation=f"transition:{self.gate.name}->{target.name}", object_version=self.object_version, now=effective_now)
         root.verify_gate_evidence(gate_evidence, program_id=self.program_id, gate=self.gate, object_version=self.object_version, now=effective_now)
+        receipt = None
+        if self.gate is GicaGate.GA11 and target is GicaGate.GA12:
+            value = TransitionReceipt(self.program_id, self.object_version, self.gate, target,
+                GicaProgramState.READY_FOR_FOUNDER, _CRITERIA_VERSIONS[self.gate],
+                _EVIDENCE_ISSUER, _VERIFIER_ID, effective_now, gate_evidence.expires_at,
+                _POLICY_VERSION, f"governed-transition:{self.program_id}:{self.object_version}:GA11->GA12", "")
+            receipt = replace(value, signature=_expected_signature(value, root.gate_evidence_key))
         return GicaProgramContract(
             program_id=self.program_id,
             gate=target,
             object_version=self.object_version,
             state=GicaProgramState.READY_FOR_FOUNDER if target is GicaGate.GA12 else GicaProgramState.ACTIVE,
             gate_history=self.gate_history + (self.gate,),
+            transition_receipt=receipt,
         )
 
     def founder_promote(self, *, authorization: FounderAuthorizationEvidence | None, now: datetime | None = None) -> "GicaProgramContract":
@@ -312,7 +338,9 @@ class GicaProgramContract:
             raise ProgramTransitionError("program_not_ready_for_founder")
         if not self.gate_history or self.gate_history[-1] is not GicaGate.GA11:
             raise ProgramTransitionError("legitimate_ga12_transition_required")
-        _resolve_institutional_trust().verify_founder_authorization(
+        root = _resolve_institutional_trust()
+        root.verify_transition_receipt(self.transition_receipt, program_id=self.program_id, object_version=self.object_version, now=now or _utc_now())
+        root.verify_founder_authorization(
             authorization, program_id=self.program_id, object_version=self.object_version, now=now or _utc_now()
         )
         return GicaProgramContract(
@@ -321,4 +349,5 @@ class GicaProgramContract:
             object_version=self.object_version,
             state=GicaProgramState.COMPLETE,
             gate_history=self.gate_history,
+            transition_receipt=self.transition_receipt,
         )

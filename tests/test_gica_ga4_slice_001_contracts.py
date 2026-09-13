@@ -10,6 +10,7 @@ from app.gica.contracts import (
     CANONICAL_OCS_ROSTER,
     AuthorityEvidence,
     FounderAuthorizationEvidence,
+    TransitionReceipt,
     GateEvidence,
     GicaGate,
     GicaProgramContract,
