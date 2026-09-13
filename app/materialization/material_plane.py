@@ -18,6 +18,9 @@ from app.materialization.authority import AuthorityBoundary, MutationKind
 AUTHORITY_REF_VALIDATED = False
 INITIAL_OBJECT_VERSION = "v0"
 
+# material=True means a material effect exists or is being reconciled,
+# not merely that the result object was produced by MaterialPlane.
+
 
 class Outcome(StrEnum):
     SUCCEEDED = "SUCCEEDED"
@@ -386,6 +389,8 @@ class MaterialPlane:
     def _result(self, request, started, outcome, state, *,
                 artifact="", digest="", readback=None, test_ref="",
                 unknown_at=None, failure=None, replayed=False) -> MaterialExecutionResult:
+        # material claims an actual filesystem effect (or reconciliation of one),
+        # never "this object was emitted by MaterialPlane".
         return MaterialExecutionResult(
             operation_id=request.logical_operation_id,
             effect_id=request.effect_id,
@@ -404,6 +409,6 @@ class MaterialPlane:
             replayed=replayed,
             promoted=False,
             failure=failure,
-            material=True,
+            material=bool(artifact),
             authority_ref_validated=AUTHORITY_REF_VALIDATED,
         )
