@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
+from hashlib import sha256
 
 from app.materialization.authority import AuthorityBoundary, MutationKind
 
@@ -21,6 +22,7 @@ class IterationRecord:
     index: int
     phase: CyclePhase
     state: str
+    state_hash: str
     readback: str
     next_action: str
 
@@ -33,10 +35,11 @@ class RecursiveReceipt:
     termination_reason: str = ""
     authority_gained: bool = False
     failure: str | None = None
+    replayed: bool = False
 
 
 class RecursiveEngine:
-    """STATE→ANALYZE→PLAN→EXECUTE→READBACK→EVALUATE with hard depth."""
+    """Bounded loop with cycle detection and replay protection."""
 
     def __init__(self, *,
                  max_depth: int = 4,
@@ -45,12 +48,18 @@ class RecursiveEngine:
             raise ValueError("max_depth_must_be_positive")
         self._max_depth = max_depth
         self._boundary = boundary or AuthorityBoundary()
+        self._seen_missions: set[str] = set()
+
+    @staticmethod
+    def _hash(state: str, version: int) -> str:
+        return sha256(f"{version}:{state}".encode()).hexdigest()
 
     def run(self, *,
             actor: str,
             mission_id: str,
             initial_state: str,
-            goal: str) -> RecursiveReceipt:
+            goal: str,
+            step=None) -> RecursiveReceipt:
         allowed = self._boundary.decide(actor=actor, kind=MutationKind.RUN_TEST)
         if not allowed.allowed:
             return RecursiveReceipt(
@@ -58,27 +67,62 @@ class RecursiveEngine:
                 failure=allowed.reason,
                 termination_reason="authority_denied",
             )
+        replay_key = f"{mission_id}:{initial_state}:{goal}"
+        if replay_key in self._seen_missions:
+            return RecursiveReceipt(
+                mission_id=mission_id,
+                terminated=True,
+                termination_reason="replay_blocked",
+                authority_gained=False,
+                replayed=True,
+            )
+        self._seen_missions.add(replay_key)
+
         state = initial_state
+        seen_hashes: set[str] = {self._hash(state, 0)}
         records: list[IterationRecord] = []
+        transformer = step or (lambda current, index: f"{current}|nudge:{index}")
+
         for index in range(1, self._max_depth + 1):
-            analysis = f"gap:{goal}!={state}"
-            plan = f"nudge:{index}"
-            executed = f"{state}|{plan}"
-            readback = executed
-            if goal in readback or index == self._max_depth:
+            executed = transformer(state, index)
+            if executed is None:
+                return RecursiveReceipt(
+                    mission_id=mission_id,
+                    iterations=records,
+                    terminated=True,
+                    termination_reason="invalid_state",
+                    failure="invalid_state",
+                    authority_gained=False,
+                )
+            digest = self._hash(executed, index)
+            if digest in seen_hashes:
                 records.append(
-                    IterationRecord(index, CyclePhase.TERMINATED, state, readback, "stop")
+                    IterationRecord(
+                        index, CyclePhase.FAILED, executed, digest, executed, "cycle"
+                    )
                 )
                 return RecursiveReceipt(
                     mission_id=mission_id,
                     iterations=records,
                     terminated=True,
-                    termination_reason="goal_or_budget",
+                    termination_reason="cycle_detected",
+                    failure="cycle_detected",
                     authority_gained=False,
                 )
+            seen_hashes.add(digest)
+            reached = goal in executed or executed == goal
+            phase = CyclePhase.TERMINATED if reached or index == self._max_depth else CyclePhase.EVALUATE
             records.append(
-                IterationRecord(index, CyclePhase.EVALUATE, state, readback, analysis)
+                IterationRecord(index, phase, state, digest, executed, "stop" if reached else "continue")
             )
+            if reached:
+                return RecursiveReceipt(
+                    mission_id=mission_id,
+                    iterations=records,
+                    terminated=True,
+                    termination_reason="goal_met",
+                    authority_gained=False,
+                )
             state = executed
         return RecursiveReceipt(
             mission_id=mission_id,
