@@ -1,0 +1,3 @@
+REIS OS materialization write probe.
+Purpose: verify whether GitHub contents write is available independently of the reverted identity control plane candidate.
+No authority, runtime, gate, or production state is changed by this file.
