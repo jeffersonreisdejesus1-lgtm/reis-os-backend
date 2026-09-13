@@ -4,7 +4,7 @@ import hashlib
 import hmac
 import json
 import os
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timezone
 from enum import Enum
 from types import MappingProxyType
