@@ -31,6 +31,8 @@ class CoiReceipt:
     promoted: bool
     failure: str | None = None
     material: bool = False
+    recursive_replayed: bool = False
+    recursive_reason: str = ""
 
 
 class CognitiveOperationalIntegration:
@@ -41,6 +43,7 @@ class CognitiveOperationalIntegration:
                  available_executors: frozenset[str] | None = None) -> None:
         self._boundary = boundary or AuthorityBoundary()
         self._factory = factory or SoftwareFactory(self._boundary)
+        self._engine_injected = engine is not None
         self._engine = engine or RecursiveEngine(boundary=self._boundary)
         self._executors = available_executors or frozenset({"SOFIA"})
 
@@ -70,6 +73,8 @@ class CognitiveOperationalIntegration:
                 promoted=False,
                 failure=None,
                 material=False,
+                recursive_replayed=False,
+                recursive_reason="",
             )
             base.update(kwargs)
             return CoiReceipt(**base)
@@ -94,10 +99,21 @@ class CognitiveOperationalIntegration:
                 readback="NO_CLAIM_OF_EXECUTION",
             )
 
+        engine = self._engine
+        if workdir is not None and not self._engine_injected:
+            engine = RecursiveEngine(
+                boundary=self._boundary, store_path=Path(workdir) / "recursive-runs.db"
+            )
+
         factory = self._factory.run(
-            actor=actor, mission_id=mission_id, spec=intent, executor=executor, workdir=workdir
+            actor=actor,
+            mission_id=mission_id,
+            spec=intent,
+            executor=executor,
+            workdir=workdir,
+            bound_object=bound_object,
         )
-        loop = self._engine.run(
+        loop = engine.run(
             actor=actor, mission_id=mission_id, initial_state=bound_object, goal=intent[:12]
         )
         if factory.failure or loop.failure:
@@ -106,9 +122,14 @@ class CognitiveOperationalIntegration:
                 failure=factory.failure or loop.failure,
                 readback=factory.failure or loop.failure or "failed",
                 material=factory.material,
+                recursive_replayed=loop.replayed,
+                recursive_reason=loop.termination_reason,
             )
         evidence = factory.evidence[-1].content_hash if factory.evidence else ""
-        readback = f"factory={factory.phase.value};loop={loop.termination_reason};object={bound_object};artifact={factory.artifact_ref}"
+        readback = (
+            f"factory={factory.phase.value};loop={loop.termination_reason};"
+            f"object={bound_object};artifact={factory.artifact_ref}"
+        )
         if force_readback_mismatch:
             return done(
                 disposition=CoiDisposition.HOLD,
@@ -116,16 +137,19 @@ class CognitiveOperationalIntegration:
                 readback=readback,
                 evidence_hash=evidence,
                 material=factory.material,
+                recursive_replayed=loop.replayed,
+                recursive_reason=loop.termination_reason,
             )
         inst = self._boundary.decide(
             actor=actor, kind=MutationKind.GATE_PROMOTION, founder_authorized=founder_authorized
         )
-        disposition = CoiDisposition.CANDIDATE
         return done(
-            disposition=disposition,
+            disposition=CoiDisposition.CANDIDATE,
             promoted=inst.allowed,
             readback=readback,
             evidence_hash=evidence,
             failure=None,
             material=factory.material,
+            recursive_replayed=loop.replayed,
+            recursive_reason=loop.termination_reason,
         )
