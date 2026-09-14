@@ -48,14 +48,14 @@ class MainActivity : AppCompatActivity() {
         val description = findViewById<TextInputEditText>(R.id.descriptionInput)
         runCatching {
             val cents = LedgerMath.parseCents(amount.text?.toString().orEmpty())
-            val note = description.text?.toString().orEmpty()
+            val note = description.text?.toString().orEmpty().trim().ifBlank { getString(R.string.no_description) }
             val id = editingId
             if (id == null) store.add(cents, kind, note)
             else store.update(id, cents, kind, note)
             clearEditor()
             refresh()
         }.onFailure {
-            Toast.makeText(this, it.message ?: "Valor inválido", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, it.message ?: getString(R.string.invalid_value), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -65,7 +65,7 @@ class MainActivity : AppCompatActivity() {
             LedgerMath.formatBrl(entry.cents).removePrefix("- ").removePrefix("R$ ").trim(),
         )
         findViewById<TextInputEditText>(R.id.descriptionInput).setText(entry.description)
-        findViewById<TextView>(R.id.composerTitle).text = "Editar lançamento"
+        findViewById<TextView>(R.id.composerTitle).text = getString(R.string.edit_entry)
         findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.VISIBLE
     }
 
@@ -73,16 +73,29 @@ class MainActivity : AppCompatActivity() {
         editingId = null
         findViewById<TextInputEditText>(R.id.amountInput).text?.clear()
         findViewById<TextInputEditText>(R.id.descriptionInput).text?.clear()
-        findViewById<TextView>(R.id.composerTitle).text = "Novo lançamento"
+        findViewById<TextView>(R.id.composerTitle).text = getString(R.string.new_entry)
         findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.GONE
     }
 
     private fun refresh() {
         val entries = store.entries()
         findViewById<TextView>(R.id.balanceView).text = LedgerMath.formatBrl(LedgerMath.balanceCents(entries))
-        val (income, expense) = LedgerMath.todayTotals(entries)
-        findViewById<TextView>(R.id.todayView).text =
-            "Hoje  + ${LedgerMath.formatBrl(income)}   − ${LedgerMath.formatBrl(expense)}"
+
+        val (todayIncome, todayExpense) = LedgerMath.todayTotals(entries)
+        findViewById<TextView>(R.id.todayView).text = getString(
+            R.string.summary_values,
+            LedgerMath.formatBrl(todayIncome),
+            LedgerMath.formatBrl(todayExpense),
+        )
+
+        val (monthIncome, monthExpense) = LedgerMath.monthTotals(entries)
+        findViewById<TextView>(R.id.monthView).text = getString(
+            R.string.summary_values,
+            LedgerMath.formatBrl(monthIncome),
+            LedgerMath.formatBrl(monthExpense),
+        )
+        findViewById<TextView>(R.id.monthResultView).text = LedgerMath.formatBrl(monthIncome - monthExpense)
+
         findViewById<TextView>(R.id.emptyView).visibility =
             if (entries.isEmpty()) View.VISIBLE else View.GONE
         adapter.submit(entries)
