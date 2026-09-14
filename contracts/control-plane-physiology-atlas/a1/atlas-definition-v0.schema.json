@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "reis-os://control-plane/physiology-atlas/a1/atlas-definition-v0",
+  "title": "REIS OS Physiology Atlas A1 Definition Catalog",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "catalog_scope_id",
+    "normalization_version",
+    "nodes",
+    "edges",
+    "thesis_packages",
+    "rules",
+    "bindings"
+  ],
+  "properties": {
+    "catalog_scope_id": {
+      "const": "reis-os/control-plane/physiology-atlas/v0"
+    },
+    "normalization_version": {
+      "const": "atlas-semantic-v1"
+    },
+    "nodes": {"type": "array"},
+    "edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "type", "from", "to"],
+        "properties": {
+          "type": {
+            "enum": ["COMPOSES", "REQUIRES", "GOVERNED_BY", "EVIDENCED_BY"]
+          }
+        }
+      }
+    },
+    "thesis_packages": {"type": "array"},
+    "rules": {"type": "array"},
+    "bindings": {"type": "array"}
+  }
+}
