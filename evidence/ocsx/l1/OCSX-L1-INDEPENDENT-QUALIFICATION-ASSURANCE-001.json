@@ -1,0 +1,42 @@
+{
+  "object": "OCSX-L1-INDEPENDENT-QUALIFICATION-ASSURANCE-001",
+  "provider": "GOOGLE_AI_STUDIO_GEMINI",
+  "model": "GEMINI_3_8_FLASH",
+  "target_evidence_head": "ee4a0d644b687c5736f8c4fdf8a127efdec9b66e",
+  "assurance_mode": "INDEPENDENT_AUDIT_ONLY",
+  "founder_authorization": "PASS",
+  "l0_identity_preservation": "PASS",
+  "authority_ceiling_preservation": "PASS",
+  "empty_allowlist_recovery": "PASS",
+  "single_writer": "PASS",
+  "single_stop": "PASS",
+  "stop_fencing": "PASS",
+  "progress_semantics": "PASS",
+  "no_progress_t2_semantics": "PASS",
+  "fail_stop_semantics": "PASS",
+  "unknown_fail_closed": "PASS",
+  "recovery_determinism": "PASS",
+  "forbidden_effect_isolation": "PASS",
+  "builder_evidence_scope": "PASS",
+  "overclaim_check": "PASS",
+  "material_blockers": [],
+  "reservations": [
+    "SYNTHETIC_QUALIFICATION_BOUNDARY: A qualificação do L1 foi executada exclusivamente sobre suíte sintética de testes unitários (12/12 pass), não comprovando nem autorizando execução em produção ou decisão em ambiente real.",
+    "IDENTITY_CEILING_BOUND: O mecanismo L1 altera estritamente a dinâmica de scheduler/monitoramento; a identidade e o teto de autoridade herdados de L0 permanecem imutáveis sob pena de VOID_IDENTITY.",
+    "BUILDER_SEGREGATION: A comprovação fornecida pelo construtor (Dédala) foi auditada independentemente quanto à lógica formal em app/ocsx_l1/runtime.py e cobertura em tests/test_ocsx_l1_qualification.py sem herança cega de resultados."
+  ],
+  "adversarial_findings": [
+    "A precedência formal entre mecanismos de parada é estrita: Fail é independente do monitor T2, enquanto NoProgress requer ativamente a habilitação do monitor T2 para transicionar para NO_PROGRESS -> STOP.",
+    "A anomalia prévia de recuperação de allowlist vazia está resolvida de forma definitiva: allowed_tools persiste explicitamente como frozenset vazio sem inflar para ferramentas padrão.",
+    "O isolamento de autoridade e namespace é estritamente fail-closed: tentativas de escrita fora do namespace, mutações canônicas ou acesso ao OURO são negadas com mutation_count mantido em zero.",
+    "Não foram encontrados overclaims nos manifestos: permissões para merge, produção, adoção e desdobramento universal permanecem rigorosamente negadas."
+  ],
+  "verdict": "PASS_WITH_RESERVATIONS",
+  "ready_for_founder_l1_decision": true,
+  "production_authority": false,
+  "canonical_mutation_authority": false,
+  "adoption_authority": false,
+  "promotion_authority": false,
+  "universal_deployment_authority": false,
+  "merge_authority": false
+}

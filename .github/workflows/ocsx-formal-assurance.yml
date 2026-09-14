@@ -1,0 +1,99 @@
+name: OCS-X Formal Assurance
+
+on:
+  push:
+    branches:
+      - dedala/ocsx-assurance-repair-001
+    paths:
+      - 'formal/ocsx/**'
+      - 'scripts/verify_ocsx_wfnet.py'
+      - '.github/workflows/ocsx-formal-assurance.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  formal-assurance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@v4
+        with:
+          ref: dedala/ocsx-assurance-repair-001
+          fetch-depth: 0
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Fetch pinned TLA+ tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .build/tools evidence/ocsx
+          curl -fL --retry 3 \
+            -o .build/tools/tla2tools.jar \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.7.4/tla2tools.jar
+          sha256sum .build/tools/tla2tools.jar | tee evidence/ocsx/tla2tools.sha256
+          java -cp .build/tools/tla2tools.jar tlc2.TLC -help > evidence/ocsx/tlc-help.txt 2>&1 || true
+
+      - name: Verify pure L0 WF-net soundness
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_ocsx_wfnet.py formal/ocsx/ANCESTRAL_WFNET_L0.pnml \
+            | tee evidence/ocsx/ANCESTRAL_WFNET_L0.verify.txt
+
+      - name: TLC T0 pure L0
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -cp .build/tools/tla2tools.jar tlc2.TLC \
+            -config formal/ocsx/OCSX-T0.cfg \
+            formal/ocsx/OCSXExperiment.tla \
+            | tee evidence/ocsx/OCSX-T0.tlc.txt
+
+      - name: TLC T2 progress-monitor extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          java -cp .build/tools/tla2tools.jar tlc2.TLC \
+            -config formal/ocsx/OCSX-T2.cfg \
+            formal/ocsx/OCSXExperiment.tla \
+            | tee evidence/ocsx/OCSX-T2.tlc.txt
+
+      - name: Bind exact artifacts by SHA-256
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            sha256sum formal/ocsx/OCSXExperiment.tla
+            sha256sum formal/ocsx/OCSX-T0.cfg
+            sha256sum formal/ocsx/OCSX-T2.cfg
+            sha256sum formal/ocsx/ANCESTRAL_WFNET_L0.pnml
+            sha256sum formal/ocsx/T2_WFNET_EXTENSION.pnml
+            sha256sum formal/ocsx/REFERENCE_OCS_PREREGISTRATION.md
+            sha256sum formal/ocsx/OCSX_13_METRIC_PREREGISTRATION.md
+            sha256sum formal/ocsx/OCS-X-EXPERIMENT-PROTOCOL-001.md
+            sha256sum evidence/ocsx/OCSX-T0.tlc.txt
+            sha256sum evidence/ocsx/OCSX-T2.tlc.txt
+            sha256sum evidence/ocsx/ANCESTRAL_WFNET_L0.verify.txt
+          } | tee evidence/ocsx/ARTIFACTS.sha256
+          git rev-parse HEAD | tee evidence/ocsx/SOURCE_HEAD.txt
+
+      - name: Persist evidence on repair branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add evidence/ocsx
+          if git diff --cached --quiet; then
+            echo 'No evidence delta to commit.'
+          else
+            git commit -m 'OCSX: record formal assurance evidence [tlc-evidence]'
+            git push origin HEAD:dedala/ocsx-assurance-repair-001
+          fi
