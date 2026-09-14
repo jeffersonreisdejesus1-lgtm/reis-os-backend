@@ -27,13 +27,24 @@ def test_factory_packages_candidate_without_promoting() -> None:
     receipt = SoftwareFactory().run(actor="SOFIA", mission_id="M1", spec="ledger formatBrl")
     assert receipt.phase == FactoryPhase.QUALIFY_HANDOFF
     assert receipt.promoted is False
-    assert receipt.qualifies_for_handoff is True
+    assert receipt.material is False
+    assert receipt.logical_candidate is True
+    assert receipt.qualifies_for_handoff is False
 
 
 def test_factory_empty_spec_fails() -> None:
     receipt = SoftwareFactory().run(actor="SOFIA", mission_id="M1", spec="  ")
     assert receipt.phase == FactoryPhase.FAILED
     assert receipt.failure == "empty_spec"
+
+
+def test_factory_unavailable_executor_hold() -> None:
+    receipt = SoftwareFactory().run(
+        actor="SOFIA", mission_id="M1", spec="x", executor="MISSING"
+    )
+    assert receipt.phase == FactoryPhase.HOLD
+    assert receipt.failure == "executor_unavailable"
+    assert receipt.qualifies_for_handoff is False
 
 
 def test_recursive_engine_terminates_and_does_not_gain_authority() -> None:
