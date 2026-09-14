@@ -9,9 +9,8 @@ PROBE = r'''
 import json, os, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from app.materialization.coi import CognitiveOperationalIntegration, CoiDisposition
+from app.materialization.coi import CognitiveOperationalIntegration
 root = Path(sys.argv[2])
-mode = sys.argv[3]
 coi = CognitiveOperationalIntegration()
 receipt = coi.realize(
     actor="SOFIA",
@@ -27,6 +26,9 @@ print(json.dumps({
     "material": receipt.material,
     "promoted": receipt.promoted,
     "failure": receipt.failure,
+    "recursive_replayed": receipt.recursive_replayed,
+    "recursive_reason": receipt.recursive_reason,
+    "bound_object": receipt.bound_object,
 }))
 '''
 
@@ -41,7 +43,7 @@ def _repo_root() -> Path:
 
 def _run(repo: Path, work: Path) -> dict:
     completed = subprocess.run(
-        [sys.executable, "-c", PROBE, str(repo), str(work), "run"],
+        [sys.executable, "-c", PROBE, str(repo), str(work)],
         capture_output=True, text=True, check=False, cwd=str(repo),
     )
     assert completed.returncode == 0, completed.stderr + completed.stdout
@@ -55,9 +57,12 @@ def test_integrated_two_process_coi_factory_no_promotion(tmp_path: Path) -> None
     assert p1["pid"] != p2["pid"]
     assert p1["material"] is True
     assert p1["promoted"] is False
-    assert p1["disposition"] == "candidate"
+    assert p1["recursive_replayed"] is False
     assert p2["material"] is True
     assert p2["promoted"] is False
+    assert p2["recursive_replayed"] is True
+    assert p2["recursive_reason"] == "replay_blocked"
     artifacts = list((tmp_path / "factory-fx").glob("*.txt"))
     assert len(artifacts) == 1
+    assert artifacts[0].name == "object_integrated.txt"
     assert artifacts[0].read_text(encoding="utf-8") == "hello-integrated"
