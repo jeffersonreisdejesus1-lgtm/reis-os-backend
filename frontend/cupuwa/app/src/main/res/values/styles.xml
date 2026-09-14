@@ -1,0 +1,15 @@
+<resources>
+    <style name="Theme.Cupuwa" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/cupuwa_accent</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">@color/cupuwa_ink</item>
+        <item name="android:statusBarColor">@color/cupuwa_ink</item>
+        <item name="android:navigationBarColor">@color/cupuwa_surface</item>
+        <item name="android:windowBackground">@color/cupuwa_surface</item>
+        <item name="materialButtonStyle">@style/Widget.Cupuwa.Button</item>
+    </style>
+    <style name="Widget.Cupuwa.Button" parent="Widget.Material3.Button">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textAllCaps">false</item>
+    </style>
+</resources>
