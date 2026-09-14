@@ -12,14 +12,15 @@ from pathlib import Path
 
 from app.materialization.authority import AuthorityBoundary, MutationKind
 
-# MAT-A004 claim boundary:
-# ACTOR / GENERATION / CAPABILITY are checked locally.
-# authority_ref is persisted metadata only. AUTHORITY_REF_VALIDATED = False.
 AUTHORITY_REF_VALIDATED = False
 INITIAL_OBJECT_VERSION = "v0"
-
-# material=True means a material effect exists or is being reconciled,
-# not merely that the result object was produced by MaterialPlane.
+NONTERMINAL_STATES = {
+    "EXECUTING",
+    "EXECUTION_UNKNOWN",
+    "READBACK_PENDING",
+    "RECONCILING",
+    "UNKNOWN",
+}
 
 
 class Outcome(StrEnum):
@@ -321,25 +322,7 @@ class MaterialPlane:
         existing = self._store.get(request.effect_id)
         if existing is None:
             return self.execute(request)
-        if existing["artifact"]:
-            observed = self._provider.readback(request, existing["content_hash"] or "")
-            if observed.reconciliation == Reconciliation.MATCH:
-                return self._result(
-                    request, time.time(), Outcome.SUCCEEDED, EffectState.RECONCILED_SUCCESS,
-                    artifact=existing["artifact"], digest=existing["content_hash"] or "",
-                    readback=observed, replayed=True,
-                )
-            if observed.reconciliation == Reconciliation.ABSENT:
-                return self.execute(request)
-            return self._result(
-                request, time.time(), Outcome.FAILED, EffectState.RECONCILED_FAILURE,
-                artifact=existing["artifact"], digest=existing["content_hash"] or "",
-                readback=observed, failure="reconcile_mismatch", replayed=True,
-            )
-        return self._result(
-            request, time.time(), Outcome.EXECUTION_UNKNOWN, EffectState.UNKNOWN,
-            failure="reconcile_still_unknown",
-        )
+        return self._replay(request, existing, time.time())
 
     def restart(self) -> MaterialPlane:
         return MaterialPlane(
@@ -349,11 +332,45 @@ class MaterialPlane:
             live_generation=self._generation,
         )
 
+    def _recover_orphan(self, request, existing, started) -> MaterialExecutionResult:
+        path = self._provider.artifact_path(request.bound_object)
+        expected = existing["content_hash"] or sha256(request.payload.encode()).hexdigest()
+        observed = self._provider.readback(request, expected)
+        if observed.reconciliation is Reconciliation.ABSENT:
+            return self._result(
+                request, started, Outcome.EXECUTION_UNKNOWN, EffectState.EXECUTION_UNKNOWN,
+                failure="orphan_effect_absent", replayed=True,
+            )
+        if observed.reconciliation is Reconciliation.MATCH:
+            test_ref, tests_ok = self._provider.run_tests(request, path)
+            state = EffectState.EVIDENCE_READY if tests_ok else EffectState.RECONCILED_FAILURE
+            outcome = Outcome.SUCCEEDED if tests_ok else Outcome.FAILED
+            self._record(
+                request, state, str(path), expected,
+                {"outcome": outcome.value, "test_execution_ref": test_ref},
+                existing["pre_effect_version"] or INITIAL_OBJECT_VERSION,
+            )
+            return self._result(
+                request, started, outcome, state,
+                artifact=str(path), digest=expected, readback=observed, test_ref=test_ref,
+                failure=None if tests_ok else "tests_failed", replayed=True,
+            )
+        return self._result(
+            request, started, Outcome.FAILED, EffectState.MATERIAL_DRIFT,
+            artifact=str(path) if path.exists() else "", digest=expected,
+            readback=observed, failure="orphan_effect_mismatch", replayed=True,
+        )
+
     def _replay(self, request, existing, started) -> MaterialExecutionResult:
         persisted_identity = existing["request_identity"] or ""
         if persisted_identity and persisted_identity != request.identity_digest():
             return self._result(request, started, Outcome.FAILED, EffectState.DENIED,
                                 failure="effect_identity_conflict", replayed=False)
+        receipt = json.loads(existing["receipt"] or "{}")
+        state_name = existing["state"] or EffectState.UNKNOWN.value
+        outcome_name = receipt.get("outcome")
+        if state_name in NONTERMINAL_STATES or not outcome_name:
+            return self._recover_orphan(request, existing, started)
         digest = existing["content_hash"] or ""
         observed = self._provider.readback(request, digest) if existing["artifact"] else None
         if observed is not None and observed.reconciliation != Reconciliation.MATCH:
@@ -362,11 +379,10 @@ class MaterialPlane:
                 artifact=existing["artifact"] or "", digest=digest, readback=observed,
                 failure="material_drift", replayed=True,
             )
-        receipt = json.loads(existing["receipt"] or "{}")
         return self._result(
             request, started,
-            Outcome(receipt.get("outcome", Outcome.SUCCEEDED)),
-            EffectState(existing["state"]),
+            Outcome(outcome_name),
+            EffectState(state_name),
             artifact=existing["artifact"] or "", digest=digest, readback=observed,
             test_ref=receipt.get("test_execution_ref", ""), replayed=True,
         )
@@ -389,8 +405,6 @@ class MaterialPlane:
     def _result(self, request, started, outcome, state, *,
                 artifact="", digest="", readback=None, test_ref="",
                 unknown_at=None, failure=None, replayed=False) -> MaterialExecutionResult:
-        # material claims an actual filesystem effect (or reconciliation of one),
-        # never "this object was emitted by MaterialPlane".
         return MaterialExecutionResult(
             operation_id=request.logical_operation_id,
             effect_id=request.effect_id,
