@@ -54,33 +54,51 @@ class FactoryReceipt:
     failure: str | None = None
     material: bool = False
     artifact_ref: str = ""
+    bound_object: str = ""
 
     @property
     def qualifies_for_handoff(self) -> bool:
-        return self.phase == FactoryPhase.QUALIFY_HANDOFF and not self.promoted
+        return (
+            self.phase == FactoryPhase.QUALIFY_HANDOFF
+            and self.material
+            and bool(self.evidence)
+            and all(item.passed for item in self.evidence)
+            and not self.promoted
+        )
+
+    @property
+    def logical_candidate(self) -> bool:
+        return self.candidate_packaged and not self.material
 
 
 class SoftwareFactory:
-    def __init__(self, boundary: AuthorityBoundary | None = None) -> None:
+    def __init__(self, boundary: AuthorityBoundary | None = None,
+                 available_executors: frozenset[str] | None = None) -> None:
         self._boundary = boundary or AuthorityBoundary()
+        self._executors = available_executors or frozenset({"SOFIA"})
 
     def run(self, *,
             actor: str,
             mission_id: str,
             spec: str,
             executor: str = "SOFIA",
-            workdir: Path | None = None) -> FactoryReceipt:
+            workdir: Path | None = None,
+            bound_object: str = "") -> FactoryReceipt:
         write = self._boundary.decide(actor=actor, kind=MutationKind.EDIT_FILE)
         if not write.allowed:
             return FactoryReceipt(mission_id, FactoryPhase.FAILED, [], failure=write.reason)
+        if executor not in self._executors:
+            return FactoryReceipt(
+                mission_id, FactoryPhase.HOLD, [], failure="executor_unavailable"
+            )
         if not spec.strip():
             return FactoryReceipt(mission_id, FactoryPhase.FAILED, [], failure="empty_spec")
+        object_ref = bound_object or f"object://factory/{mission_id}"
         tasks = [
             FactoryTask(f"{mission_id}-impl", spec, executor),
             FactoryTask(f"{mission_id}-test", f"test:{spec}", executor),
         ]
         if workdir is None:
-            # NON_MATERIAL compatibility path. candidate:// is not a material artifact.
             produced = f"candidate://{mission_id}"
             digest = sha256(produced.encode()).hexdigest()
             evidence = [
@@ -91,6 +109,7 @@ class SoftwareFactory:
             return FactoryReceipt(
                 mission_id, FactoryPhase.QUALIFY_HANDOFF, tasks, evidence,
                 candidate_packaged=True, promoted=False, material=False,
+                bound_object=object_ref,
             )
         plane = MaterialPlane(
             store=DurableEffectStore(Path(workdir) / "factory-effects.db"),
@@ -103,7 +122,7 @@ class SoftwareFactory:
             effect_id=f"factory-{mission_id}",
             program_id="REIS-OS-AUTONOMOUS-MATERIALIZATION-CLOSURE-001",
             actor=actor,
-            bound_object=f"object://factory/{mission_id}",
+            bound_object=object_ref,
             expected_object_version="v0",
             capability="fixture_write",
             authorized_intent_hash=sha256(spec.encode()).hexdigest(),
@@ -120,10 +139,11 @@ class SoftwareFactory:
             return FactoryReceipt(
                 mission_id, FactoryPhase.QUALIFY_HANDOFF, tasks, evidence,
                 candidate_packaged=False, promoted=False, material=True,
-                artifact_ref=executed.material_artifact_ref,
+                artifact_ref=executed.material_artifact_ref, bound_object=object_ref,
             )
         phase = FactoryPhase.HOLD if executed.state.value == "HOLD" else FactoryPhase.FAILED
         return FactoryReceipt(
             mission_id, phase, tasks, failure=executed.failure or executed.outcome.value,
             material=executed.material, artifact_ref=executed.material_artifact_ref,
+            bound_object=object_ref,
         )
