@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from pathlib import Path
 
 from app.materialization.authority import AuthorityBoundary, MutationKind
 from app.materialization.factory import SoftwareFactory
@@ -29,6 +30,7 @@ class CoiReceipt:
     disposition: CoiDisposition
     promoted: bool
     failure: str | None = None
+    material: bool = False
 
 
 class CognitiveOperationalIntegration:
@@ -51,7 +53,8 @@ class CognitiveOperationalIntegration:
                 executor: str = "SOFIA",
                 founder_authorized: bool = False,
                 force_material_failure: bool = False,
-                force_readback_mismatch: bool = False) -> CoiReceipt:
+                force_readback_mismatch: bool = False,
+                workdir: Path | None = None) -> CoiReceipt:
         def done(**kwargs) -> CoiReceipt:
             base = dict(
                 intent=intent,
@@ -60,12 +63,13 @@ class CognitiveOperationalIntegration:
                 executor=executor,
                 plane_cognitive="intent",
                 plane_control="authority",
-                plane_material="factory+engine",
+                plane_material="factory+engine+plane",
                 readback="",
                 evidence_hash="",
                 disposition=CoiDisposition.DENIED,
                 promoted=False,
                 failure=None,
+                material=False,
             )
             base.update(kwargs)
             return CoiReceipt(**base)
@@ -90,7 +94,9 @@ class CognitiveOperationalIntegration:
                 readback="NO_CLAIM_OF_EXECUTION",
             )
 
-        factory = self._factory.run(actor=actor, mission_id=mission_id, spec=intent, executor=executor)
+        factory = self._factory.run(
+            actor=actor, mission_id=mission_id, spec=intent, executor=executor, workdir=workdir
+        )
         loop = self._engine.run(
             actor=actor, mission_id=mission_id, initial_state=bound_object, goal=intent[:12]
         )
@@ -99,23 +105,27 @@ class CognitiveOperationalIntegration:
                 disposition=CoiDisposition.FAILED,
                 failure=factory.failure or loop.failure,
                 readback=factory.failure or loop.failure or "failed",
+                material=factory.material,
             )
         evidence = factory.evidence[-1].content_hash if factory.evidence else ""
-        readback = f"factory={factory.phase.value};loop={loop.termination_reason};object={bound_object}"
+        readback = f"factory={factory.phase.value};loop={loop.termination_reason};object={bound_object};artifact={factory.artifact_ref}"
         if force_readback_mismatch:
             return done(
                 disposition=CoiDisposition.HOLD,
                 failure="readback_mismatch",
                 readback=readback,
                 evidence_hash=evidence,
+                material=factory.material,
             )
         inst = self._boundary.decide(
             actor=actor, kind=MutationKind.GATE_PROMOTION, founder_authorized=founder_authorized
         )
+        disposition = CoiDisposition.CANDIDATE
         return done(
-            disposition=CoiDisposition.CANDIDATE,
+            disposition=disposition,
             promoted=inst.allowed,
             readback=readback,
             evidence_hash=evidence,
             failure=None,
+            material=factory.material,
         )
