@@ -5,6 +5,8 @@ from .contracts import (
     GicaProgramState,
     ProgramTransitionError,
 )
+from .ga7_types import BOUND_HEAD as GA7_BOUND_HEAD
+from .ga7_types import CONTRACT_ID as GA7_CONTRACT_ID
 
 __all__ = [
     "CANONICAL_OCS_ROSTER",
@@ -12,4 +14,6 @@ __all__ = [
     "GicaProgramContract",
     "GicaProgramState",
     "ProgramTransitionError",
+    "GA7_BOUND_HEAD",
+    "GA7_CONTRACT_ID",
 ]
