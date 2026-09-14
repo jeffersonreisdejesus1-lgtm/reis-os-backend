@@ -6,7 +6,9 @@ from enum import StrEnum
 from hashlib import sha256
 from typing import Any
 
-BOUND_HEAD = "1a58599221b44128c08f85ca8e91efbf970c8c04"
+# Historical contract provenance. Candidate identity is supplied by the case and
+# must be checked against the runtime/host identities at their trust boundaries.
+CONTRACT_BOUND_HEAD = "1a58599221b44128c08f85ca8e91efbf970c8c04"
 CONTRACT_ID = "GICA-GA7-MINIMUM-EXECUTION-SUBSTRATE-002"
 EXPECTED_PROGRAM = "GICA"
 EXPECTED_GATE = "GA7"
@@ -126,8 +128,6 @@ class Ga7DiscoveryCaseInput:
             return False, "wrong_program"
         if self.gate_id != EXPECTED_GATE:
             return False, "wrong_gate"
-        if self.bound_head != BOUND_HEAD:
-            return False, "wrong_bound_head"
         if self.policy_version != EXPECTED_POLICY:
             return False, "wrong_policy"
         if self.contract_id != CONTRACT_ID:

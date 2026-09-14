@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 
 from app.gica.ga7_types import (
     ALLOWED_OPERATION,
-    BOUND_HEAD,
     EXPECTED_GATE,
     EXPECTED_POLICY,
     EXPECTED_PROGRAM,
@@ -60,7 +59,7 @@ class Ga7Authority:
             return self._deny(ledger, case, "wrong_program", token.operation)
         if token.gate_id != EXPECTED_GATE or case.gate_id != EXPECTED_GATE:
             return self._deny(ledger, case, "wrong_gate", token.operation)
-        if token.bound_head != BOUND_HEAD or case.bound_head != BOUND_HEAD:
+        if token.bound_head != case.bound_head:
             return self._deny(ledger, case, "wrong_bound_head", token.operation)
         if token.policy_version != EXPECTED_POLICY or case.policy_version != EXPECTED_POLICY:
             return self._deny(ledger, case, "wrong_policy", token.operation)
