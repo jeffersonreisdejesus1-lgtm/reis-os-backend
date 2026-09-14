@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.gica.ga7_types import BOUND_HEAD, EXPECTED_POLICY, Ga7DiscoveryCaseInput
+from app.gica.ga7_types import EXPECTED_POLICY, Ga7DiscoveryCaseInput
 
 
 @dataclass(frozen=True)
@@ -40,7 +40,7 @@ class Ga7CorpusBinder:
             return Ga7BindingReceipt(False, "sealed_holdout_contamination")
         if case.discovery_case_id not in corpus.case_ids:
             return Ga7BindingReceipt(False, "corpus_membership_failure")
-        if corpus.bound_head != BOUND_HEAD or corpus.bound_head != case.bound_head:
+        if corpus.bound_head != case.bound_head:
             return Ga7BindingReceipt(False, "corpus_wrong_head")
         if corpus.policy_version != EXPECTED_POLICY:
             return Ga7BindingReceipt(False, "corpus_wrong_policy")

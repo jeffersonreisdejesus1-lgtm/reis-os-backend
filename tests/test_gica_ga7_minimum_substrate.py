@@ -11,7 +11,6 @@ from app.gica.ga7_corpus import Ga7Baseline, Ga7Corpus
 from app.gica.ga7_ledger import Ga7Ledger, Ga7LedgerError
 from app.gica.ga7_runtime import Ga7HostBinding, Ga7Runtime, Ga7RuntimeManifest
 from app.gica.ga7_types import (
-    BOUND_HEAD,
     CONTRACT_ID,
     Ga7CaseState,
     Ga7DiscoveryCaseInput,
@@ -19,6 +18,7 @@ from app.gica.ga7_types import (
 )
 
 NOW = datetime(2026, 9, 14, 4, 0, tzinfo=timezone.utc)
+CANDIDATE_HEAD = "b" * 40
 _MISSING = object()
 
 
@@ -32,7 +32,7 @@ def _case(**overrides) -> Ga7DiscoveryCaseInput:
         logical_operation_id="op-1",
         discovery_case_id="C1",
         case_version="v1",
-        bound_head=BOUND_HEAD,
+        bound_head=CANDIDATE_HEAD,
         object_version="obj-1",
         policy_version="GICA-AUTHORITY-v1",
         discovery_corpus_ref="corpus://open",
@@ -73,14 +73,14 @@ def _token(**overrides) -> Ga7AuthorityToken:
     base = dict(
         program_id="GICA",
         gate_id="GA7",
-        bound_head=BOUND_HEAD,
+        bound_head=CANDIDATE_HEAD,
         object_version="obj-1",
         policy_version="GICA-AUTHORITY-v1",
         operation="DISCOVERY_CASE_NONMATERIAL",
         issuer="NOESIS-AUTHORITY",
         verifier="SYNESIS-VERIFIER",
         issued_at=NOW - timedelta(minutes=1),
-        expires_at=NOW + timedelta(hours=1),
+        expires_at=NOW + timedelta(days=365),
         scope="DISCOVERY_CASE_NONMATERIAL",
     )
     base.update(overrides)
@@ -114,7 +114,7 @@ def _corpus() -> Ga7Corpus:
         case_ids=frozenset({"C1"}),
         holdout_classification="OPEN",
         policy_version="GICA-AUTHORITY-v1",
-        bound_head=BOUND_HEAD,
+        bound_head=CANDIDATE_HEAD,
     )
 
 
@@ -125,7 +125,7 @@ def _baseline() -> Ga7Baseline:
 def _runtime(tmp_path: Path) -> Ga7Runtime:
     ledger = Ga7Ledger(tmp_path / "ga7.sqlite")
     manifest = Ga7RuntimeManifest(
-        runtime_id="test", runtime_version="1", exact_head=BOUND_HEAD,
+        runtime_id="test", runtime_version="1", exact_head=CANDIDATE_HEAD,
         specialties=frozenset({"SOFIA"}), capabilities=frozenset({"observe"}),
     )
     return Ga7Runtime(ledger, manifest)
@@ -166,9 +166,9 @@ def test_t04_forged_or_stale_authority(tmp_path: Path) -> None:
     assert _run(tmp_path, case=_case(discovery_case_id="C1", case_version="v-forged"), token=forged).failure == "untrusted_issuer_or_verifier"
 
 
-def test_t05_wrong_bound_head() -> None:
-    ok, reason = _case(bound_head="deadbeef").validate()
-    assert reason == "wrong_bound_head"
+def test_t05_candidate_head_is_not_statically_validated() -> None:
+    ok, reason = _case(bound_head="independently-supplied").validate()
+    assert (ok, reason) == (True, "valid")
 
 
 def test_t06_invalid_policy() -> None:
@@ -186,9 +186,9 @@ def test_t07_t08_same_process_replay_idempotent(tmp_path: Path) -> None:
 
 def test_t09_t28_t30_restart_readback(tmp_path: Path) -> None:
     db = tmp_path / "ga7.sqlite"
-    first = Ga7Runtime(Ga7Ledger(db), Ga7RuntimeManifest("t", "1", BOUND_HEAD, frozenset({"SOFIA"}), frozenset({"observe"})))
+    first = Ga7Runtime(Ga7Ledger(db), Ga7RuntimeManifest("t", "1", CANDIDATE_HEAD, frozenset({"SOFIA"}), frozenset({"observe"})))
     produced = first.execute(_case(), _token(), _envelope(), _corpus(), _baseline())
-    second = Ga7Runtime(Ga7Ledger(db), Ga7RuntimeManifest("t", "1", BOUND_HEAD, frozenset({"SOFIA"}), frozenset({"observe"})))
+    second = Ga7Runtime(Ga7Ledger(db), Ga7RuntimeManifest("t", "1", CANDIDATE_HEAD, frozenset({"SOFIA"}), frozenset({"observe"})))
     loaded = second.replay(_case())
     assert loaded.identity_hash == produced.identity_hash
     assert second.ledger.get_budget(SHARED_BUDGET_KEY)["case"] == 1
@@ -293,7 +293,7 @@ def test_t26_corpus_membership_failure(tmp_path: Path) -> None:
 
 def test_t27_sealed_holdout(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
-    sealed = Ga7Corpus("corpus://open", "1", "abc", frozenset({"C1"}), "GA9_SEALED", "GICA-AUTHORITY-v1", BOUND_HEAD, True)
+    sealed = Ga7Corpus("corpus://open", "1", "abc", frozenset({"C1"}), "GA9_SEALED", "GICA-AUTHORITY-v1", CANDIDATE_HEAD, True)
     result = runtime.execute(_case(), _token(), _envelope(), sealed, _baseline())
     assert result.failure == "sealed_holdout_contamination"
 
@@ -310,6 +310,69 @@ def test_t29_replay_no_new_evidence_credit(tmp_path: Path) -> None:
 def test_host_preflight_negative(tmp_path: Path) -> None:
     ledger = Ga7Ledger(tmp_path / "ga7.sqlite")
     bad = Ga7RuntimeManifest("x", "1", "wrong", frozenset(), frozenset(), material_effect_capable=True, max_parallelism=2)
-    result = Ga7HostBinding(bad, ledger, False).preflight()
+    result = Ga7HostBinding(bad, ledger, False).preflight(CANDIDATE_HEAD)
     assert result.status == "HOLD"
     assert "wrong_head" in result.reasons
+
+
+def test_t_head_01_correct_candidate_accepted(tmp_path: Path) -> None:
+    assert _run(tmp_path).disposition is Ga7Disposition.OBSERVED
+
+
+def test_t_head_02_wrong_runtime_candidate_rejected(tmp_path: Path) -> None:
+    runtime = Ga7Runtime(
+        Ga7Ledger(tmp_path / "ga7.sqlite"),
+        Ga7RuntimeManifest("test", "1", "wrong", frozenset({"SOFIA"}), frozenset({"observe"})),
+    )
+    result = runtime.execute(_case(), _token(), _envelope(), _corpus(), _baseline())
+    assert (result.disposition, result.failure) == (Ga7Disposition.HOLD, "wrong_runtime_head")
+
+
+def test_t_head_03_wrong_authority_head_rejected(tmp_path: Path) -> None:
+    result = _run(tmp_path, token=_token(bound_head="wrong"))
+    assert (result.disposition, result.failure) == (Ga7Disposition.DENIED, "wrong_bound_head")
+
+
+def test_t_head_04_wrong_corpus_head_rejected(tmp_path: Path) -> None:
+    corpus = Ga7Corpus(
+        "corpus://open", "1", "abc", frozenset({"C1"}), "OPEN",
+        "GICA-AUTHORITY-v1", "wrong",
+    )
+    result = _runtime(tmp_path).execute(_case(), _token(), _envelope(), corpus, _baseline())
+    assert (result.disposition, result.failure) == (Ga7Disposition.HOLD, "corpus_wrong_head")
+
+
+def test_t_head_05_restart_readback_preserves_identity(tmp_path: Path) -> None:
+    db = tmp_path / "ga7.sqlite"
+    produced = _runtime(tmp_path).execute(_case(), _token(), _envelope(), _corpus(), _baseline())
+    restarted = Ga7Runtime(
+        Ga7Ledger(db),
+        Ga7RuntimeManifest("test", "1", CANDIDATE_HEAD, frozenset({"SOFIA"}), frozenset({"observe"})),
+    )
+    assert restarted.replay(_case()).identity_hash == produced.identity_hash
+
+
+def test_t_head_06_replay_creates_no_duplicate_identity(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    produced = runtime.execute(_case(), _token(), _envelope(), _corpus(), _baseline())
+    receipts_before = runtime.ledger.receipts(_case().case_key())
+    replayed = runtime.replay(_case())
+    assert replayed.identity_hash == produced.identity_hash
+    assert runtime.ledger.receipts(_case().case_key()) == receipts_before
+
+
+def test_t_head_07_through_10_safety_invariants(tmp_path: Path) -> None:
+    case = _case()
+    assert case.material_effect_allowed is False  # T-HEAD-07
+    assert case.max_parallelism == 1  # T-HEAD-08
+    assert case.max_recursion_depth == 0  # T-HEAD-09
+    assert _run(tmp_path, request_ga7_entry=True).failure == "ga7_entry_denied"  # T-HEAD-10
+
+
+def test_host_preflight_expected_candidate_head(tmp_path: Path) -> None:
+    binding = Ga7HostBinding(_runtime(tmp_path).manifest, Ga7Ledger(tmp_path / "host.sqlite"), True)
+    assert binding.preflight(CANDIDATE_HEAD).status == "PASS_CANDIDATE"
+    wrong = binding.preflight("wrong")
+    assert (wrong.status, wrong.reasons) == ("HOLD", ("wrong_head",))
+    missing = binding.preflight()
+    assert (missing.status, missing.reasons) == ("HOLD", ("missing_expected_head",))

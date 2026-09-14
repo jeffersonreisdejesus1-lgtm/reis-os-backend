@@ -8,7 +8,6 @@ from app.gica.ga7_corpus import Ga7Baseline, Ga7Corpus, Ga7CorpusBinder
 from app.gica.ga7_ledger import Ga7Ledger, Ga7LedgerError
 from app.gica.ga7_metrics import Ga7Metrics
 from app.gica.ga7_types import (
-    BOUND_HEAD,
     Ga7CaseState,
     Ga7DiscoveryCaseInput,
     Ga7DiscoveryCaseResult,
@@ -54,9 +53,11 @@ class Ga7HostBinding:
     ledger: Ga7Ledger
     trust_provisioned: bool
 
-    def preflight(self) -> Ga7PreflightResult:
+    def preflight(self, expected_candidate_head: str | None = None) -> Ga7PreflightResult:
         reasons: list[str] = []
-        if self.manifest.exact_head != BOUND_HEAD:
+        if not expected_candidate_head:
+            reasons.append("missing_expected_head")
+        elif self.manifest.exact_head != expected_candidate_head:
             reasons.append("wrong_head")
         if self.manifest.material_effect_capable:
             reasons.append("material_capability")
@@ -112,6 +113,8 @@ class Ga7Runtime:
         valid, reason = case.validate()
         if not valid:
             return self._terminal(case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, reason)
+        if case.bound_head != self.manifest.exact_head:
+            return self._terminal(case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, "wrong_runtime_head")
 
         self.ledger.bind_case(case)
         self.ledger.append_receipt(
