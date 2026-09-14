@@ -1,0 +1,40 @@
+name: REIS OS Materialization Exact-Head Assurance
+
+on:
+  push:
+    branches:
+      - reis-os/materialization-closure-001
+    paths:
+      - .github/workflows/materialization-exact-head-assurance.yml
+
+permissions:
+  contents: read
+
+jobs:
+  exact-head-pytest:
+    runs-on: ubuntu-latest
+    env:
+      TARGET_SHA: e5731eba2ba4da14bed91f6d413d14565974a9a2
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: e5731eba2ba4da14bed91f6d413d14565974a9a2
+          persist-credentials: false
+
+      - name: Verify exact HEAD
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+          git status --porcelain
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install project test dependencies
+        run: python -m pip install -e '.[dev]'
+
+      - name: Run mandatory materialization qualification
+        run: pytest -q tests/test_material_plane.py tests/test_materialization_planes.py
