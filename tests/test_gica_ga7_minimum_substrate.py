@@ -19,6 +19,7 @@ from app.gica.ga7_types import (
 )
 
 NOW = datetime(2026, 9, 14, 4, 0, tzinfo=timezone.utc)
+_MISSING = object()
 
 
 def _case(**overrides) -> Ga7DiscoveryCaseInput:
@@ -130,9 +131,10 @@ def _runtime(tmp_path: Path) -> Ga7Runtime:
     return Ga7Runtime(ledger, manifest)
 
 
-def _run(tmp_path, case=None, token=None, envelope=None, **kwargs):
+def _run(tmp_path, case=None, token=_MISSING, envelope=None, **kwargs):
+    resolved = _token() if token is _MISSING else token
     return _runtime(tmp_path).execute(
-        case or _case(), token if token is not None else _token(), envelope or _envelope(),
+        case or _case(), resolved, envelope or _envelope(),
         _corpus(), _baseline(), **kwargs,
     )
 
