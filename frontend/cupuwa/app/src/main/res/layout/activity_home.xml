@@ -218,7 +218,8 @@
             android:id="@+id/emptyView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:paddingVertical="16dp"
+            android:paddingTop="16dp"
+            android:paddingBottom="16dp"
             android:text="@string/empty"
             android:textColor="@color/cupuwa_muted"
             android:visibility="gone" />
