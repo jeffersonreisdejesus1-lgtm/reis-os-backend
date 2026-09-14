@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
 
 from app.gica.ga7_authority import Ga7Authority, Ga7AuthorityToken
 from app.gica.ga7_controls import Ga7BudgetControl, Ga7BudgetEnvelope
@@ -17,6 +16,12 @@ from app.gica.ga7_types import (
     Ga7EpistemicClass,
     Ga7ReceiptType,
 )
+
+UNRESOLVED_STATES = {
+    Ga7CaseState.UNKNOWN,
+    Ga7CaseState.RECONCILING,
+    Ga7CaseState.STILL_UNKNOWN,
+}
 
 
 @dataclass(frozen=True)
@@ -154,7 +159,14 @@ class Ga7Runtime:
             return self._terminal(case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, "timeout")
         if force_unknown:
             self.ledger.set_state(case.case_key(), Ga7CaseState.UNKNOWN)
-            return self._terminal(case, Ga7CaseState.UNKNOWN, Ga7Disposition.UNKNOWN, "unknown")
+            return Ga7DiscoveryCaseResult(
+                case_key=case.case_key(),
+                identity_hash=case.identity_hash(),
+                state=Ga7CaseState.UNKNOWN,
+                disposition=Ga7Disposition.UNKNOWN,
+                failure="unknown",
+                authority_result="unknown",
+            )
 
         self._busy = True
         try:
@@ -208,7 +220,14 @@ class Ga7Runtime:
     def reconcile_unknown(self, case: Ga7DiscoveryCaseInput) -> Ga7DiscoveryCaseResult:
         self.ledger.set_state(case.case_key(), Ga7CaseState.RECONCILING)
         existing = self.ledger.load_result(case.case_key())
-        if existing is not None:
+        if existing is not None and existing.state not in UNRESOLVED_STATES:
+            self.ledger.append_receipt(
+                receipt_id=f"recon-resolved:{case.case_key()}",
+                case_key=case.case_key(),
+                receipt_type=Ga7ReceiptType.RECONCILIATION,
+                epistemic=Ga7EpistemicClass.REPRODUCED,
+                payload={"resolved": existing.state.value},
+            )
             return existing
         self.ledger.append_receipt(
             receipt_id=f"recon:{case.case_key()}",
