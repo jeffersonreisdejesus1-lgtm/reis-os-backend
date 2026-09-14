@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass, field
 from enum import StrEnum
 from hashlib import sha256
+from pathlib import Path
 
 from app.materialization.authority import AuthorityBoundary, MutationKind
 
@@ -41,16 +43,36 @@ class RecursiveReceipt:
 class RecursiveEngine:
     def __init__(self, *,
                  max_depth: int = 4,
-                 boundary: AuthorityBoundary | None = None) -> None:
+                 boundary: AuthorityBoundary | None = None,
+                 store_path: Path | None = None) -> None:
         if max_depth < 1:
             raise ValueError("max_depth_must_be_positive")
         self._max_depth = max_depth
         self._boundary = boundary or AuthorityBoundary()
         self._seen_missions: set[str] = set()
+        self._store_path = Path(store_path) if store_path else None
+        if self._store_path:
+            self._store_path.parent.mkdir(parents=True, exist_ok=True)
+            with sqlite3.connect(self._store_path) as conn:
+                conn.execute("CREATE TABLE IF NOT EXISTS recursive_runs (replay_key TEXT PRIMARY KEY)")
 
     @staticmethod
     def _state_hash(state: str) -> str:
         return sha256(state.encode()).hexdigest()
+
+    def _seen(self, key: str) -> bool:
+        if self._store_path:
+            with sqlite3.connect(self._store_path) as conn:
+                row = conn.execute("SELECT 1 FROM recursive_runs WHERE replay_key=?", (key,)).fetchone()
+                return row is not None
+        return key in self._seen_missions
+
+    def _remember(self, key: str) -> None:
+        if self._store_path:
+            with sqlite3.connect(self._store_path) as conn:
+                conn.execute("INSERT OR IGNORE INTO recursive_runs(replay_key) VALUES (?)", (key,))
+            return
+        self._seen_missions.add(key)
 
     def run(self, *,
             actor: str,
@@ -66,7 +88,7 @@ class RecursiveEngine:
                 termination_reason="authority_denied",
             )
         replay_key = f"{mission_id}:{initial_state}:{goal}"
-        if replay_key in self._seen_missions:
+        if self._seen(replay_key):
             return RecursiveReceipt(
                 mission_id=mission_id,
                 terminated=True,
@@ -74,7 +96,7 @@ class RecursiveEngine:
                 authority_gained=False,
                 replayed=True,
             )
-        self._seen_missions.add(replay_key)
+        self._remember(replay_key)
 
         state = initial_state
         seen_states: set[str] = {state}
@@ -94,11 +116,7 @@ class RecursiveEngine:
                 )
             digest = self._state_hash(executed)
             if executed in seen_states:
-                records.append(
-                    IterationRecord(
-                        index, CyclePhase.FAILED, executed, digest, executed, "cycle"
-                    )
-                )
+                records.append(IterationRecord(index, CyclePhase.FAILED, executed, digest, executed, "cycle"))
                 return RecursiveReceipt(
                     mission_id=mission_id,
                     iterations=records,
