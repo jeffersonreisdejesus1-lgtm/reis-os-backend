@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.jsonsoftware.cupuwa"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.jsonsoftware.cupuwa"
         minSdk = 23
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 4
         versionName = "0.3.0-mvp"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
