@@ -1,0 +1,53 @@
+name: Command Android Static Accessibility Proof
+
+on:
+  pull_request:
+    paths:
+      - 'frontend/command-android/**'
+      - '.github/workflows/command-android-static-accessibility-proof.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-accessibility-proof:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Run Android lint, unit tests, and debug assembly
+        run: gradle --no-daemon -p frontend/command-android lintDebug testDebugUnitTest assembleDebug
+
+      - name: Assert lint report exists
+        run: test -f frontend/command-android/build/reports/lint-results-debug.html
+
+      - name: Assert debug AAR exists
+        run: |
+          test -f frontend/command-android/build/outputs/aar/command-android-debug.aar || \
+          test -n "$(find frontend/command-android/build/outputs/aar -maxdepth 1 -name '*-debug.aar' -print -quit)"
+
+      - name: Boundary statement
+        run: |
+          echo 'STATIC_ACCESSIBILITY_STRUCTURE_ONLY=true'
+          echo 'REAL_DEVICE_ACCESSIBILITY_NOT_PROVEN=true'
+          echo 'TALKBACK_DEVICE_TRAVERSAL_NOT_PROVEN=true'
+          echo 'FOCUS_ORDER_ON_DEVICE_NOT_PROVEN=true'
+          echo 'CONTRAST_DEVICE_VALIDATION_NOT_PROVEN=true'
