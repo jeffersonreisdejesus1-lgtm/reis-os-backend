@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from enum import Enum
 from types import MappingProxyType
 
+from app.gica.durable_ledger import LedgerUnknown, ledger
+
 
 CANONICAL_OCS_ROSTER = (
     "NÓESIS", "DÉDALA", "SÝNESIS", "ÍRIS", "LYRA", "SOFIA",
@@ -57,9 +59,6 @@ _NEXT_GATE = {
 }
 _ASSURANCE_REQUIRED_GATES = frozenset({GicaGate.GA2, GicaGate.GA11})
 
-# Institutional trust policy is not a transaction-call input. Identities and
-# frozen policy registries are code-owned; key material is captured once from
-# the runtime composition root at import/bootstrap. Missing keys fail closed.
 _VERIFIER_ID = "SYNESIS-VERIFIER"
 _AUTHORITY_ISSUER = "NOESIS-AUTHORITY"
 _EVIDENCE_ISSUER = "SYNESIS-EVIDENCE"
@@ -69,8 +68,6 @@ _ALLOWED_ASSURERS = MappingProxyType({gate: frozenset({"SYNESIS"}) for gate in G
 _INDEPENDENT_ASSURERS = frozenset({"SYNESIS"})
 
 _TRANSITION_LOCK = threading.RLock()
-_TRANSITION_LEDGER: dict[tuple[object, ...], tuple[str, object]] = {}
-_FOUNDER_LEDGER: dict[tuple[object, ...], "GicaProgramContract"] = {}
 _CRITERIA_VERSIONS = MappingProxyType({gate: f"{gate.name}-CRITERIA-v1" for gate in GicaGate})
 
 
@@ -91,6 +88,12 @@ def _require_text(value: str, error: str) -> None:
 
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _dt(value: str | datetime) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(value)
 
 
 @dataclass(frozen=True)
@@ -294,6 +297,67 @@ def _make_trust_resolver():
 _resolve_institutional_trust = _make_trust_resolver()
 
 
+def _dump_contract(contract: "GicaProgramContract") -> str:
+    payload: dict = {
+        "program_id": contract.program_id,
+        "gate": contract.gate.value,
+        "object_version": contract.object_version,
+        "state": contract.state.value,
+        "gate_history": [gate.value for gate in contract.gate_history],
+        "committed_generation": contract.committed_generation,
+        "transition_receipt": None,
+    }
+    if contract.transition_receipt is not None:
+        payload["transition_receipt"] = asdict(contract.transition_receipt)
+        payload["transition_receipt"]["from_gate"] = contract.transition_receipt.from_gate.value
+        payload["transition_receipt"]["to_gate"] = contract.transition_receipt.to_gate.value
+        payload["transition_receipt"]["resulting_state"] = contract.transition_receipt.resulting_state.value
+        payload["transition_receipt"]["issued_at"] = contract.transition_receipt.issued_at.isoformat()
+        payload["transition_receipt"]["expires_at"] = contract.transition_receipt.expires_at.isoformat()
+    return json.dumps(payload, sort_keys=True)
+
+
+def _load_contract(blob: str) -> "GicaProgramContract":
+    data = json.loads(blob)
+    if not data.get("gate") or not data.get("program_id"):
+        raise ProgramTransitionError("ledger_record_unknown")
+    receipt = None
+    raw = data.get("transition_receipt")
+    if raw:
+        receipt = TransitionReceipt(
+            raw["program_id"], raw["object_version"], GicaGate(raw["from_gate"]), GicaGate(raw["to_gate"]),
+            GicaProgramState(raw["resulting_state"]), raw["criteria_version"], raw["issuer"], raw["verifier"],
+            _dt(raw["issued_at"]), _dt(raw["expires_at"]), raw["policy_version"], raw["provenance"], raw["signature"],
+        )
+    return GicaProgramContract(
+        data["program_id"], GicaGate(data["gate"]), data["object_version"],
+        GicaProgramState(data["state"]), tuple(GicaGate(item) for item in data.get("gate_history") or ()),
+        receipt, int(data.get("committed_generation") or 1),
+    )
+
+
+def _predecessor_key(contract: "GicaProgramContract") -> tuple[object, ...]:
+    return (
+        contract.program_id,
+        contract.object_version,
+        contract.gate.value,
+        contract.state.value,
+        tuple(gate.value for gate in contract.gate_history),
+        contract.committed_generation,
+    )
+
+
+def _read_prior(predecessor: tuple[object, ...]) -> tuple[str, "GicaProgramContract"] | None:
+    try:
+        row = ledger().get_transition(predecessor)
+    except LedgerUnknown as exc:
+        raise ProgramTransitionError("ledger_record_unknown") from exc
+    if row is None:
+        return None
+    logical_id, blob, _generation = row
+    return logical_id, _load_contract(blob)
+
+
 @dataclass(frozen=True)
 class GicaProgramContract:
     program_id: str
@@ -302,6 +366,7 @@ class GicaProgramContract:
     state: GicaProgramState = GicaProgramState.ACTIVE
     gate_history: tuple[GicaGate, ...] = field(default_factory=tuple)
     transition_receipt: TransitionReceipt | None = None
+    committed_generation: int = 0
 
     def validate_roster(self) -> None:
         if len(CANONICAL_OCS_ROSTER) != 11:
@@ -323,34 +388,34 @@ class GicaProgramContract:
         root.verify_authority(authority, program_id=self.program_id, operation=f"transition:{self.gate.name}->{target.name}", object_version=self.object_version, now=effective_now)
         root.verify_gate_evidence(gate_evidence, program_id=self.program_id, gate=self.gate, object_version=self.object_version, now=effective_now)
         logical_id = operation_id or hashlib.sha256(_canonical_payload(authority) + _canonical_payload(gate_evidence)).hexdigest()
-        predecessor = (self.program_id, self.object_version, self.gate, self.state, self.gate_history)
-        ledger_key = predecessor + (logical_id,)
+        predecessor = _predecessor_key(self)
         with _TRANSITION_LOCK:
-            prior = _TRANSITION_LEDGER.get(predecessor)
+            prior = _read_prior(predecessor)
             if prior is not None:
                 if prior[0] == logical_id:
-                    return prior[1]  # type: ignore[return-value]
+                    return prior[1]
                 raise ProgramTransitionError("canonical_predecessor_already_committed")
-        receipt = None
-        if self.gate is GicaGate.GA11 and target is GicaGate.GA12:
-            value = TransitionReceipt(self.program_id, self.object_version, self.gate, target,
-                GicaProgramState.READY_FOR_FOUNDER, _CRITERIA_VERSIONS[self.gate],
-                _EVIDENCE_ISSUER, _VERIFIER_ID, effective_now, gate_evidence.expires_at,
-                _POLICY_VERSION, f"governed-transition:{self.program_id}:{self.object_version}:GA11->GA12", "")
-            receipt = replace(value, signature=_expected_signature(value, root.gate_evidence_key))
-        successor = GicaProgramContract(
-            program_id=self.program_id, gate=target, object_version=self.object_version,
-            state=GicaProgramState.READY_FOR_FOUNDER if target is GicaGate.GA12 else GicaProgramState.ACTIVE,
-            gate_history=self.gate_history + (self.gate,), transition_receipt=receipt,
-        )
-        with _TRANSITION_LOCK:
-            prior = _TRANSITION_LEDGER.get(predecessor)
-            if prior is not None:
-                if prior[0] == logical_id:
-                    return prior[1]  # type: ignore[return-value]
+            receipt = None
+            if self.gate is GicaGate.GA11 and target is GicaGate.GA12:
+                value = TransitionReceipt(self.program_id, self.object_version, self.gate, target,
+                    GicaProgramState.READY_FOR_FOUNDER, _CRITERIA_VERSIONS[self.gate],
+                    _EVIDENCE_ISSUER, _VERIFIER_ID, effective_now, gate_evidence.expires_at,
+                    _POLICY_VERSION, f"governed-transition:{self.program_id}:{self.object_version}:GA11->GA12", "")
+                receipt = replace(value, signature=_expected_signature(value, root.gate_evidence_key))
+            next_generation = self.committed_generation + 1
+            successor = GicaProgramContract(
+                program_id=self.program_id, gate=target, object_version=self.object_version,
+                state=GicaProgramState.READY_FOR_FOUNDER if target is GicaGate.GA12 else GicaProgramState.ACTIVE,
+                gate_history=self.gate_history + (self.gate,), transition_receipt=receipt,
+                committed_generation=next_generation,
+            )
+            committed_logical, committed_blob, _gen = ledger().commit_transition(
+                predecessor, logical_id, _dump_contract(successor)
+            )
+            recovered = _load_contract(committed_blob)
+            if committed_logical != logical_id:
                 raise ProgramTransitionError("canonical_predecessor_already_committed")
-            _TRANSITION_LEDGER[predecessor] = (logical_id, successor)
-        return successor
+            return recovered
 
     def founder_promote(self, *, authorization: FounderAuthorizationEvidence | None, now: datetime | None = None) -> "GicaProgramContract":
         if self.gate is not GicaGate.GA12:
@@ -364,11 +429,17 @@ class GicaProgramContract:
         root.verify_founder_authorization(
             authorization, program_id=self.program_id, object_version=self.object_version, now=now or _utc_now()
         )
-        founder_key = (self.program_id, self.object_version, self.gate, self.gate_history, authorization.signature if authorization else None)
+        founder_key = (self.program_id, self.object_version, self.gate.value, tuple(g.value for g in self.gate_history), authorization.signature if authorization else None)
         with _TRANSITION_LOCK:
-            prior = _FOUNDER_LEDGER.get(founder_key)
-            if prior is not None:
-                return prior
-            successor = GicaProgramContract(self.program_id, self.gate, self.object_version, GicaProgramState.COMPLETE, self.gate_history, self.transition_receipt)
-            _FOUNDER_LEDGER[founder_key] = successor
-            return successor
+            try:
+                prior_blob = ledger().get_founder(founder_key)
+            except LedgerUnknown as exc:
+                raise ProgramTransitionError("ledger_record_unknown") from exc
+            if prior_blob is not None:
+                return _load_contract(prior_blob)
+            successor = GicaProgramContract(
+                self.program_id, self.gate, self.object_version, GicaProgramState.COMPLETE,
+                self.gate_history, self.transition_receipt, self.committed_generation + 1,
+            )
+            blob = ledger().commit_founder(founder_key, _dump_contract(successor))
+            return _load_contract(blob)
