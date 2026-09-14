@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 from app.gica.ga7_ledger import Ga7Ledger
 
@@ -27,6 +27,8 @@ COUNTER_MAP = {
     "case": "MAX_DISCOVERY_CASES",
     "pivot": "MAX_PIVOTS",
 }
+
+SHARED_BUDGET_KEY = "GA7_SHARED_BUDGET"
 
 
 @dataclass(frozen=True)
@@ -64,14 +66,15 @@ class Ga7BudgetControl:
         self.envelope = envelope
         self.ledger = ledger
         self.case_key = case_key
+        self.store_key = envelope.stop_rules_ref or SHARED_BUDGET_KEY
         ok, reason = envelope.validate_profile()
         self.reason = reason
         self.active = ok
-        if ok and not ledger.get_budget(case_key):
-            ledger.put_budget(case_key, {name: 0 for name in COUNTER_MAP})
+        if ok and not ledger.get_budget(self.store_key):
+            ledger.put_budget(self.store_key, {name: 0 for name in COUNTER_MAP})
 
     def counters(self) -> dict:
-        return self.ledger.get_budget(self.case_key)
+        return self.ledger.get_budget(self.store_key)
 
     def allow(self, kind: str) -> tuple[bool, str]:
         if not self.active:
@@ -85,5 +88,5 @@ class Ga7BudgetControl:
             return False, "budget_exhausted"
         snapshot = self.counters()
         snapshot[kind] = used + 1
-        self.ledger.put_budget(self.case_key, snapshot)
+        self.ledger.put_budget(self.store_key, snapshot)
         return True, "allow"
