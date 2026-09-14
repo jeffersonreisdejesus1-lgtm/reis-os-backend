@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.gica.ga7_authority import Ga7AuthorityToken
-from app.gica.ga7_controls import Ga7BudgetEnvelope
+from app.gica.ga7_controls import SHARED_BUDGET_KEY, Ga7BudgetEnvelope
 from app.gica.ga7_corpus import Ga7Baseline, Ga7Corpus
 from app.gica.ga7_ledger import Ga7Ledger, Ga7LedgerError
 from app.gica.ga7_runtime import Ga7HostBinding, Ga7Runtime, Ga7RuntimeManifest
@@ -189,7 +189,7 @@ def test_t09_t28_t30_restart_readback(tmp_path: Path) -> None:
     second = Ga7Runtime(Ga7Ledger(db), Ga7RuntimeManifest("t", "1", BOUND_HEAD, frozenset({"SOFIA"}), frozenset({"observe"})))
     loaded = second.replay(_case())
     assert loaded.identity_hash == produced.identity_hash
-    assert second.ledger.get_budget(_case().case_key())["case"] == 1
+    assert second.ledger.get_budget(SHARED_BUDGET_KEY)["case"] == 1
 
 
 def test_t10_duplicate_receipt_idempotent(tmp_path: Path) -> None:
@@ -286,7 +286,7 @@ def test_t25_unavailable_specialty(tmp_path: Path) -> None:
 def test_t26_corpus_membership_failure(tmp_path: Path) -> None:
     runtime = _runtime(tmp_path)
     result = runtime.execute(_case(discovery_case_id="CX"), _token(), _envelope(), _corpus(), _baseline())
-    assert result.failure in {"corpus_membership_failure", "missing_corpus"} or result.disposition is Ga7Disposition.HOLD
+    assert result.failure == "corpus_membership_failure"
 
 
 def test_t27_sealed_holdout(tmp_path: Path) -> None:
