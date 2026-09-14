@@ -21,8 +21,7 @@ object LedgerMath {
         val normalized = when {
             trimmed.contains(',') && trimmed.contains('.') ->
                 trimmed.replace(".", "").replace(',', '.')
-            trimmed.contains(',') ->
-                trimmed.replace(',', '.')
+            trimmed.contains(',') -> trimmed.replace(',', '.')
             else -> trimmed
         }
         require(normalized.matches(Regex("\\d+(\\.\\d{1,2})?"))) { "Valor inválido" }
@@ -59,11 +58,27 @@ object LedgerMath {
         return cal.timeInMillis
     }
 
-    fun todayTotals(entries: List<MoneyEntry>, now: Long = System.currentTimeMillis()): Pair<Long, Long> {
-        val start = startOfDayMillis(now)
-        val today = entries.filter { it.createdAtMillis >= start }
-        val income = today.filter { it.kind == MoneyEntry.Kind.INCOME }.sumOf { it.cents }
-        val expense = today.filter { it.kind == MoneyEntry.Kind.EXPENSE }.sumOf { it.cents }
+    fun startOfMonthMillis(now: Long = System.currentTimeMillis()): Long {
+        val cal = Calendar.getInstance()
+        cal.timeInMillis = now
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        cal.set(Calendar.HOUR_OF_DAY, 0)
+        cal.set(Calendar.MINUTE, 0)
+        cal.set(Calendar.SECOND, 0)
+        cal.set(Calendar.MILLISECOND, 0)
+        return cal.timeInMillis
+    }
+
+    fun totalsSince(entries: List<MoneyEntry>, startMillis: Long): Pair<Long, Long> {
+        val scoped = entries.filter { it.createdAtMillis >= startMillis }
+        val income = scoped.filter { it.kind == MoneyEntry.Kind.INCOME }.sumOf { it.cents }
+        val expense = scoped.filter { it.kind == MoneyEntry.Kind.EXPENSE }.sumOf { it.cents }
         return income to expense
     }
+
+    fun todayTotals(entries: List<MoneyEntry>, now: Long = System.currentTimeMillis()): Pair<Long, Long> =
+        totalsSince(entries, startOfDayMillis(now))
+
+    fun monthTotals(entries: List<MoneyEntry>, now: Long = System.currentTimeMillis()): Pair<Long, Long> =
+        totalsSince(entries, startOfMonthMillis(now))
 }
