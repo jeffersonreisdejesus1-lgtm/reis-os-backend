@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="cupuwa_ink">#2A1C48</color>
-    <color name="cupuwa_accent">#5B3CC4</color>
-    <color name="cupuwa_surface">#F6F3FF</color>
-    <color name="cupuwa_card">#FFFFFF</color>
-    <color name="cupuwa_income">#1B7A4A</color>
-    <color name="cupuwa_expense">#B42318</color>
-    <color name="cupuwa_muted">#6B6280</color>
+    <color name="cupuwa_ink">#211633</color><color name="cupuwa_accent">#6842D9</color><color name="cupuwa_accent_soft">#E8DFFF</color>
+    <color name="cupuwa_surface">#F7F5FA</color><color name="cupuwa_card">#FFFFFF</color><color name="cupuwa_income">#167451</color>
+    <color name="cupuwa_expense">#B13B46</color><color name="cupuwa_muted">#716A79</color><color name="cupuwa_line">#E8E3EC</color>
+    <color name="cupuwa_warm">#F1EBDD</color>
 </resources>
