@@ -258,3 +258,17 @@ def test_t02_real_process_concurrency_single_successor(tmp_path: Path) -> None:
     ]
     results = [process.communicate(timeout=30) for process in processes]
     assert all(process.returncode == 0 for process in processes), results
+
+
+def test_pending_transition_reconciles_idempotently(tmp_path: Path) -> None:
+    path = tmp_path / "gica-pending.sqlite"
+    durable = reset_ledger(path)
+    predecessor = ("P-PENDING", "v1", "GA0_BOOTSTRAP", "ACTIVE", (), 0)
+    prepared = durable.prepare_transition(
+        predecessor, "op-pending", '{"gate":"GA1"}'
+    )
+    assert durable.get_pending(predecessor) == prepared
+    reopened = type(durable)(path)
+    assert reopened.reconcile_transition(predecessor) == prepared
+    assert reopened.get_pending(predecessor) is None
+    assert reopened.reconcile_transition(predecessor) == prepared
