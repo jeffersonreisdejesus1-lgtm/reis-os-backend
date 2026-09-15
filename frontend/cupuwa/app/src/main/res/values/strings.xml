@@ -12,5 +12,6 @@
     <string name="planning">Planejamento</string><string name="insights">Leitura do seu mês</string><string name="accounts">Contas e carteiras</string>
     <string name="budget_empty">Crie limites por categoria para acompanhar seus gastos.</string><string name="goal_empty">Transforme planos em metas financeiras acompanháveis.</string>
     <string name="nav_home">Início</string><string name="nav_movements">Movimentos</string><string name="nav_plan">Planejar</string><string name="nav_insights">Insights</string><string name="nav_settings">Ajustes</string>
+    <string name="section_plan">Planejamento</string><string name="section_settings">Ajustes</string><string name="section_plan_body">Orçamentos e metas serão acompanhados aqui, com dados locais e explicações claras.</string><string name="section_settings_body">Seus dados permanecem neste aparelho. Aqui ficarão perfil, privacidade e gerenciamento dos dados.</string>
 </resources>
 
