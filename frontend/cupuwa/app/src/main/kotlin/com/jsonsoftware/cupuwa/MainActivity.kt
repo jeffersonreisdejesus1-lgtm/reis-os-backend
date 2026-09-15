@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         setContentView(R.layout.activity_home)
+        LedgerMath.configureMoneyInput(findViewById(R.id.amountInput))
         store = LocalLedgerStore(this)
         adapter = MovementAdapter({ startEdit(it) }, { confirmDelete(it) })
         findViewById<RecyclerView>(R.id.historyList).apply { layoutManager = LinearLayoutManager(this@MainActivity); adapter = this@MainActivity.adapter }
