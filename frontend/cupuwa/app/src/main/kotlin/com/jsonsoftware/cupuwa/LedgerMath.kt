@@ -17,17 +17,32 @@ data class MoneyEntry(
 }
 
 object LedgerMath {
-    fun parseCents(raw: String): Long {
+    fun parseCents(raw: String): Long = parse(raw, allowZero = false)
+
+    fun parseCentsAllowZero(raw: String): Long = parse(raw, allowZero = true)
+
+    private fun parse(raw: String, allowZero: Boolean): Long {
         val trimmed = raw.trim().replace("R$", "", ignoreCase = true).replace(" ", "")
         require(trimmed.isNotEmpty()) { "Valor obrigatório" }
+        require(!trimmed.startsWith("-") && !trimmed.startsWith("+")) { "Valor inválido" }
+
         val normalized = when {
-            trimmed.contains(',') && trimmed.contains('.') -> trimmed.replace(".", "").replace(',', '.')
+            trimmed.matches(Regex("\\d{1,3}([.,]\\d{3})+")) -> trimmed.replace(",", "").replace(".", "")
+            trimmed.contains(",") && trimmed.contains(".") -> {
+                val decimal = maxOf(trimmed.lastIndexOf(','), trimmed.lastIndexOf('.'))
+                val integer = trimmed.substring(0, decimal).replace(",", "").replace(".", "")
+                val fraction = trimmed.substring(decimal + 1)
+                require(fraction.length in 1..2) { "Use no máximo duas casas decimais" }
+                "$integer.$fraction"
+            }
+            trimmed.count { it == ',' } > 1 || trimmed.count { it == '.' } > 1 -> error("Valor inválido")
             trimmed.contains(',') -> trimmed.replace(',', '.')
             else -> trimmed
         }
         require(normalized.matches(Regex("\\d+(\\.\\d{1,2})?"))) { "Valor inválido" }
-        return BigDecimal(normalized).setScale(2, RoundingMode.HALF_UP).movePointRight(2).longValueExact()
-            .also { require(it > 0) { "O valor deve ser maior que zero" } }
+        val cents = BigDecimal(normalized).setScale(2, RoundingMode.UNNECESSARY).movePointRight(2).longValueExact()
+        require(allowZero || cents > 0) { "O valor deve ser maior que zero" }
+        return cents
     }
 
     fun formatBrl(cents: Long): String {

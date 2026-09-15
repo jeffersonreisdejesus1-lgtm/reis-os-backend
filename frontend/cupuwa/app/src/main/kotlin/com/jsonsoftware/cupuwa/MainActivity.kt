@@ -26,8 +26,15 @@ class MainActivity : AppCompatActivity() {
     private var categories: List<Category> = emptyList()
 
     override fun onCreate(state: Bundle?) {
-        super.onCreate(state); setContentView(R.layout.activity_home)
-        store = LocalLedgerStore(this); product = ProductStore(this)
+        super.onCreate(state)
+        product = ProductStore(this)
+        if (!product.profile().onboardingComplete) {
+            startActivity(Intent(this, OnboardingActivity::class.java))
+            finish()
+            return
+        }
+        setContentView(R.layout.activity_home)
+        store = LocalLedgerStore(this)
         adapter = MovementAdapter({ startEdit(it) }, { confirmDelete(it) })
         findViewById<RecyclerView>(R.id.historyList).apply { layoutManager = LinearLayoutManager(this@MainActivity); adapter = this@MainActivity.adapter }
         findViewById<MaterialButton>(R.id.incomeButton).setOnClickListener { save(MoneyEntry.Kind.INCOME) }
@@ -52,7 +59,8 @@ class MainActivity : AppCompatActivity() {
             val cents = LedgerMath.parseCents(amount.text?.toString().orEmpty()); val note = description.text?.toString().orEmpty().trim()
             val selectedName = findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).text?.toString().orEmpty()
             val categoryId = categories.firstOrNull { it.name == selectedName && it.kind == kind }?.id
-            val id = editingId; if (id == null) store.add(cents, kind, note, categoryId = categoryId) else store.update(id, cents, kind, note, categoryId = categoryId)
+            val accountId = product.activeAccountId()
+            val id = editingId; if (id == null) store.add(cents, kind, note, accountId = accountId, categoryId = categoryId) else store.update(id, cents, kind, note, accountId = accountId, categoryId = categoryId)
             clearEditor(); refresh()
         }.onFailure { Toast.makeText(this, it.message ?: getString(R.string.invalid_value), Toast.LENGTH_SHORT).show() }
     }

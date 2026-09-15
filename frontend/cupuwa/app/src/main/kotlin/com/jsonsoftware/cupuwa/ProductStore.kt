@@ -11,6 +11,8 @@ class ProductStore(context: Context) {
         return if (f.size == 3) LocalProfile(f[0], f[1].toLongOrNull() ?: 0, f[2] == "1") else LocalProfile()
     }
     fun saveProfile(value: LocalProfile) { p.edit().putString("profile", listOf(value.name, value.monthlyIncomeCents, if (value.onboardingComplete) 1 else 0).joinToString(fs)).commit() }
+    fun activeAccountId(): Long? = p.getLong("active_account_id", -1L).takeIf { it > 0 }
+    fun setActiveAccount(id: Long) { p.edit().putLong("active_account_id", id).commit() }
 
     fun accounts(): List<Account> = decode("accounts") { f -> Account(f[0].toLong(), f[1], Account.Type.valueOf(f[2]), f[3].toLong(), f.getOrNull(4) == "1") }
     fun saveAccount(name: String, type: Account.Type, opening: Long): Account {

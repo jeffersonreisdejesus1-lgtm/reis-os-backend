@@ -17,6 +17,7 @@
         </activity>
         <activity android:name=".SectionActivity" />
         <activity android:name=".MovementActivity" />
+        <activity android:name=".OnboardingActivity" />
     </application>
 </manifest>
 
