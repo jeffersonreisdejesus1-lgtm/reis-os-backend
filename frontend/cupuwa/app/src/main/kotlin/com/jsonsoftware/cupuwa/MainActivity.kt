@@ -24,6 +24,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: MovementAdapter
     private var editingId: Long? = null
     private var categories: List<Category> = emptyList()
+    private var saveInProgress = false
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -54,6 +55,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun save(kind: MoneyEntry.Kind) {
+        if (saveInProgress) return
+        saveInProgress = true
+        val incomeButton = findViewById<MaterialButton>(R.id.incomeButton)
+        val expenseButton = findViewById<MaterialButton>(R.id.expenseButton)
+        incomeButton.isEnabled = false
+        expenseButton.isEnabled = false
         val amount = findViewById<TextInputEditText>(R.id.amountInput); val description = findViewById<TextInputEditText>(R.id.descriptionInput)
         runCatching {
             val cents = LedgerMath.parseCents(amount.text?.toString().orEmpty()); val note = description.text?.toString().orEmpty().trim()
@@ -63,6 +70,9 @@ class MainActivity : AppCompatActivity() {
             val id = editingId; if (id == null) store.add(cents, kind, note, accountId = accountId, categoryId = categoryId) else store.update(id, cents, kind, note, accountId = accountId, categoryId = categoryId)
             clearEditor(); refresh()
         }.onFailure { Toast.makeText(this, it.message ?: getString(R.string.invalid_value), Toast.LENGTH_SHORT).show() }
+        saveInProgress = false
+        incomeButton.isEnabled = true
+        expenseButton.isEnabled = true
     }
 
     private fun startEdit(entry: MoneyEntry) {

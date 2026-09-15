@@ -61,4 +61,24 @@ class LedgerMathTest {
     @Test fun rejectsZero() {
         assertFailsWith<IllegalArgumentException> { LedgerMath.parseCents("0") }
     }
+    @Test fun acceptsBrazilianAndUsFormats() {
+        assertEquals(1000L, LedgerMath.parseCents("10"))
+        assertEquals(1050L, LedgerMath.parseCents("10,5"))
+        assertEquals(1050L, LedgerMath.parseCents("10.50"))
+        assertEquals(123456L, LedgerMath.parseCents("1.234,56"))
+        assertEquals(123456L, LedgerMath.parseCents("1,234.56"))
+    }
+
+    @Test fun acceptsZeroOnlyForOpeningBalance() {
+        assertFailsWith<IllegalArgumentException> { LedgerMath.parseCents("0") }
+        assertEquals(0L, LedgerMath.parseCentsAllowZero("0"))
+    }
+
+    @Test fun rejectsInvalidMoney() {
+        listOf("", "-1", "abc", "1,2,3", "1.234.567,891").forEach {
+            assertFailsWith<IllegalArgumentException> { LedgerMath.parseCents(it) }
+        }
+    }
+
 }
+
