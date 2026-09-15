@@ -53,7 +53,9 @@ class Ga7HostBinding:
     ledger: Ga7Ledger
     trust_provisioned: bool
 
-    def preflight(self, expected_candidate_head: str | None = None) -> Ga7PreflightResult:
+    def preflight(
+        self, expected_candidate_head: str | None = None
+    ) -> Ga7PreflightResult:
         reasons: list[str] = []
         if not expected_candidate_head:
             reasons.append("missing_expected_head")
@@ -65,7 +67,11 @@ class Ga7HostBinding:
             reasons.append("parallelism")
         if self.manifest.max_recursion_depth != 0:
             reasons.append("recursion")
-        if self.manifest.can_merge or self.manifest.can_promote or self.manifest.can_founder:
+        if (
+            self.manifest.can_merge
+            or self.manifest.can_promote
+            or self.manifest.can_founder
+        ):
             reasons.append("promotion_or_founder_capability")
         if not self.trust_provisioned:
             reasons.append("trust_unavailable")
@@ -102,19 +108,34 @@ class Ga7Runtime:
         force_readback_failure: bool = False,
     ) -> Ga7DiscoveryCaseResult:
         if request_parallel or self._busy:
-            return self._terminal(case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, "parallelism_denied")
+            return self._terminal(
+                case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, "parallelism_denied"
+            )
         if request_recursion:
-            return self._terminal(case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, "recursion_denied")
+            return self._terminal(
+                case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, "recursion_denied"
+            )
         if request_ga7_entry:
-            return self._terminal(case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, "ga7_entry_denied")
+            return self._terminal(
+                case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, "ga7_entry_denied"
+            )
         if request_self_promote:
-            return self._terminal(case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, "self_promotion_denied")
+            return self._terminal(
+                case,
+                Ga7CaseState.DENIED,
+                Ga7Disposition.DENIED,
+                "self_promotion_denied",
+            )
 
         valid, reason = case.validate()
         if not valid:
-            return self._terminal(case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, reason)
+            return self._terminal(
+                case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, reason
+            )
         if case.bound_head != self.manifest.exact_head:
-            return self._terminal(case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, "wrong_runtime_head")
+            return self._terminal(
+                case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, "wrong_runtime_head"
+            )
 
         self.ledger.bind_case(case)
         self.ledger.append_receipt(
@@ -127,26 +148,53 @@ class Ga7Runtime:
 
         admission = self.authority.admit(case, token, self.ledger)
         if not admission.admitted:
-            return self._terminal(case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, admission.reason)
+            return self._terminal(
+                case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, admission.reason
+            )
 
         binding = self.corpus.bind(case, corpus, baseline)
         if not binding.ok:
-            state = Ga7CaseState.ABORTED if binding.reason == "sealed_holdout_contamination" else Ga7CaseState.HOLD
-            disp = Ga7Disposition.ABORTED if state is Ga7CaseState.ABORTED else Ga7Disposition.HOLD
+            state = (
+                Ga7CaseState.ABORTED
+                if binding.reason == "sealed_holdout_contamination"
+                else Ga7CaseState.HOLD
+            )
+            disp = (
+                Ga7Disposition.ABORTED
+                if state is Ga7CaseState.ABORTED
+                else Ga7Disposition.HOLD
+            )
             return self._terminal(case, state, disp, binding.reason)
 
         budget = Ga7BudgetControl(envelope, self.ledger, case.case_key())
         if not budget.active:
-            return self._terminal(case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, budget.reason)
+            return self._terminal(
+                case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, budget.reason
+            )
 
-        missing = [item for item in case.participating_specialties if item not in self.manifest.specialties]
-        missing += [item for item in case.capability_bindings if item not in self.manifest.capabilities]
+        missing = [
+            item
+            for item in case.participating_specialties
+            if item not in self.manifest.specialties
+        ]
+        missing += [
+            item
+            for item in case.capability_bindings
+            if item not in self.manifest.capabilities
+        ]
         if missing:
-            return self._terminal(case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, "unavailable_specialty_or_capability")
+            return self._terminal(
+                case,
+                Ga7CaseState.HOLD,
+                Ga7Disposition.HOLD,
+                "unavailable_specialty_or_capability",
+            )
 
         allowed, budget_reason = budget.allow("case")
         if not allowed:
-            return self._terminal(case, Ga7CaseState.HOLD, Ga7Disposition.STOPPED, budget_reason)
+            return self._terminal(
+                case, Ga7CaseState.HOLD, Ga7Disposition.STOPPED, budget_reason
+            )
 
         if request_material or case.effect_class == "MATERIAL":
             self.ledger.append_receipt(
@@ -156,10 +204,17 @@ class Ga7Runtime:
                 epistemic=Ga7EpistemicClass.OBSERVED,
                 payload={"request": "material", "dispatched": False},
             )
-            return self._terminal(case, Ga7CaseState.DENIED, Ga7Disposition.DENIED, "material_effect_denied")
+            return self._terminal(
+                case,
+                Ga7CaseState.DENIED,
+                Ga7Disposition.DENIED,
+                "material_effect_denied",
+            )
 
         if force_timeout:
-            return self._terminal(case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, "timeout")
+            return self._terminal(
+                case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, "timeout"
+            )
         if force_unknown:
             self.ledger.set_state(case.case_key(), Ga7CaseState.UNKNOWN)
             return Ga7DiscoveryCaseResult(
@@ -189,7 +244,12 @@ class Ga7Runtime:
                 payload={"nonmaterial": True},
             )
             if force_readback_failure:
-                return self._terminal(case, Ga7CaseState.HOLD, Ga7Disposition.HOLD, "evidence_readback_failure")
+                return self._terminal(
+                    case,
+                    Ga7CaseState.HOLD,
+                    Ga7Disposition.HOLD,
+                    "evidence_readback_failure",
+                )
             snap = self.metrics.snapshot(self.ledger, case.case_key())
             result = Ga7DiscoveryCaseResult(
                 case_key=case.case_key(),
@@ -199,7 +259,10 @@ class Ga7Runtime:
                 observed="nonmaterial_fixture",
                 composition=case.participating_specialties,
                 authority_result="admitted",
-                metrics={"receipt_count": snap.receipt_count, "hash": snap.snapshot_hash},
+                metrics={
+                    "receipt_count": snap.receipt_count,
+                    "hash": snap.snapshot_hash,
+                },
                 evidence_refs=(f"case:{case.case_key()}",),
             )
             self.ledger.finalize(result)
@@ -239,7 +302,9 @@ class Ga7Runtime:
             epistemic=Ga7EpistemicClass.INFERRED,
             payload={"still_unknown": True},
         )
-        return self._terminal(case, Ga7CaseState.STILL_UNKNOWN, Ga7Disposition.UNKNOWN, "still_unknown")
+        return self._terminal(
+            case, Ga7CaseState.STILL_UNKNOWN, Ga7Disposition.UNKNOWN, "still_unknown"
+        )
 
     def capture_learning(self, case: Ga7DiscoveryCaseInput, observation: str) -> None:
         self.ledger.put_learning(
@@ -260,7 +325,13 @@ class Ga7Runtime:
             payload={"authority_impact": "NONE"},
         )
 
-    def _terminal(self, case, state, disposition, failure) -> Ga7DiscoveryCaseResult:
+    def _terminal(
+        self,
+        case: Ga7DiscoveryCaseInput,
+        state: Ga7CaseState,
+        disposition: Ga7Disposition,
+        failure: str,
+    ) -> Ga7DiscoveryCaseResult:
         result = Ga7DiscoveryCaseResult(
             case_key=case.case_key(),
             identity_hash=case.identity_hash(),
