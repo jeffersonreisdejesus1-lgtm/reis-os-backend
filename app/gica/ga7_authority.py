@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from app.gica.ga7_ledger import Ga7Ledger
 from app.gica.ga7_types import (
     ALLOWED_OPERATION,
     EXPECTED_GATE,
@@ -12,12 +13,19 @@ from app.gica.ga7_types import (
     Ga7EpistemicClass,
     Ga7ReceiptType,
 )
-from app.gica.ga7_ledger import Ga7Ledger
 
-DENIED_OPERATIONS = frozenset({
-    "GA7_ENTRY", "GA8_ENTRY", "MERGE", "PROMOTION", "FOUNDER_ACTION",
-    "SELF_PROMOTION", "AUTHORITY_EXPANSION", "GATE_TRANSITION",
-})
+DENIED_OPERATIONS = frozenset(
+    {
+        "GA7_ENTRY",
+        "GA8_ENTRY",
+        "MERGE",
+        "PROMOTION",
+        "FOUNDER_ACTION",
+        "SELF_PROMOTION",
+        "AUTHORITY_EXPANSION",
+        "GATE_TRANSITION",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -50,7 +58,7 @@ class Ga7Authority:
         ledger: Ga7Ledger | None = None,
         now: datetime | None = None,
     ) -> Ga7AuthorityReceipt:
-        moment = now or datetime.now(timezone.utc)
+        moment = now or datetime.now(UTC)
         if token is None:
             receipt = Ga7AuthorityReceipt(False, "absent_authority", "")
             self._record(ledger, case, receipt)
@@ -61,7 +69,10 @@ class Ga7Authority:
             return self._deny(ledger, case, "wrong_gate", token.operation)
         if token.bound_head != case.bound_head:
             return self._deny(ledger, case, "wrong_bound_head", token.operation)
-        if token.policy_version != EXPECTED_POLICY or case.policy_version != EXPECTED_POLICY:
+        if (
+            token.policy_version != EXPECTED_POLICY
+            or case.policy_version != EXPECTED_POLICY
+        ):
             return self._deny(ledger, case, "wrong_policy", token.operation)
         if token.object_version != case.object_version:
             return self._deny(ledger, case, "wrong_object_version", token.operation)
@@ -70,7 +81,9 @@ class Ga7Authority:
         if token.operation != ALLOWED_OPERATION:
             return self._deny(ledger, case, "wrong_scope", token.operation)
         if token.issuer != "NOESIS-AUTHORITY" or token.verifier != "SYNESIS-VERIFIER":
-            return self._deny(ledger, case, "untrusted_issuer_or_verifier", token.operation)
+            return self._deny(
+                ledger, case, "untrusted_issuer_or_verifier", token.operation
+            )
         if token.expires_at <= moment or token.issued_at > moment:
             return self._deny(ledger, case, "stale_authority", token.operation)
         if token.scope != case.authority_scope:
@@ -79,12 +92,23 @@ class Ga7Authority:
         self._record(ledger, case, receipt)
         return receipt
 
-    def _deny(self, ledger, case, reason, operation) -> Ga7AuthorityReceipt:
+    def _deny(
+        self,
+        ledger: Ga7Ledger | None,
+        case: Ga7DiscoveryCaseInput,
+        reason: str,
+        operation: str,
+    ) -> Ga7AuthorityReceipt:
         receipt = Ga7AuthorityReceipt(False, reason, operation)
         self._record(ledger, case, receipt)
         return receipt
 
-    def _record(self, ledger: Ga7Ledger | None, case: Ga7DiscoveryCaseInput, receipt: Ga7AuthorityReceipt) -> None:
+    def _record(
+        self,
+        ledger: Ga7Ledger | None,
+        case: Ga7DiscoveryCaseInput,
+        receipt: Ga7AuthorityReceipt,
+    ) -> None:
         if ledger is None:
             return
         ledger.append_receipt(
@@ -92,5 +116,9 @@ class Ga7Authority:
             case_key=case.case_key(),
             receipt_type=Ga7ReceiptType.AUTHORITY,
             epistemic=Ga7EpistemicClass.DECLARED,
-            payload={"admitted": receipt.admitted, "reason": receipt.reason, "operation": receipt.operation},
+            payload={
+                "admitted": receipt.admitted,
+                "reason": receipt.reason,
+                "operation": receipt.operation,
+            },
         )
