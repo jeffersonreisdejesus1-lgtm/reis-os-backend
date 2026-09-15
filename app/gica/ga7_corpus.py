@@ -33,7 +33,12 @@ class Ga7BindingReceipt:
 
 
 class Ga7CorpusBinder:
-    def bind(self, case: Ga7DiscoveryCaseInput, corpus: Ga7Corpus | None, baseline: Ga7Baseline | None) -> Ga7BindingReceipt:
+    def bind(
+        self,
+        case: Ga7DiscoveryCaseInput,
+        corpus: Ga7Corpus | None,
+        baseline: Ga7Baseline | None,
+    ) -> Ga7BindingReceipt:
         if corpus is None or not corpus.ref:
             return Ga7BindingReceipt(False, "missing_corpus")
         if corpus.sealed_ga9_holdout or corpus.holdout_classification == "GA9_SEALED":
@@ -44,7 +49,10 @@ class Ga7CorpusBinder:
             return Ga7BindingReceipt(False, "corpus_wrong_head")
         if corpus.policy_version != EXPECTED_POLICY:
             return Ga7BindingReceipt(False, "corpus_wrong_policy")
-        if corpus.ref != case.discovery_corpus_ref or corpus.version != case.discovery_corpus_version:
+        if (
+            corpus.ref != case.discovery_corpus_ref
+            or corpus.version != case.discovery_corpus_version
+        ):
             return Ga7BindingReceipt(False, "corpus_ref_mismatch")
         if not corpus.content_hash:
             return Ga7BindingReceipt(False, "corpus_hash_missing")
@@ -53,6 +61,9 @@ class Ga7CorpusBinder:
                 return Ga7BindingReceipt(False, "missing_baseline")
             if not baseline.readable or baseline.kind == "FABRICATED":
                 return Ga7BindingReceipt(False, "fabricated_or_unreadable_baseline")
-            if baseline.ref != case.baseline_ref or baseline.version != case.baseline_version:
+            if (
+                baseline.ref != case.baseline_ref
+                or baseline.version != case.baseline_version
+            ):
                 return Ga7BindingReceipt(False, "baseline_ref_mismatch")
         return Ga7BindingReceipt(True, "bound")
