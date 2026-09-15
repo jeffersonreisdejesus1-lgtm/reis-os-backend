@@ -4,12 +4,12 @@ import json
 import sqlite3
 from hashlib import sha256
 from pathlib import Path
+from typing import Any
 
 from app.gica.ga7_types import (
     Ga7CaseState,
     Ga7DiscoveryCaseInput,
     Ga7DiscoveryCaseResult,
-    Ga7Disposition,
     Ga7EpistemicClass,
     Ga7ReceiptType,
 )
@@ -63,31 +63,44 @@ class Ga7Ledger:
     def bind_case(self, case: Ga7DiscoveryCaseInput) -> None:
         with self._conn() as conn:
             existing = conn.execute(
-                "SELECT identity_hash FROM ga7_cases WHERE case_key=?", (case.case_key(),)
+                "SELECT identity_hash FROM ga7_cases WHERE case_key=?",
+                (case.case_key(),),
             ).fetchone()
             if existing:
                 if existing["identity_hash"] != case.identity_hash():
                     raise Ga7LedgerError("conflicting_case_identity")
                 return
             conn.execute(
-                "INSERT INTO ga7_cases(case_key, identity_hash, input_json, state) VALUES (?,?,?,?)",
-                (case.case_key(), case.identity_hash(), case.to_json(), Ga7CaseState.CREATED.value),
+                "INSERT INTO ga7_cases(case_key, identity_hash, input_json, "
+                "state) VALUES (?,?,?,?)",
+                (
+                    case.case_key(),
+                    case.identity_hash(),
+                    case.to_json(),
+                    Ga7CaseState.CREATED.value,
+                ),
             )
 
     def load_case(self, case_key: str) -> Ga7DiscoveryCaseInput:
         with self._conn() as conn:
-            row = conn.execute("SELECT input_json FROM ga7_cases WHERE case_key=?", (case_key,)).fetchone()
+            row = conn.execute(
+                "SELECT input_json FROM ga7_cases WHERE case_key=?", (case_key,)
+            ).fetchone()
         if row is None:
             raise Ga7LedgerError("case_not_found")
         return Ga7DiscoveryCaseInput.from_json(row["input_json"])
 
     def set_state(self, case_key: str, state: Ga7CaseState) -> None:
         with self._conn() as conn:
-            conn.execute("UPDATE ga7_cases SET state=? WHERE case_key=?", (state.value, case_key))
+            conn.execute(
+                "UPDATE ga7_cases SET state=? WHERE case_key=?", (state.value, case_key)
+            )
 
     def get_state(self, case_key: str) -> Ga7CaseState:
         with self._conn() as conn:
-            row = conn.execute("SELECT state FROM ga7_cases WHERE case_key=?", (case_key,)).fetchone()
+            row = conn.execute(
+                "SELECT state FROM ga7_cases WHERE case_key=?", (case_key,)
+            ).fetchone()
         if row is None:
             raise Ga7LedgerError("case_not_found")
         return Ga7CaseState(row["state"])
@@ -95,7 +108,8 @@ class Ga7Ledger:
     def next_sequence(self, case_key: str) -> int:
         with self._conn() as conn:
             row = conn.execute(
-                "SELECT COALESCE(MAX(sequence_no), 0) AS seq FROM ga7_receipts WHERE case_key=?",
+                "SELECT COALESCE(MAX(sequence_no), 0) AS seq "
+                "FROM ga7_receipts WHERE case_key=?",
                 (case_key,),
             ).fetchone()
         return int(row["seq"]) + 1
@@ -107,13 +121,14 @@ class Ga7Ledger:
         case_key: str,
         receipt_type: Ga7ReceiptType,
         epistemic: Ga7EpistemicClass,
-        payload: dict,
+        payload: dict[str, Any],
     ) -> str:
         blob = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
         digest = sha256(blob.encode()).hexdigest()
         with self._conn() as conn:
             existing = conn.execute(
-                "SELECT payload_hash FROM ga7_receipts WHERE receipt_id=?", (receipt_id,)
+                "SELECT payload_hash FROM ga7_receipts WHERE receipt_id=?",
+                (receipt_id,),
             ).fetchone()
             if existing:
                 if existing["payload_hash"] != digest:
@@ -121,8 +136,18 @@ class Ga7Ledger:
                 return digest
             seq = self.next_sequence(case_key)
             conn.execute(
-                "INSERT INTO ga7_receipts(receipt_id, case_key, receipt_type, sequence_no, epistemic_class, payload_hash, payload_json) VALUES (?,?,?,?,?,?,?)",
-                (receipt_id, case_key, receipt_type.value, seq, epistemic.value, digest, blob),
+                "INSERT INTO ga7_receipts(receipt_id, case_key, receipt_type, "  # noqa: E501
+                "sequence_no, epistemic_class, payload_hash, payload_json) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (
+                    receipt_id,
+                    case_key,
+                    receipt_type.value,
+                    seq,
+                    epistemic.value,
+                    digest,
+                    blob,
+                ),
             )
         return digest
 
@@ -151,7 +176,9 @@ class Ga7Ledger:
 
     def load_result(self, case_key: str) -> Ga7DiscoveryCaseResult | None:
         with self._conn() as conn:
-            row = conn.execute("SELECT result_json FROM ga7_cases WHERE case_key=?", (case_key,)).fetchone()
+            row = conn.execute(
+                "SELECT result_json FROM ga7_cases WHERE case_key=?", (case_key,)
+            ).fetchone()
         if row is None or not row["result_json"]:
             return None
         try:
@@ -159,30 +186,38 @@ class Ga7Ledger:
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
             raise Ga7LedgerError("corrupt_ledger_record") from exc
 
-    def put_budget(self, case_key: str, counters: dict) -> None:
+    def put_budget(self, case_key: str, counters: dict[str, int]) -> None:
         with self._conn() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO ga7_budget(case_key, counters_json) VALUES (?,?)",
+                "INSERT OR REPLACE INTO ga7_budget(case_key, counters_json) "
+                "VALUES (?,?)",
                 (case_key, json.dumps(counters, sort_keys=True)),
             )
 
-    def get_budget(self, case_key: str) -> dict:
+    def get_budget(self, case_key: str) -> dict[str, int]:
         with self._conn() as conn:
-            row = conn.execute("SELECT counters_json FROM ga7_budget WHERE case_key=?", (case_key,)).fetchone()
+            row = conn.execute(
+                "SELECT counters_json FROM ga7_budget WHERE case_key=?", (case_key,)
+            ).fetchone()
         return json.loads(row["counters_json"]) if row else {}
 
-    def put_learning(self, candidate_id: str, case_key: str, payload: dict) -> None:
+    def put_learning(
+        self, candidate_id: str, case_key: str, payload: dict[str, Any]
+    ) -> None:
         if not payload.get("evidence_refs"):
             raise Ga7LedgerError("learning_missing_provenance")
         if payload.get("authority_impact", "NONE") != "NONE":
             raise Ga7LedgerError("learning_promotion_denied")
         with self._conn() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO ga7_learning(candidate_id, case_key, payload_json, authority_impact) VALUES (?,?,?,?)",
+                "INSERT OR IGNORE INTO ga7_learning(candidate_id, case_key, "  # noqa: E501
+                "payload_json, authority_impact) VALUES (?,?,?,?)",
                 (candidate_id, case_key, json.dumps(payload, sort_keys=True), "NONE"),
             )
 
-    def learning(self, case_key: str) -> list[dict]:
+    def learning(self, case_key: str) -> list[dict[str, Any]]:
         with self._conn() as conn:
-            rows = conn.execute("SELECT payload_json FROM ga7_learning WHERE case_key=?", (case_key,))
+            rows = conn.execute(
+                "SELECT payload_json FROM ga7_learning WHERE case_key=?", (case_key,)
+            )
             return [json.loads(row["payload_json"]) for row in rows]
