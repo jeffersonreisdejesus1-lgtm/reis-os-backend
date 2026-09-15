@@ -65,8 +65,16 @@ class Ga7EpistemicClass(StrEnum):
 
 
 CRITICAL_FIELDS = (
-    "program_id", "gate_id", "contract_id", "mission_id", "logical_operation_id",
-    "discovery_case_id", "case_version", "bound_head", "object_version", "policy_version",
+    "program_id",
+    "gate_id",
+    "contract_id",
+    "mission_id",
+    "logical_operation_id",
+    "discovery_case_id",
+    "case_version",
+    "bound_head",
+    "object_version",
+    "policy_version",
 )
 
 
@@ -117,7 +125,9 @@ class Ga7DiscoveryCaseInput:
         return f"{self.discovery_case_id}:{self.case_version}"
 
     def identity_hash(self) -> str:
-        payload = json.dumps(asdict(self), sort_keys=True, separators=(",", ":"), default=str)
+        payload = json.dumps(
+            asdict(self), sort_keys=True, separators=(",", ":"), default=str
+        )
         return sha256(payload.encode()).hexdigest()
 
     def validate(self) -> tuple[bool, str]:
@@ -144,9 +154,14 @@ class Ga7DiscoveryCaseInput:
         return json.dumps(asdict(self), sort_keys=True, default=str)
 
     @classmethod
-    def from_json(cls, blob: str) -> "Ga7DiscoveryCaseInput":
+    def from_json(cls, blob: str) -> Ga7DiscoveryCaseInput:
         data = json.loads(blob)
-        for key in ("input_artifact_refs", "participating_specialties", "capability_bindings", "runtime_refs"):
+        for key in (
+            "input_artifact_refs",
+            "participating_specialties",
+            "capability_bindings",
+            "runtime_refs",
+        ):
             data[key] = tuple(data.get(key) or ())
         return cls(**data)
 
@@ -177,7 +192,7 @@ class Ga7DiscoveryCaseResult:
         return json.dumps(payload, sort_keys=True, default=str)
 
     @classmethod
-    def from_json(cls, blob: str) -> "Ga7DiscoveryCaseResult":
+    def from_json(cls, blob: str) -> Ga7DiscoveryCaseResult:
         data = json.loads(blob)
         data["state"] = Ga7CaseState(data["state"])
         data["disposition"] = Ga7Disposition(data["disposition"])
