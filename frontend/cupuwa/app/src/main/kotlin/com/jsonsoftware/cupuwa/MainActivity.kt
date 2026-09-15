@@ -1,6 +1,7 @@
 package com.jsonsoftware.cupuwa
 
 import android.os.Bundle
+import android.content.Intent
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -32,6 +33,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.incomeButton).setOnClickListener { save(MoneyEntry.Kind.INCOME) }
         findViewById<MaterialButton>(R.id.expenseButton).setOnClickListener { save(MoneyEntry.Kind.EXPENSE) }
         findViewById<MaterialButton>(R.id.cancelEditButton).setOnClickListener { clearEditor() }
+        findViewById<MaterialButton>(R.id.navMovements).setOnClickListener { startActivity(Intent(this, MovementActivity::class.java)) }
+        findViewById<MaterialButton>(R.id.navPlan).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.PLAN)) }
+        findViewById<MaterialButton>(R.id.navSettings).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.SETTINGS)) }
         categories = product.categories()
         findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).apply {
             setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, categories.filter { it.kind == MoneyEntry.Kind.EXPENSE }.map { it.name }))
