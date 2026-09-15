@@ -13,6 +13,7 @@ class OnboardingActivity : AppCompatActivity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         setContentView(R.layout.activity_onboarding)
+        LedgerMath.configureMoneyInput(findViewById(R.id.openingBalance))
         product = ProductStore(this)
         findViewById<MaterialButton>(R.id.continueButton).setOnClickListener { finishOnboarding() }
         findViewById<MaterialButton>(R.id.skipNameButton).setOnClickListener {
