@@ -62,7 +62,9 @@ class Ga7BudgetEnvelope:
 
 
 class Ga7BudgetControl:
-    def __init__(self, envelope: Ga7BudgetEnvelope, ledger: Ga7Ledger, case_key: str) -> None:
+    def __init__(
+        self, envelope: Ga7BudgetEnvelope, ledger: Ga7Ledger, case_key: str
+    ) -> None:
         self.envelope = envelope
         self.ledger = ledger
         self.case_key = case_key
@@ -73,7 +75,7 @@ class Ga7BudgetControl:
         if ok and not ledger.get_budget(self.store_key):
             ledger.put_budget(self.store_key, {name: 0 for name in COUNTER_MAP})
 
-    def counters(self) -> dict:
+    def counters(self) -> dict[str, int]:
         return self.ledger.get_budget(self.store_key)
 
     def allow(self, kind: str) -> tuple[bool, str]:
