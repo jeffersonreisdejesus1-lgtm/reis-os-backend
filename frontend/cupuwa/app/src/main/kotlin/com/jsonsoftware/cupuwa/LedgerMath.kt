@@ -2,6 +2,8 @@ package com.jsonsoftware.cupuwa
 
 import java.math.BigDecimal
 import java.math.RoundingMode
+import android.widget.EditText
+import android.text.method.DigitsKeyListener
 import java.util.Calendar
 
 data class MoneyEntry(
@@ -35,18 +37,33 @@ object LedgerMath {
                 require(fraction.length in 1..2) { "Use no máximo duas casas decimais" }
                 "$integer.$fraction"
             }
-            trimmed.matches(Regex("\\d{1,3}([.,]\\d{3})+")) -> trimmed.replace(",", "").replace(".", "")
             trimmed.count { it == ',' } > 1 || trimmed.count { it == '.' } > 1 -> {
-                require(false) { "Valor inválido" }
-                ""
+                if (trimmed.matches(Regex("\\d{1,3}(\\.\\d{3})+"))) trimmed.replace(".", "")
+                else error("Valor inválido")
             }
-            trimmed.contains(',') -> trimmed.replace(',', '.')
+            trimmed.contains(',') -> {
+                val fraction = trimmed.substringAfter(',')
+                require(fraction.length in 0..2) { "Use no máximo duas casas decimais" }
+                trimmed.replace(',', '.').let { if (it.endsWith(".")) it + "0" else it }
+            }
+            trimmed.contains('.') -> {
+                val fraction = trimmed.substringAfter('.')
+                if (fraction.length == 3 && trimmed.substringBefore('.').length in 1..3) trimmed.replace(".", "")
+                else {
+                    require(fraction.length in 0..2) { "Use no máximo duas casas decimais" }
+                    if (trimmed.endsWith(".")) trimmed + "0" else trimmed
+                }
+            }
             else -> trimmed
         }
         require(normalized.matches(Regex("\\d+(\\.\\d{1,2})?"))) { "Valor inválido" }
         val cents = BigDecimal(normalized).setScale(2, RoundingMode.UNNECESSARY).movePointRight(2).longValueExact()
         require(allowZero || cents > 0) { "O valor deve ser maior que zero" }
         return cents
+    }
+
+    fun configureMoneyInput(editText: EditText) {
+        editText.keyListener = DigitsKeyListener.getInstance("0123456789,.")
     }
 
     fun formatBrl(cents: Long): String {
