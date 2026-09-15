@@ -237,3 +237,41 @@ def test_t04_t06_t07_new_process_replay_no_new_effect(tmp_path: Path) -> None:
     assert a["pid"] != b["pid"]
     assert a["gate"] == b["gate"] == "GA1_SPECIFICATION_CONSISTENCY"
     assert a["generation"] == b["generation"] == 1
+
+
+def test_t02_real_process_concurrency_single_successor(tmp_path: Path) -> None:
+    if not os.environ.get("GICA_AUTHORITY_HMAC_KEY"):
+        pytest.skip("GICA HMAC keys not provisioned")
+    repo = _repo_root()
+    db = tmp_path / "gica-concurrent.sqlite"
+    env = os.environ.copy()
+    processes = [
+        subprocess.Popen(
+            [sys.executable, "-c", PROBE, str(repo), str(db)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=str(repo),
+            env=env,
+        )
+        for _ in range(2)
+    ]
+    results = [process.communicate(timeout=30) for process in processes]
+    assert all(process.returncode == 0 for process in processes), results
+    payloads = [
+        json.loads(stdout.strip().splitlines()[-1]) for stdout, _stderr in results
+    ]
+    assert {item["gate"] for item in payloads} == {"GA1_SPECIFICATION_CONSISTENCY"}
+    assert {item["generation"] for item in payloads} == {1}
+    assert payloads[0]["pid"] != payloads[1]["pid"]
+
+
+def test_t07_ledger_reconstructs_single_canonical_successor(tmp_path: Path) -> None:
+    path = tmp_path / "gica-reconstruct.sqlite"
+    durable = reset_ledger(path)
+    predecessor = ("P-RECONSTRUCT", "v1", "GA0_BOOTSTRAP", "ACTIVE", (), 0)
+    first = durable.commit_transition(predecessor, "op-canonical", '{"gate":"GA1"}')
+    reopened = type(durable)(path)
+    second = reopened.commit_transition(predecessor, "op-other", '{"gate":"GA1-other"}')
+    assert first == second
+    assert reopened.get_transition(predecessor) == first
