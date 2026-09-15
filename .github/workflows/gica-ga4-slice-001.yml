@@ -17,7 +17,11 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install
-        run: pip install -e '.[dev]'
+        id: install
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pip install -e '.[dev]' 2>&1 | tee install.log
       - name: GICA GA4 contract tests
         id: ga4
         continue-on-error: true
@@ -42,6 +46,7 @@ jobs:
           path: |
             ga4-junit.xml
             ga6-junit.xml
+            install.log
           if-no-files-found: warn
       - name: Enforce qualification result
         if: always()
