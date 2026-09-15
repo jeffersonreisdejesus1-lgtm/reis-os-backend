@@ -5,7 +5,6 @@ import os
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Any
 
 
 class LedgerUnknown(RuntimeError):
@@ -49,11 +48,14 @@ class DurableGicaLedger:
     def encode_key(parts: tuple[object, ...]) -> str:
         return json.dumps(parts, sort_keys=True, default=str)
 
-    def get_transition(self, predecessor: tuple[object, ...]) -> tuple[str, str, int] | None:
+    def get_transition(
+        self, predecessor: tuple[object, ...]
+    ) -> tuple[str, str, int] | None:
         key = self.encode_key(predecessor)
         with self._lock, self._conn() as conn:
             row = conn.execute(
-                "SELECT logical_id, successor, generation FROM transitions WHERE predecessor=?",
+                "SELECT logical_id, successor, generation "
+                "FROM transitions WHERE predecessor=?",
                 (key,),
             ).fetchone()
         if row is None:
@@ -72,13 +74,16 @@ class DurableGicaLedger:
         key = self.encode_key(predecessor)
         with self._lock, self._conn() as conn:
             row = conn.execute(
-                "SELECT logical_id, successor, generation FROM transitions WHERE predecessor=?",
+                "SELECT logical_id, successor, generation "
+                "FROM transitions WHERE predecessor=?",
                 (key,),
             ).fetchone()
             if row is not None:
                 return row[0], row[1], int(row[2])
             conn.execute(
-                "INSERT INTO transitions(predecessor, logical_id, successor, generation) VALUES (?,?,?,?)",
+                "INSERT INTO transitions(predecessor, logical_id, successor, "
+                "generation) "
+                "VALUES (?,?,?,?)",
                 (key, logical_id, successor_blob, 1),
             )
         return logical_id, successor_blob, 1
@@ -86,19 +91,25 @@ class DurableGicaLedger:
     def get_founder(self, founder_key: tuple[object, ...]) -> str | None:
         key = self.encode_key(founder_key)
         with self._lock, self._conn() as conn:
-            row = conn.execute("SELECT successor FROM founder WHERE founder_key=?", (key,)).fetchone()
+            row = conn.execute(
+                "SELECT successor FROM founder WHERE founder_key=?", (key,)
+            ).fetchone()
         if row is None:
             return None
         if not row[0]:
             raise LedgerUnknown("corrupted_founder_record")
-        return row[0]
+        return str(row[0])
 
-    def commit_founder(self, founder_key: tuple[object, ...], successor_blob: str) -> str:
+    def commit_founder(
+        self, founder_key: tuple[object, ...], successor_blob: str
+    ) -> str:
         key = self.encode_key(founder_key)
         with self._lock, self._conn() as conn:
-            row = conn.execute("SELECT successor FROM founder WHERE founder_key=?", (key,)).fetchone()
+            row = conn.execute(
+                "SELECT successor FROM founder WHERE founder_key=?", (key,)
+            ).fetchone()
             if row is not None:
-                return row[0]
+                return str(row[0])
             conn.execute(
                 "INSERT INTO founder(founder_key, successor) VALUES (?,?)",
                 (key, successor_blob),

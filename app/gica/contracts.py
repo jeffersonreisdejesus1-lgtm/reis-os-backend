@@ -5,21 +5,31 @@ import hmac
 import json
 import os
 import threading
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field, replace
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from types import MappingProxyType
+from typing import Any, cast
 
 from app.gica.durable_ledger import LedgerUnknown, ledger
 
-
 CANONICAL_OCS_ROSTER = (
-    "NÓESIS", "DÉDALA", "SÝNESIS", "ÍRIS", "LYRA", "SOFIA",
-    "MÊTIS", "ÁGORA", "AURI", "SYNERGEIA", "TÊMIS",
+    "NÓESIS",
+    "DÉDALA",
+    "SÝNESIS",
+    "ÍRIS",
+    "LYRA",
+    "SOFIA",
+    "MÊTIS",
+    "ÁGORA",
+    "AURI",
+    "SYNERGEIA",
+    "TÊMIS",
 )
 
 
-class GicaGate(str, Enum):
+class GicaGate(str, Enum):  # noqa: UP042
     GA0 = "GA0_BOOTSTRAP"
     GA1 = "GA1_SPECIFICATION_CONSISTENCY"
     GA2 = "GA2_INDEPENDENT_ARCHITECTURAL_ASSURANCE"
@@ -35,7 +45,7 @@ class GicaGate(str, Enum):
     GA12 = "GA12_FINAL_FOUNDER_GATE"
 
 
-class GicaProgramState(str, Enum):
+class GicaProgramState(str, Enum):  # noqa: UP042
     ACTIVE = "ACTIVE"
     HOLD = "HOLD"
     RECONCILIATION_REQUIRED = "RECONCILIATION_REQUIRED"
@@ -50,12 +60,18 @@ class ProgramTransitionError(RuntimeError):
 
 
 _NEXT_GATE = {
-    GicaGate.GA0: GicaGate.GA1, GicaGate.GA1: GicaGate.GA2,
-    GicaGate.GA2: GicaGate.GA3, GicaGate.GA3: GicaGate.GA4,
-    GicaGate.GA4: GicaGate.GA5, GicaGate.GA5: GicaGate.GA6,
-    GicaGate.GA6: GicaGate.GA7, GicaGate.GA7: GicaGate.GA8,
-    GicaGate.GA8: GicaGate.GA9, GicaGate.GA9: GicaGate.GA10,
-    GicaGate.GA10: GicaGate.GA11, GicaGate.GA11: GicaGate.GA12,
+    GicaGate.GA0: GicaGate.GA1,
+    GicaGate.GA1: GicaGate.GA2,
+    GicaGate.GA2: GicaGate.GA3,
+    GicaGate.GA3: GicaGate.GA4,
+    GicaGate.GA4: GicaGate.GA5,
+    GicaGate.GA5: GicaGate.GA6,
+    GicaGate.GA6: GicaGate.GA7,
+    GicaGate.GA7: GicaGate.GA8,
+    GicaGate.GA8: GicaGate.GA9,
+    GicaGate.GA9: GicaGate.GA10,
+    GicaGate.GA10: GicaGate.GA11,
+    GicaGate.GA11: GicaGate.GA12,
 }
 _ASSURANCE_REQUIRED_GATES = frozenset({GicaGate.GA2, GicaGate.GA11})
 
@@ -64,15 +80,19 @@ _AUTHORITY_ISSUER = "NOESIS-AUTHORITY"
 _EVIDENCE_ISSUER = "SYNESIS-EVIDENCE"
 _FOUNDER_ISSUER = "FOUNDER-RESERVED"
 _POLICY_VERSION = "GICA-AUTHORITY-v1"
-_ALLOWED_ASSURERS = MappingProxyType({gate: frozenset({"SYNESIS"}) for gate in GicaGate})
+_ALLOWED_ASSURERS = MappingProxyType(
+    {gate: frozenset({"SYNESIS"}) for gate in GicaGate}
+)
 _INDEPENDENT_ASSURERS = frozenset({"SYNESIS"})
 
 _TRANSITION_LOCK = threading.RLock()
-_CRITERIA_VERSIONS = MappingProxyType({gate: f"{gate.name}-CRITERIA-v1" for gate in GicaGate})
+_CRITERIA_VERSIONS = MappingProxyType(
+    {gate: f"{gate.name}-CRITERIA-v1" for gate in GicaGate}
+)
 
 
 def _canonical_payload(value: object) -> bytes:
-    data = asdict(value)  # type: ignore[arg-type]
+    data = asdict(cast(Any, value))
     data.pop("signature", None)
     return json.dumps(data, sort_keys=True, separators=(",", ":"), default=str).encode()
 
@@ -87,7 +107,7 @@ def _require_text(value: str, error: str) -> None:
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _dt(value: str | datetime) -> datetime:
@@ -177,7 +197,15 @@ class _InstitutionalTrustRoot:
         if value != _POLICY_VERSION:
             raise ProgramTransitionError("untrusted_policy_version_denied")
 
-    def verify_authority(self, evidence: AuthorityEvidence | None, *, program_id: str, operation: str, object_version: str, now: datetime) -> None:
+    def verify_authority(
+        self,
+        evidence: AuthorityEvidence | None,
+        *,
+        program_id: str,
+        operation: str,
+        object_version: str,
+        now: datetime,
+    ) -> None:
         if evidence is None:
             raise ProgramTransitionError("valid_authority_required")
         if self.authority_key is None:
@@ -195,10 +223,20 @@ class _InstitutionalTrustRoot:
         _require_text(evidence.provenance, "authority_provenance_required")
         self._policy(evidence.policy_version)
         self._fresh(evidence.issued_at, evidence.expires_at, now)
-        if not hmac.compare_digest(evidence.signature, _expected_signature(evidence, self.authority_key)):
+        if not hmac.compare_digest(
+            evidence.signature, _expected_signature(evidence, self.authority_key)
+        ):
             raise ProgramTransitionError("authority_forged_denied")
 
-    def verify_gate_evidence(self, evidence: GateEvidence | None, *, program_id: str, gate: GicaGate, object_version: str, now: datetime) -> None:
+    def verify_gate_evidence(
+        self,
+        evidence: GateEvidence | None,
+        *,
+        program_id: str,
+        gate: GicaGate,
+        object_version: str,
+        now: datetime,
+    ) -> None:
         if evidence is None:
             raise ProgramTransitionError("gate_evidence_required")
         if self.gate_evidence_key is None:
@@ -222,7 +260,9 @@ class _InstitutionalTrustRoot:
         _require_text(evidence.provenance, "evidence_provenance_required")
         self._policy(evidence.policy_version)
         self._fresh(evidence.issued_at, evidence.expires_at, now)
-        if not hmac.compare_digest(evidence.signature, _expected_signature(evidence, self.gate_evidence_key)):
+        if not hmac.compare_digest(
+            evidence.signature, _expected_signature(evidence, self.gate_evidence_key)
+        ):
             raise ProgramTransitionError("evidence_forged_denied")
         if gate in _ASSURANCE_REQUIRED_GATES:
             if not evidence.assurance_pass:
@@ -230,14 +270,26 @@ class _InstitutionalTrustRoot:
             if evidence.assurer not in _INDEPENDENT_ASSURERS:
                 raise ProgramTransitionError("independent_assurer_required")
 
-    def verify_transition_receipt(self, receipt: TransitionReceipt | None, *, program_id: str, object_version: str, now: datetime) -> None:
+    def verify_transition_receipt(
+        self,
+        receipt: TransitionReceipt | None,
+        *,
+        program_id: str,
+        object_version: str,
+        now: datetime,
+    ) -> None:
         if receipt is None:
-            raise ProgramTransitionError("legitimate_ga11_to_ga12_transition_proof_required")
+            raise ProgramTransitionError(
+                "legitimate_ga11_to_ga12_transition_proof_required"
+            )
         if self.gate_evidence_key is None:
             raise ProgramTransitionError("institutional_evidence_root_unavailable")
         if receipt.program_id != program_id or receipt.object_version != object_version:
             raise ProgramTransitionError("transition_proof_wrong_object_denied")
-        if receipt.from_gate is not GicaGate.GA11 or receipt.to_gate is not GicaGate.GA12:
+        if (
+            receipt.from_gate is not GicaGate.GA11
+            or receipt.to_gate is not GicaGate.GA12
+        ):
             raise ProgramTransitionError("transition_proof_wrong_route_denied")
         if receipt.resulting_state is not GicaProgramState.READY_FOR_FOUNDER:
             raise ProgramTransitionError("transition_proof_wrong_result_denied")
@@ -248,10 +300,19 @@ class _InstitutionalTrustRoot:
         _require_text(receipt.provenance, "transition_proof_provenance_required")
         self._policy(receipt.policy_version)
         self._fresh(receipt.issued_at, receipt.expires_at, now)
-        if not hmac.compare_digest(receipt.signature, _expected_signature(receipt, self.gate_evidence_key)):
+        if not hmac.compare_digest(
+            receipt.signature, _expected_signature(receipt, self.gate_evidence_key)
+        ):
             raise ProgramTransitionError("transition_proof_forged_denied")
 
-    def verify_founder_authorization(self, evidence: FounderAuthorizationEvidence | None, *, program_id: str, object_version: str, now: datetime) -> None:
+    def verify_founder_authorization(
+        self,
+        evidence: FounderAuthorizationEvidence | None,
+        *,
+        program_id: str,
+        object_version: str,
+        now: datetime,
+    ) -> None:
         if evidence is None:
             raise ProgramTransitionError("founder_authorization_required")
         if self.founder_key is None:
@@ -271,7 +332,9 @@ class _InstitutionalTrustRoot:
         _require_text(evidence.provenance, "founder_provenance_required")
         self._policy(evidence.policy_version)
         self._fresh(evidence.issued_at, evidence.expires_at, now)
-        if not hmac.compare_digest(evidence.signature, _expected_signature(evidence, self.founder_key)):
+        if not hmac.compare_digest(
+            evidence.signature, _expected_signature(evidence, self.founder_key)
+        ):
             raise ProgramTransitionError("founder_authorization_forged_denied")
 
 
@@ -279,26 +342,31 @@ def _bootstrap_runtime_trust_root() -> _InstitutionalTrustRoot:
     def key(name: str) -> bytes | None:
         value = os.environ.get(name)
         return value.encode() if value else None
+
     return _InstitutionalTrustRoot(
         authority_key=key("GICA_AUTHORITY_HMAC_KEY"),
         gate_evidence_key=key("GICA_GATE_EVIDENCE_HMAC_KEY"),
         founder_key=key("GICA_FOUNDER_HMAC_KEY"),
-        bootstrap_provenance=os.environ.get("GICA_TRUST_BOOTSTRAP_PROVENANCE", "runtime-bootstrap:unprovisioned"),
+        bootstrap_provenance=os.environ.get(
+            "GICA_TRUST_BOOTSTRAP_PROVENANCE", "runtime-bootstrap:unprovisioned"
+        ),
     )
 
 
-def _make_trust_resolver():
+def _make_trust_resolver() -> Callable[[], _InstitutionalTrustRoot]:
     root = _bootstrap_runtime_trust_root()
+
     def resolve() -> _InstitutionalTrustRoot:
         return root
+
     return resolve
 
 
 _resolve_institutional_trust = _make_trust_resolver()
 
 
-def _dump_contract(contract: "GicaProgramContract") -> str:
-    payload: dict = {
+def _dump_contract(contract: GicaProgramContract) -> str:
+    payload: dict[str, Any] = {
         "program_id": contract.program_id,
         "gate": contract.gate.value,
         "object_version": contract.object_version,
@@ -309,15 +377,25 @@ def _dump_contract(contract: "GicaProgramContract") -> str:
     }
     if contract.transition_receipt is not None:
         payload["transition_receipt"] = asdict(contract.transition_receipt)
-        payload["transition_receipt"]["from_gate"] = contract.transition_receipt.from_gate.value
-        payload["transition_receipt"]["to_gate"] = contract.transition_receipt.to_gate.value
-        payload["transition_receipt"]["resulting_state"] = contract.transition_receipt.resulting_state.value
-        payload["transition_receipt"]["issued_at"] = contract.transition_receipt.issued_at.isoformat()
-        payload["transition_receipt"]["expires_at"] = contract.transition_receipt.expires_at.isoformat()
+        payload["transition_receipt"]["from_gate"] = (
+            contract.transition_receipt.from_gate.value
+        )
+        payload["transition_receipt"]["to_gate"] = (
+            contract.transition_receipt.to_gate.value
+        )
+        payload["transition_receipt"]["resulting_state"] = (
+            contract.transition_receipt.resulting_state.value
+        )
+        payload["transition_receipt"]["issued_at"] = (
+            contract.transition_receipt.issued_at.isoformat()
+        )
+        payload["transition_receipt"]["expires_at"] = (
+            contract.transition_receipt.expires_at.isoformat()
+        )
     return json.dumps(payload, sort_keys=True)
 
 
-def _load_contract(blob: str) -> "GicaProgramContract":
+def _load_contract(blob: str) -> GicaProgramContract:
     data = json.loads(blob)
     if not data.get("gate") or not data.get("program_id"):
         raise ProgramTransitionError("ledger_record_unknown")
@@ -325,18 +403,32 @@ def _load_contract(blob: str) -> "GicaProgramContract":
     raw = data.get("transition_receipt")
     if raw:
         receipt = TransitionReceipt(
-            raw["program_id"], raw["object_version"], GicaGate(raw["from_gate"]), GicaGate(raw["to_gate"]),
-            GicaProgramState(raw["resulting_state"]), raw["criteria_version"], raw["issuer"], raw["verifier"],
-            _dt(raw["issued_at"]), _dt(raw["expires_at"]), raw["policy_version"], raw["provenance"], raw["signature"],
+            raw["program_id"],
+            raw["object_version"],
+            GicaGate(raw["from_gate"]),
+            GicaGate(raw["to_gate"]),
+            GicaProgramState(raw["resulting_state"]),
+            raw["criteria_version"],
+            raw["issuer"],
+            raw["verifier"],
+            _dt(raw["issued_at"]),
+            _dt(raw["expires_at"]),
+            raw["policy_version"],
+            raw["provenance"],
+            raw["signature"],
         )
     return GicaProgramContract(
-        data["program_id"], GicaGate(data["gate"]), data["object_version"],
-        GicaProgramState(data["state"]), tuple(GicaGate(item) for item in data.get("gate_history") or ()),
-        receipt, int(data.get("committed_generation") or 1),
+        data["program_id"],
+        GicaGate(data["gate"]),
+        data["object_version"],
+        GicaProgramState(data["state"]),
+        tuple(GicaGate(item) for item in data.get("gate_history") or ()),
+        receipt,
+        int(data.get("committed_generation") or 1),
     )
 
 
-def _predecessor_key(contract: "GicaProgramContract") -> tuple[object, ...]:
+def _predecessor_key(contract: GicaProgramContract) -> tuple[object, ...]:
     return (
         contract.program_id,
         contract.object_version,
@@ -347,7 +439,9 @@ def _predecessor_key(contract: "GicaProgramContract") -> tuple[object, ...]:
     )
 
 
-def _read_prior(predecessor: tuple[object, ...]) -> tuple[str, "GicaProgramContract"] | None:
+def _read_prior(
+    predecessor: tuple[object, ...],
+) -> tuple[str, GicaProgramContract] | None:
     try:
         row = ledger().get_transition(predecessor)
     except LedgerUnknown as exc:
@@ -374,7 +468,16 @@ class GicaProgramContract:
         if len(set(CANONICAL_OCS_ROSTER)) != 11:
             raise ProgramTransitionError("ocs_identity_uniqueness_required")
 
-    def transition_to(self, target: GicaGate, *, authority: AuthorityEvidence | None, gate_evidence: GateEvidence | None, now: datetime | None = None, operation_id: str | None = None, expected_version: str | None = None) -> "GicaProgramContract":
+    def transition_to(
+        self,
+        target: GicaGate,
+        *,
+        authority: AuthorityEvidence | None,
+        gate_evidence: GateEvidence | None,
+        now: datetime | None = None,
+        operation_id: str | None = None,
+        expected_version: str | None = None,
+    ) -> GicaProgramContract:
         self.validate_roster()
         if expected_version is not None and expected_version != self.object_version:
             raise ProgramTransitionError("stale_expected_version_denied")
@@ -385,9 +488,26 @@ class GicaProgramContract:
             raise ProgramTransitionError("non_sequential_gate_transition_denied")
         effective_now = now or _utc_now()
         root = _resolve_institutional_trust()
-        root.verify_authority(authority, program_id=self.program_id, operation=f"transition:{self.gate.name}->{target.name}", object_version=self.object_version, now=effective_now)
-        root.verify_gate_evidence(gate_evidence, program_id=self.program_id, gate=self.gate, object_version=self.object_version, now=effective_now)
-        logical_id = operation_id or hashlib.sha256(_canonical_payload(authority) + _canonical_payload(gate_evidence)).hexdigest()
+        root.verify_authority(
+            authority,
+            program_id=self.program_id,
+            operation=f"transition:{self.gate.name}->{target.name}",
+            object_version=self.object_version,
+            now=effective_now,
+        )
+        root.verify_gate_evidence(
+            gate_evidence,
+            program_id=self.program_id,
+            gate=self.gate,
+            object_version=self.object_version,
+            now=effective_now,
+        )
+        logical_id = (
+            operation_id
+            or hashlib.sha256(
+                _canonical_payload(authority) + _canonical_payload(gate_evidence)
+            ).hexdigest()
+        )
         predecessor = _predecessor_key(self)
         with _TRANSITION_LOCK:
             prior = _read_prior(predecessor)
@@ -397,16 +517,40 @@ class GicaProgramContract:
                 raise ProgramTransitionError("canonical_predecessor_already_committed")
             receipt = None
             if self.gate is GicaGate.GA11 and target is GicaGate.GA12:
-                value = TransitionReceipt(self.program_id, self.object_version, self.gate, target,
-                    GicaProgramState.READY_FOR_FOUNDER, _CRITERIA_VERSIONS[self.gate],
-                    _EVIDENCE_ISSUER, _VERIFIER_ID, effective_now, gate_evidence.expires_at,
-                    _POLICY_VERSION, f"governed-transition:{self.program_id}:{self.object_version}:GA11->GA12", "")
-                receipt = replace(value, signature=_expected_signature(value, root.gate_evidence_key))
+                if gate_evidence is None:
+                    raise ProgramTransitionError("gate_evidence_required")
+                if root.gate_evidence_key is None:
+                    raise ProgramTransitionError(
+                        "institutional_evidence_root_unavailable"
+                    )
+                value = TransitionReceipt(
+                    self.program_id,
+                    self.object_version,
+                    self.gate,
+                    target,
+                    GicaProgramState.READY_FOR_FOUNDER,
+                    _CRITERIA_VERSIONS[self.gate],
+                    _EVIDENCE_ISSUER,
+                    _VERIFIER_ID,
+                    effective_now,
+                    gate_evidence.expires_at,
+                    _POLICY_VERSION,
+                    f"governed-transition:{self.program_id}:{self.object_version}:GA11->GA12",
+                    "",
+                )
+                receipt = replace(
+                    value, signature=_expected_signature(value, root.gate_evidence_key)
+                )
             next_generation = self.committed_generation + 1
             successor = GicaProgramContract(
-                program_id=self.program_id, gate=target, object_version=self.object_version,
-                state=GicaProgramState.READY_FOR_FOUNDER if target is GicaGate.GA12 else GicaProgramState.ACTIVE,
-                gate_history=self.gate_history + (self.gate,), transition_receipt=receipt,
+                program_id=self.program_id,
+                gate=target,
+                object_version=self.object_version,
+                state=GicaProgramState.READY_FOR_FOUNDER
+                if target is GicaGate.GA12
+                else GicaProgramState.ACTIVE,
+                gate_history=self.gate_history + (self.gate,),
+                transition_receipt=receipt,
                 committed_generation=next_generation,
             )
             committed_logical, committed_blob, _gen = ledger().commit_transition(
@@ -417,7 +561,12 @@ class GicaProgramContract:
                 raise ProgramTransitionError("canonical_predecessor_already_committed")
             return recovered
 
-    def founder_promote(self, *, authorization: FounderAuthorizationEvidence | None, now: datetime | None = None) -> "GicaProgramContract":
+    def founder_promote(
+        self,
+        *,
+        authorization: FounderAuthorizationEvidence | None,
+        now: datetime | None = None,
+    ) -> GicaProgramContract:
         if self.gate is not GicaGate.GA12:
             raise ProgramTransitionError("founder_promotion_outside_ga12_denied")
         if self.state is not GicaProgramState.READY_FOR_FOUNDER:
@@ -425,11 +574,25 @@ class GicaProgramContract:
         if not self.gate_history or self.gate_history[-1] is not GicaGate.GA11:
             raise ProgramTransitionError("legitimate_ga12_transition_required")
         root = _resolve_institutional_trust()
-        root.verify_transition_receipt(self.transition_receipt, program_id=self.program_id, object_version=self.object_version, now=now or _utc_now())
-        root.verify_founder_authorization(
-            authorization, program_id=self.program_id, object_version=self.object_version, now=now or _utc_now()
+        root.verify_transition_receipt(
+            self.transition_receipt,
+            program_id=self.program_id,
+            object_version=self.object_version,
+            now=now or _utc_now(),
         )
-        founder_key = (self.program_id, self.object_version, self.gate.value, tuple(g.value for g in self.gate_history), authorization.signature if authorization else None)
+        root.verify_founder_authorization(
+            authorization,
+            program_id=self.program_id,
+            object_version=self.object_version,
+            now=now or _utc_now(),
+        )
+        founder_key = (
+            self.program_id,
+            self.object_version,
+            self.gate.value,
+            tuple(g.value for g in self.gate_history),
+            authorization.signature if authorization else None,
+        )
         with _TRANSITION_LOCK:
             try:
                 prior_blob = ledger().get_founder(founder_key)
@@ -438,8 +601,13 @@ class GicaProgramContract:
             if prior_blob is not None:
                 return _load_contract(prior_blob)
             successor = GicaProgramContract(
-                self.program_id, self.gate, self.object_version, GicaProgramState.COMPLETE,
-                self.gate_history, self.transition_receipt, self.committed_generation + 1,
+                self.program_id,
+                self.gate,
+                self.object_version,
+                GicaProgramState.COMPLETE,
+                self.gate_history,
+                self.transition_receipt,
+                self.committed_generation + 1,
             )
             blob = ledger().commit_founder(founder_key, _dump_contract(successor))
             return _load_contract(blob)
