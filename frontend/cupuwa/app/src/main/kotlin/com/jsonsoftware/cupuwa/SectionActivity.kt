@@ -22,7 +22,11 @@ class SectionActivity : AppCompatActivity() {
         findViewById<View>(R.id.planningForm).visibility = if (planning) View.VISIBLE else View.GONE
         findViewById<View>(R.id.insightsEmpty).visibility = if (insights) View.VISIBLE else View.GONE
         findViewById<View>(R.id.settingsForm).visibility = if (planning || insights) View.GONE else View.VISIBLE
-        findViewById<MaterialButton>(R.id.navHome).setOnClickListener { finish() }
+        findViewById<MaterialButton>(R.id.navHome).setOnClickListener {
+            startActivity(android.content.Intent(this, MainActivity::class.java).apply {
+                addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            })
+        }
         findViewById<MaterialButton>(R.id.navMovements).setOnClickListener { startActivity(android.content.Intent(this, MovementActivity::class.java)) }
         findViewById<MaterialButton>(R.id.navPlan).setOnClickListener { startActivity(intent.putExtra(EXTRA_SECTION, PLAN)) }
         findViewById<MaterialButton>(R.id.navInsights).setOnClickListener { startActivity(intent.putExtra(EXTRA_SECTION, INSIGHTS)) }
