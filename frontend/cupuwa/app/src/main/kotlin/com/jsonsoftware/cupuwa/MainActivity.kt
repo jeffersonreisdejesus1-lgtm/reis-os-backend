@@ -33,8 +33,10 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.incomeButton).setOnClickListener { save(MoneyEntry.Kind.INCOME) }
         findViewById<MaterialButton>(R.id.expenseButton).setOnClickListener { save(MoneyEntry.Kind.EXPENSE) }
         findViewById<MaterialButton>(R.id.cancelEditButton).setOnClickListener { clearEditor() }
+        findViewById<MaterialButton>(R.id.navHome).setOnClickListener { }
         findViewById<MaterialButton>(R.id.navMovements).setOnClickListener { startActivity(Intent(this, MovementActivity::class.java)) }
         findViewById<MaterialButton>(R.id.navPlan).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.PLAN)) }
+        findViewById<MaterialButton>(R.id.navInsights).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.INSIGHTS)) }
         findViewById<MaterialButton>(R.id.navSettings).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.SETTINGS)) }
         categories = product.categories()
         findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).apply {

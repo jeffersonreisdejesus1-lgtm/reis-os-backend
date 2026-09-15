@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingTop="8dp" android:paddingBottom="8dp" android:background="@color/cupuwa_surface">
+<com.google.android.material.button.MaterialButton android:id="@+id/navHome" style="@style/Widget.Material3.Button.TextButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:minHeight="56dp" android:text="Início"/>
+<com.google.android.material.button.MaterialButton android:id="@+id/navMovements" style="@style/Widget.Material3.Button.TextButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:minHeight="56dp" android:text="Movimentos"/>
+<com.google.android.material.button.MaterialButton android:id="@+id/navPlan" style="@style/Widget.Material3.Button.TextButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:minHeight="56dp" android:text="Planejar"/>
+<com.google.android.material.button.MaterialButton android:id="@+id/navInsights" style="@style/Widget.Material3.Button.TextButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:minHeight="56dp" android:text="Insights"/>
+<com.google.android.material.button.MaterialButton android:id="@+id/navSettings" style="@style/Widget.Material3.Button.TextButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:minHeight="56dp" android:text="Ajustes"/>
+</LinearLayout>

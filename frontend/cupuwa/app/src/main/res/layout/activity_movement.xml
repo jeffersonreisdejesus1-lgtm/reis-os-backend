@@ -46,4 +46,5 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
         android:text="@string/save" />
+<include layout="@layout/bottom_navigation" />
 </LinearLayout>

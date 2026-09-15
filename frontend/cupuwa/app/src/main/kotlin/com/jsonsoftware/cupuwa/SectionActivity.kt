@@ -16,10 +16,17 @@ class SectionActivity : AppCompatActivity() {
         setContentView(R.layout.activity_section)
         val section = intent.getStringExtra(EXTRA_SECTION) ?: PLAN
         val planning = section == PLAN
-        findViewById<TextView>(R.id.sectionTitle).text = if (planning) getString(R.string.section_plan) else getString(R.string.section_settings)
-        findViewById<TextView>(R.id.sectionBody).text = if (planning) getString(R.string.section_plan_body) else getString(R.string.section_settings_body)
+        val insights = section == INSIGHTS
+        findViewById<TextView>(R.id.sectionTitle).text = when { planning -> getString(R.string.section_plan); insights -> "Insights"; else -> getString(R.string.section_settings) }
+        findViewById<TextView>(R.id.sectionBody).text = when { planning -> getString(R.string.section_plan_body); insights -> "Ainda precisamos de mais movimentos para gerar insights."; else -> getString(R.string.section_settings_body) }
         findViewById<View>(R.id.planningForm).visibility = if (planning) View.VISIBLE else View.GONE
-        findViewById<View>(R.id.settingsForm).visibility = if (planning) View.GONE else View.VISIBLE
+        findViewById<View>(R.id.insightsEmpty).visibility = if (insights) View.VISIBLE else View.GONE
+        findViewById<View>(R.id.settingsForm).visibility = if (planning || insights) View.GONE else View.VISIBLE
+        findViewById<MaterialButton>(R.id.navHome).setOnClickListener { finish() }
+        findViewById<MaterialButton>(R.id.navMovements).setOnClickListener { startActivity(android.content.Intent(this, MovementActivity::class.java)) }
+        findViewById<MaterialButton>(R.id.navPlan).setOnClickListener { startActivity(intent.putExtra(EXTRA_SECTION, PLAN)) }
+        findViewById<MaterialButton>(R.id.navInsights).setOnClickListener { startActivity(intent.putExtra(EXTRA_SECTION, INSIGHTS)) }
+        findViewById<MaterialButton>(R.id.navSettings).setOnClickListener { startActivity(intent.putExtra(EXTRA_SECTION, SETTINGS)) }
         findViewById<MaterialButton>(R.id.backButton).setOnClickListener { finish() }
         val store = ProductStore(this)
         if (planning) {
@@ -34,6 +41,6 @@ class SectionActivity : AppCompatActivity() {
             findViewById<MaterialButton>(R.id.clearData).setOnClickListener { store.clearAll(); LocalLedgerStore(this).clear(); Toast.makeText(this, "Dados locais apagados", Toast.LENGTH_SHORT).show() }
         }
     }
-    companion object { const val EXTRA_SECTION = "section"; const val PLAN = "plan"; const val SETTINGS = "settings" }
+    companion object { const val EXTRA_SECTION = "section"; const val PLAN = "plan"; const val SETTINGS = "settings"; const val INSIGHTS = "insights" }
 }
 

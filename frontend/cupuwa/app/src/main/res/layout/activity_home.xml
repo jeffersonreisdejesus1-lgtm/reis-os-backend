@@ -4,7 +4,6 @@
 <TextView android:id="@+id/greetingView" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="CUPUWA" android:textColor="@color/cupuwa_ink" android:textSize="28sp" android:textStyle="bold"/>
 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:layout_marginBottom="18dp" android:text="@string/tagline" android:textColor="@color/cupuwa_muted" android:textSize="14sp"/>
 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginBottom="8dp" android:text="@string/pilot_badge" android:textColor="@color/cupuwa_accent" android:textSize="12sp" android:textStyle="bold"/>
-<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="12dp" android:orientation="horizontal"><com.google.android.material.button.MaterialButton android:id="@+id/navMovements" style="@style/Widget.Material3.Button.TextButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/nav_movements"/><com.google.android.material.button.MaterialButton android:id="@+id/navPlan" style="@style/Widget.Material3.Button.TextButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/nav_plan"/><com.google.android.material.button.MaterialButton android:id="@+id/navSettings" style="@style/Widget.Material3.Button.TextButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:text="@string/nav_settings"/></LinearLayout>
 <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="20dp">
 <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/balance_label" android:textColor="@color/cupuwa_muted"/>
 <TextView android:id="@+id/balanceView" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="@color/cupuwa_ink" android:textSize="38sp" android:textStyle="bold"/>
@@ -28,5 +27,6 @@
 <TextView android:id="@+id/emptyView" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp" android:text="@string/empty" android:textColor="@color/cupuwa_muted" android:visibility="gone"/>
 <androidx.recyclerview.widget.RecyclerView android:id="@+id/historyList" android:layout_width="match_parent" android:layout_height="wrap_content" android:nestedScrollingEnabled="false"/>
 <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="22dp" android:gravity="center" android:text="@string/privacy_note" android:textColor="@color/cupuwa_muted" android:textSize="12sp"/>
-</LinearLayout></ScrollView>
+</LinearLayout><include layout="@layout/bottom_navigation" />
+</ScrollView>
 

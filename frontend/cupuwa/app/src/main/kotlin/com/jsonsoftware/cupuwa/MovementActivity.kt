@@ -15,6 +15,11 @@ class MovementActivity : AppCompatActivity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         setContentView(R.layout.activity_movement)
+        findViewById<MaterialButton>(R.id.navHome).setOnClickListener { finish() }
+        findViewById<MaterialButton>(R.id.navMovements).setOnClickListener { }
+        findViewById<MaterialButton>(R.id.navPlan).setOnClickListener { startActivity(android.content.Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.PLAN)) }
+        findViewById<MaterialButton>(R.id.navInsights).setOnClickListener { startActivity(android.content.Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.INSIGHTS)) }
+        findViewById<MaterialButton>(R.id.navSettings).setOnClickListener { startActivity(android.content.Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.SETTINGS)) }
         store = LocalLedgerStore(this)
         kind = MoneyEntry.Kind.valueOf(
             intent.getStringExtra(EXTRA_KIND) ?: MoneyEntry.Kind.INCOME.name,
