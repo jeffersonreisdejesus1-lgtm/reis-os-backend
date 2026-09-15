@@ -27,7 +27,6 @@ object LedgerMath {
         require(!trimmed.startsWith("-") && !trimmed.startsWith("+")) { "Valor inválido" }
 
         val normalized = when {
-            trimmed.matches(Regex("\\d{1,3}([.,]\\d{3})+")) -> trimmed.replace(",", "").replace(".", "")
             trimmed.contains(",") && trimmed.contains(".") -> {
                 val decimal = maxOf(trimmed.lastIndexOf(','), trimmed.lastIndexOf('.'))
                 val integer = trimmed.substring(0, decimal).replace(",", "").replace(".", "")
@@ -35,6 +34,7 @@ object LedgerMath {
                 require(fraction.length in 1..2) { "Use no máximo duas casas decimais" }
                 "$integer.$fraction"
             }
+            trimmed.matches(Regex("\\d{1,3}([.,]\\d{3})+")) -> trimmed.replace(",", "").replace(".", "")
             trimmed.count { it == ',' } > 1 || trimmed.count { it == '.' } > 1 -> error("Valor inválido")
             trimmed.contains(',') -> trimmed.replace(',', '.')
             else -> trimmed
