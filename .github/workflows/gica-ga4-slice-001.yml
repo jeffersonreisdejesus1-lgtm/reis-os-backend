@@ -19,10 +19,34 @@ jobs:
       - name: Install
         run: pip install -e '.[dev]'
       - name: GICA GA4 contract tests
-        run: pytest -q tests/test_gica_ga4_slice_001_contracts.py
+        id: ga4
+        continue-on-error: true
+        run: pytest -q --junitxml=ga4-junit.xml tests/test_gica_ga4_slice_001_contracts.py
       - name: GICA GA6 durable ledger tests
-        run: pytest -q tests/test_gica_ga6_durable_ledger.py
+        id: ga6
+        continue-on-error: true
+        run: pytest -q --junitxml=ga6-junit.xml tests/test_gica_ga6_durable_ledger.py
       - name: Ruff
+        id: ruff
+        continue-on-error: true
         run: ruff check app/gica tests/test_gica_ga4_slice_001_contracts.py tests/test_gica_ga6_durable_ledger.py
       - name: Mypy
+        id: mypy
+        continue-on-error: true
         run: mypy app/gica
+      - name: Upload qualification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gica-qualification-reports
+          path: |
+            ga4-junit.xml
+            ga6-junit.xml
+          if-no-files-found: warn
+      - name: Enforce qualification result
+        if: always()
+        run: |
+          test "${{ steps.ga4.outcome }}" = "success"
+          test "${{ steps.ga6.outcome }}" = "success"
+          test "${{ steps.ruff.outcome }}" = "success"
+          test "${{ steps.mypy.outcome }}" = "success"
