@@ -12,6 +12,11 @@ on:
 jobs:
   qualify:
     runs-on: ubuntu-latest
+    env:
+      GICA_AUTHORITY_HMAC_KEY: ${{ secrets.GICA_AUTHORITY_HMAC_KEY }}
+      GICA_GATE_EVIDENCE_HMAC_KEY: ${{ secrets.GICA_GATE_EVIDENCE_HMAC_KEY }}
+      GICA_FOUNDER_HMAC_KEY: ${{ secrets.GICA_FOUNDER_HMAC_KEY }}
+      GICA_TRUST_BOOTSTRAP_PROVENANCE: ${{ secrets.GICA_TRUST_BOOTSTRAP_PROVENANCE }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
