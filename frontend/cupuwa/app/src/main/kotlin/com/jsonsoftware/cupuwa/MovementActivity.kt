@@ -15,6 +15,7 @@ class MovementActivity : AppCompatActivity() {
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         setContentView(R.layout.activity_movement)
+        LedgerMath.configureMoneyInput(findViewById(R.id.amountInput))
         findViewById<MaterialButton>(R.id.navHome).setOnClickListener {
             startActivity(android.content.Intent(this, MainActivity::class.java).apply {
                 addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP)

@@ -33,7 +33,6 @@
             <com.google.android.material.textfield.TextInputEditText android:id="@+id/openingBalance"
                 android:layout_width="match_parent" android:layout_height="wrap_content"
                 android:minHeight="56dp" android:paddingStart="16dp" android:paddingEnd="16dp"
-                android:digits="0123456789,."
                 android:inputType="numberDecimal" android:digits="0123456789,." android:text="0"/>
         </com.google.android.material.textfield.TextInputLayout>
         <TextView android:layout_width="match_parent" android:layout_height="wrap_content"

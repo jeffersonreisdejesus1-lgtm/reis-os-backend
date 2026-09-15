@@ -15,6 +15,7 @@ class OnboardingActivity : AppCompatActivity() {
         setContentView(R.layout.activity_onboarding)
         LedgerMath.configureMoneyInput(findViewById(R.id.openingBalance))
         product = ProductStore(this)
+        LedgerMath.configureMoneyInput(findViewById(R.id.openingBalance))
         findViewById<MaterialButton>(R.id.continueButton).setOnClickListener { finishOnboarding() }
         findViewById<MaterialButton>(R.id.skipNameButton).setOnClickListener {
             findViewById<TextInputEditText>(R.id.profileName).setText("")

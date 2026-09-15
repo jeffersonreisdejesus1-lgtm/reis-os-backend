@@ -39,7 +39,10 @@ object LedgerMath {
             }
             trimmed.count { it == ',' } > 1 || trimmed.count { it == '.' } > 1 -> {
                 if (trimmed.matches(Regex("\\d{1,3}(\\.\\d{3})+"))) trimmed.replace(".", "")
-                else error("Valor inválido")
+                else {
+                    require(false) { "Valor inválido" }
+                    ""
+                }
             }
             trimmed.contains(',') -> {
                 val fraction = trimmed.substringAfter(',')
