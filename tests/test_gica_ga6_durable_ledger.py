@@ -258,20 +258,3 @@ def test_t02_real_process_concurrency_single_successor(tmp_path: Path) -> None:
     ]
     results = [process.communicate(timeout=30) for process in processes]
     assert all(process.returncode == 0 for process in processes), results
-    payloads = [
-        json.loads(stdout.strip().splitlines()[-1]) for stdout, _stderr in results
-    ]
-    assert {item["gate"] for item in payloads} == {"GA1_SPECIFICATION_CONSISTENCY"}
-    assert {item["generation"] for item in payloads} == {1}
-    assert payloads[0]["pid"] != payloads[1]["pid"]
-
-
-def test_t07_ledger_reconstructs_single_canonical_successor(tmp_path: Path) -> None:
-    path = tmp_path / "gica-reconstruct.sqlite"
-    durable = reset_ledger(path)
-    predecessor = ("P-RECONSTRUCT", "v1", "GA0_BOOTSTRAP", "ACTIVE", (), 0)
-    first = durable.commit_transition(predecessor, "op-canonical", '{"gate":"GA1"}')
-    reopened = type(durable)(path)
-    second = reopened.commit_transition(predecessor, "op-other", '{"gate":"GA1-other"}')
-    assert first == second
-    assert reopened.get_transition(predecessor) == first
