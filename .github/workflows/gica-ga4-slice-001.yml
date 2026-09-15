@@ -1,6 +1,7 @@
 name: GICA GA4 Slice 001
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - 'app/gica/**'
@@ -51,6 +52,7 @@ jobs:
       - name: Enforce qualification result
         if: always()
         run: |
+          test "${{ steps.install.outcome }}" = "success"
           test "${{ steps.ga4.outcome }}" = "success"
           test "${{ steps.ga6.outcome }}" = "success"
           test "${{ steps.ruff.outcome }}" = "success"
