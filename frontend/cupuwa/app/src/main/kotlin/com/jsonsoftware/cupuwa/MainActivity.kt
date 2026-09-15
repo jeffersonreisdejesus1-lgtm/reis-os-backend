@@ -17,6 +17,7 @@ import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
     private lateinit var store: LocalLedgerStore
@@ -25,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private var editingId: Long? = null
     private var categories: List<Category> = emptyList()
     private var saveInProgress = false
+    private var draftOperationId = UUID.randomUUID().toString()
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -67,8 +69,12 @@ class MainActivity : AppCompatActivity() {
             val selectedName = findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).text?.toString().orEmpty()
             val categoryId = categories.firstOrNull { it.name == selectedName && it.kind == kind }?.id
             val accountId = product.activeAccountId()
-            val id = editingId; if (id == null) store.add(cents, kind, note, accountId = accountId, categoryId = categoryId) else store.update(id, cents, kind, note, accountId = accountId, categoryId = categoryId)
-            clearEditor(); refresh()
+            val id = editingId
+            if (id == null) store.add(cents, kind, note, accountId = accountId, categoryId = categoryId, operationId = draftOperationId)
+            else store.update(id, cents, kind, note, accountId = accountId, categoryId = categoryId)
+            clearEditor()
+            draftOperationId = UUID.randomUUID().toString()
+            refresh()
         }.onFailure { Toast.makeText(this, it.message ?: getString(R.string.invalid_value), Toast.LENGTH_SHORT).show() }
         saveInProgress = false
         incomeButton.isEnabled = true

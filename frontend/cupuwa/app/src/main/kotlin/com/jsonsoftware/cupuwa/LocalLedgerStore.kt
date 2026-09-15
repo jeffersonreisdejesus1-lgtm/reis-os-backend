@@ -1,6 +1,7 @@
 package com.jsonsoftware.cupuwa
 
 import android.content.Context
+import java.util.UUID
 
 class LocalLedgerStore(context: Context) {
     private val preferences = context.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
@@ -8,19 +9,21 @@ class LocalLedgerStore(context: Context) {
     fun entries(): List<MoneyEntry> = preferences.getString(KEY_ENTRIES, null).orEmpty()
         .split(RECORD_SEPARATOR).filter { it.isNotBlank() }.mapNotNull { row ->
             val f = row.split(FIELD_SEPARATOR)
-            if (f.size !in 4..7) return@mapNotNull null
+            if (f.size !in 4..8) return@mapNotNull null
             runCatching {
                 MoneyEntry(
                     id = f[0].toLong(), cents = f[1].toLong(), kind = MoneyEntry.Kind.valueOf(f[2]),
                     description = f[3], createdAtMillis = f.getOrNull(4)?.toLongOrNull() ?: f[0].toLong(),
                     accountId = f.getOrNull(5)?.toLongOrNull(), categoryId = f.getOrNull(6)?.toLongOrNull(),
+                    operationId = f.getOrNull(7)?.ifBlank { null } ?: f[0],
                 )
             }.getOrNull()
         }.sortedByDescending { it.createdAtMillis }
 
-    fun add(cents: Long, kind: MoneyEntry.Kind, description: String, accountId: Long? = null, categoryId: Long? = null): MoneyEntry {
+    fun add(cents: Long, kind: MoneyEntry.Kind, description: String, accountId: Long? = null, categoryId: Long? = null, operationId: String = UUID.randomUUID().toString()): MoneyEntry {
+        entries().firstOrNull { it.operationId == operationId }?.let { return it }
         val now = System.currentTimeMillis()
-        val entry = MoneyEntry(now, cents, kind, defaultDescription(kind, description), now, accountId, categoryId)
+        val entry = MoneyEntry(now, cents, kind, defaultDescription(kind, description), now, accountId, categoryId, operationId = operationId)
         persist(listOf(entry) + entries()); return entry
     }
 
@@ -40,9 +43,9 @@ class LocalLedgerStore(context: Context) {
 
     private fun persist(items: List<MoneyEntry>) {
         val encoded = items.joinToString(RECORD_SEPARATOR) {
-            listOf(it.id, it.cents, it.kind.name, it.description, it.createdAtMillis, it.accountId ?: "", it.categoryId ?: "").joinToString(FIELD_SEPARATOR)
+            listOf(it.id, it.cents, it.kind.name, it.description, it.createdAtMillis, it.accountId ?: "", it.categoryId ?: "", it.operationId).joinToString(FIELD_SEPARATOR)
         }
-        preferences.edit().putString(KEY_ENTRIES, encoded).commit()
+        check(preferences.edit().putString(KEY_ENTRIES, encoded).commit()) { "Não foi possível salvar o lançamento" }
     }
 
     private fun defaultDescription(kind: MoneyEntry.Kind, description: String) = description.ifBlank { if (kind == MoneyEntry.Kind.INCOME) "Entrada" else "Saída" }
