@@ -1,27 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">CUPUWA</string>
-    <string name="tagline">Seu dinheiro, claro todos os dias</string>
-    <string name="balance_label">Saldo atual</string>
-    <string name="today_label">Hoje</string>
-    <string name="month_label">Este mês</string>
-    <string name="month_result_label">Resultado do mês</string>
-    <string name="summary_values">Entradas %1$s   ·   Saídas %2$s</string>
-    <string name="add_income">Adicionar entrada</string>
-    <string name="add_expense">Adicionar saída</string>
-    <string name="history">Movimentações</string>
-    <string name="empty">Nenhuma movimentação ainda.\nAdicione sua primeira entrada ou saída.</string>
-    <string name="amount">Valor</string>
-    <string name="description">Descrição</string>
-    <string name="save">Salvar</string>
-    <string name="edit">Editar</string>
-    <string name="delete">Excluir</string>
-    <string name="delete_title">Excluir lançamento?</string>
-    <string name="cancel">Cancelar</string>
-    <string name="amount_hint">0,00</string>
-    <string name="new_entry">Novo lançamento</string>
-    <string name="edit_entry">Editar lançamento</string>
-    <string name="no_description">Sem descrição</string>
-    <string name="invalid_value">Valor inválido</string>
-    <string name="privacy_note">Seus dados ficam neste aparelho.</string>
+    <string name="app_name">CUPUWA</string><string name="tagline">Seu dinheiro com direção</string>
+    <string name="balance_label">Patrimônio local</string><string name="today_label">Hoje</string><string name="month_label">Este mês</string>
+    <string name="month_result_label">Resultado do mês</string><string name="summary_values">Entradas %1$s · Saídas %2$s</string>
+    <string name="add_income">Entrada</string><string name="add_expense">Saída</string><string name="history">Movimentações recentes</string>
+    <string name="empty">Seu histórico começa aqui. Registre a primeira movimentação.</string><string name="amount">Valor</string>
+    <string name="description">Descrição</string><string name="save">Salvar</string><string name="edit">Editar</string><string name="delete">Excluir</string>
+    <string name="delete_title">Excluir lançamento?</string><string name="cancel">Cancelar</string><string name="amount_hint">0,00</string>
+    <string name="new_entry">Novo lançamento</string><string name="edit_entry">Editar lançamento</string><string name="no_description">Sem descrição</string>
+    <string name="invalid_value">Valor inválido</string><string name="privacy_note">Privado por padrão · dados financeiros mantidos neste aparelho</string>
+    <string name="planning">Planejamento</string><string name="insights">Leitura do seu mês</string><string name="accounts">Contas e carteiras</string>
+    <string name="budget_empty">Crie limites por categoria para acompanhar seus gastos.</string><string name="goal_empty">Transforme planos em metas financeiras acompanháveis.</string>
+    <string name="nav_home">Início</string><string name="nav_movements">Movimentos</string><string name="nav_plan">Planejar</string><string name="nav_insights">Insights</string><string name="nav_settings">Ajustes</string>
 </resources>
