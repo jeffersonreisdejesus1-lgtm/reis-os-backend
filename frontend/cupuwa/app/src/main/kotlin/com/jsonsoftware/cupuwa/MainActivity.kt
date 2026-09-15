@@ -6,6 +6,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.ArrayAdapter
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -21,6 +22,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var product: ProductStore
     private lateinit var adapter: MovementAdapter
     private var editingId: Long? = null
+    private var categories: List<Category> = emptyList()
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state); setContentView(R.layout.activity_home)
@@ -30,6 +32,11 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.incomeButton).setOnClickListener { save(MoneyEntry.Kind.INCOME) }
         findViewById<MaterialButton>(R.id.expenseButton).setOnClickListener { save(MoneyEntry.Kind.EXPENSE) }
         findViewById<MaterialButton>(R.id.cancelEditButton).setOnClickListener { clearEditor() }
+        categories = product.categories()
+        findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).apply {
+            setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, categories.filter { it.kind == MoneyEntry.Kind.EXPENSE }.map { it.name }))
+            setText(categories.firstOrNull { it.kind == MoneyEntry.Kind.EXPENSE }?.name, false)
+        }
         refresh()
     }
 
@@ -37,7 +44,9 @@ class MainActivity : AppCompatActivity() {
         val amount = findViewById<TextInputEditText>(R.id.amountInput); val description = findViewById<TextInputEditText>(R.id.descriptionInput)
         runCatching {
             val cents = LedgerMath.parseCents(amount.text?.toString().orEmpty()); val note = description.text?.toString().orEmpty().trim()
-            val id = editingId; if (id == null) store.add(cents, kind, note) else store.update(id, cents, kind, note)
+            val selectedName = findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).text?.toString().orEmpty()
+            val categoryId = categories.firstOrNull { it.name == selectedName && it.kind == kind }?.id
+            val id = editingId; if (id == null) store.add(cents, kind, note, categoryId = categoryId) else store.update(id, cents, kind, note, categoryId = categoryId)
             clearEditor(); refresh()
         }.onFailure { Toast.makeText(this, it.message ?: getString(R.string.invalid_value), Toast.LENGTH_SHORT).show() }
     }
@@ -47,8 +56,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextInputEditText>(R.id.amountInput).setText(LedgerMath.formatBrl(entry.cents).removePrefix("- ").removePrefix("R$ ").trim())
         findViewById<TextInputEditText>(R.id.descriptionInput).setText(entry.description)
         findViewById<TextView>(R.id.composerTitle).text = getString(R.string.edit_entry); findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.VISIBLE
+        findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).setText(categories.firstOrNull { it.id == entry.categoryId }?.name ?: "", false)
     }
-    private fun clearEditor() { editingId = null; findViewById<TextInputEditText>(R.id.amountInput).text?.clear(); findViewById<TextInputEditText>(R.id.descriptionInput).text?.clear(); findViewById<TextView>(R.id.composerTitle).text = getString(R.string.new_entry); findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.GONE }
+    private fun clearEditor() { editingId = null; findViewById<TextInputEditText>(R.id.amountInput).text?.clear(); findViewById<TextInputEditText>(R.id.descriptionInput).text?.clear(); findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).setText(categories.firstOrNull { it.kind == MoneyEntry.Kind.EXPENSE }?.name ?: "", false); findViewById<TextView>(R.id.composerTitle).text = getString(R.string.new_entry); findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.GONE }
 
     private fun refresh() {
         val entries = store.entries(); val profile = product.profile(); val accounts = product.accounts(); val categories = product.categories(); val budgets = product.budgets(); val goals = product.goals()
@@ -78,3 +88,4 @@ class MovementAdapter(private val onEdit: (MoneyEntry) -> Unit, private val onDe
     override fun onBindViewHolder(h: Holder, position: Int) { val e = items[position]; val income = e.kind == MoneyEntry.Kind.INCOME; h.description.text = e.description; h.meta.text = time.format(Date(e.createdAtMillis)) + if (income) " · entrada" else " · saída"; h.amount.text = (if (income) "+ " else "- ") + LedgerMath.formatBrl(e.cents); h.amount.setTextColor(h.itemView.context.getColor(if (income) R.color.cupuwa_income else R.color.cupuwa_expense)); h.edit.setOnClickListener { onEdit(e) }; h.delete.setOnClickListener { onDelete(e) } }
     class Holder(view: View) : RecyclerView.ViewHolder(view) { val description: TextView = view.findViewById(R.id.itemDescription); val meta: TextView = view.findViewById(R.id.itemMeta); val amount: TextView = view.findViewById(R.id.itemAmount); val edit: MaterialButton = view.findViewById(R.id.editButton); val delete: MaterialButton = view.findViewById(R.id.deleteButton) }
 }
+
