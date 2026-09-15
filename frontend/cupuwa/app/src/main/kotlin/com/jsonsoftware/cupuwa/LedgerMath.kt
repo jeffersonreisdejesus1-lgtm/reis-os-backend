@@ -36,7 +36,10 @@ object LedgerMath {
                 "$integer.$fraction"
             }
             trimmed.matches(Regex("\\d{1,3}([.,]\\d{3})+")) -> trimmed.replace(",", "").replace(".", "")
-            trimmed.count { it == ',' } > 1 || trimmed.count { it == '.' } > 1 -> error("Valor inválido")
+            trimmed.count { it == ',' } > 1 || trimmed.count { it == '.' } > 1 -> {
+                require(false) { "Valor inválido" }
+                ""
+            }
             trimmed.contains(',') -> trimmed.replace(',', '.')
             else -> trimmed
         }
