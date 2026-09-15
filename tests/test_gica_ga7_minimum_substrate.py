@@ -428,3 +428,60 @@ def test_t_head_04_wrong_corpus_head_rejected(tmp_path: Path) -> None:
     corpus = Ga7Corpus(
         "corpus://open",
         "1",
+        "abc",
+        frozenset({"C1"}),
+        "OPEN",
+        "GICA-AUTHORITY-v1",
+        "wrong",
+    )
+    result = _runtime(tmp_path).execute(
+        _case(), _token(), _envelope(), corpus, _baseline()
+    )
+    assert (result.disposition, result.failure) == (
+        Ga7Disposition.HOLD,
+        "corpus_wrong_head",
+    )
+
+
+def test_t_head_05_restart_readback_preserves_identity(tmp_path: Path) -> None:
+    db = tmp_path / "ga7.sqlite"
+    produced = _runtime(tmp_path).execute(
+        _case(), _token(), _envelope(), _corpus(), _baseline()
+    )
+    restarted = Ga7Runtime(
+        Ga7Ledger(db),
+        Ga7RuntimeManifest(
+            "test", "1", CANDIDATE_HEAD, frozenset({"SOFIA"}), frozenset({"observe"})
+        ),
+    )
+    assert restarted.replay(_case()).identity_hash == produced.identity_hash
+
+
+def test_t_head_06_replay_creates_no_duplicate_identity(tmp_path: Path) -> None:
+    runtime = _runtime(tmp_path)
+    produced = runtime.execute(_case(), _token(), _envelope(), _corpus(), _baseline())
+    receipts_before = runtime.ledger.receipts(_case().case_key())
+    replayed = runtime.replay(_case())
+    assert replayed.identity_hash == produced.identity_hash
+    assert runtime.ledger.receipts(_case().case_key()) == receipts_before
+
+
+def test_t_head_07_through_10_safety_invariants(tmp_path: Path) -> None:
+    case = _case()
+    assert case.material_effect_allowed is False  # T-HEAD-07
+    assert case.max_parallelism == 1  # T-HEAD-08
+    assert case.max_recursion_depth == 0  # T-HEAD-09
+    assert (
+        _run(tmp_path, request_ga7_entry=True).failure == "ga7_entry_denied"
+    )  # T-HEAD-10
+
+
+def test_host_preflight_expected_candidate_head(tmp_path: Path) -> None:
+    binding = Ga7HostBinding(
+        _runtime(tmp_path).manifest, Ga7Ledger(tmp_path / "host.sqlite"), True
+    )
+    assert binding.preflight(CANDIDATE_HEAD).status == "PASS_CANDIDATE"
+    wrong = binding.preflight("wrong")
+    assert (wrong.status, wrong.reasons) == ("HOLD", ("wrong_head",))
+    missing = binding.preflight()
+    assert (missing.status, missing.reasons) == ("HOLD", ("missing_expected_head",))
