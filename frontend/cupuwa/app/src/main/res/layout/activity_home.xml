@@ -1,243 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:fillViewport="true"
-    android:background="@color/cupuwa_surface">
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="20dp">
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/app_name"
-            android:textColor="@color/cupuwa_ink"
-            android:textSize="24sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:layout_marginBottom="18dp"
-            android:text="@string/tagline"
-            android:textColor="@color/cupuwa_muted"
-            android:textSize="14sp" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@drawable/bg_card"
-            android:orientation="vertical"
-            android:padding="20dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/balance_label"
-                android:textColor="@color/cupuwa_muted"
-                android:textSize="14sp" />
-
-            <TextView
-                android:id="@+id/balanceView"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="@color/cupuwa_ink"
-                android:textSize="38sp"
-                android:textStyle="bold" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:orientation="horizontal">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginEnd="6dp"
-                android:background="@drawable/bg_card"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/today_label"
-                    android:textColor="@color/cupuwa_ink"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/todayView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/cupuwa_muted"
-                    android:textSize="12sp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:layout_marginStart="6dp"
-                android:background="@drawable/bg_card"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/month_label"
-                    android:textColor="@color/cupuwa_ink"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/monthView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:textColor="@color/cupuwa_muted"
-                    android:textSize="12sp" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="@string/month_result_label"
-                    android:textColor="@color/cupuwa_muted"
-                    android:textSize="11sp" />
-
-                <TextView
-                    android:id="@+id/monthResultView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="2dp"
-                    android:textColor="@color/cupuwa_ink"
-                    android:textSize="20sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_card"
-            android:orientation="vertical"
-            android:padding="16dp">
-
-            <TextView
-                android:id="@+id/composerTitle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/new_entry"
-                android:textColor="@color/cupuwa_ink"
-                android:textSize="17sp"
-                android:textStyle="bold" />
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:hint="@string/amount">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/amountInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:hint="@string/amount_hint"
-                    android:importantForAutofill="no"
-                    android:inputType="numberDecimal" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:hint="@string/description">
-
-                <com.google.android.material.textfield.TextInputEditText
-                    android:id="@+id/descriptionInput"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="textCapSentences" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/incomeButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
-                    android:text="@string/add_income" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/expenseButton"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:layout_marginStart="6dp"
-                    android:text="@string/add_expense" />
-            </LinearLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/cancelEditButton"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/cancel"
-                android:visibility="gone" />
-        </LinearLayout>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="8dp"
-            android:text="@string/history"
-            android:textColor="@color/cupuwa_ink"
-            android:textSize="19sp"
-            android:textStyle="bold" />
-
-        <TextView
-            android:id="@+id/emptyView"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:paddingTop="16dp"
-            android:paddingBottom="16dp"
-            android:text="@string/empty"
-            android:textColor="@color/cupuwa_muted"
-            android:visibility="gone" />
-
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/historyList"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:nestedScrollingEnabled="false" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:layout_marginBottom="8dp"
-            android:gravity="center"
-            android:text="@string/privacy_note"
-            android:textColor="@color/cupuwa_muted"
-            android:textSize="12sp" />
-    </LinearLayout>
-</ScrollView>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true" android:background="@color/cupuwa_surface">
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:padding="20dp">
+<TextView android:id="@+id/greetingView" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="CUPUWA" android:textColor="@color/cupuwa_ink" android:textSize="28sp" android:textStyle="bold"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="2dp" android:layout_marginBottom="18dp" android:text="@string/tagline" android:textColor="@color/cupuwa_muted" android:textSize="14sp"/>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="20dp">
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="@string/balance_label" android:textColor="@color/cupuwa_muted"/>
+<TextView android:id="@+id/balanceView" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="@color/cupuwa_ink" android:textSize="38sp" android:textStyle="bold"/>
+<TextView android:id="@+id/monthView" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:textColor="@color/cupuwa_muted"/>
+<TextView android:id="@+id/monthResultView" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="4dp" android:textColor="@color/cupuwa_ink" android:textSize="18sp" android:textStyle="bold"/>
+<TextView android:id="@+id/todayView" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="@color/cupuwa_muted" android:textSize="12sp"/>
+</LinearLayout>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="22dp" android:text="@string/insights" android:textColor="@color/cupuwa_ink" android:textSize="19sp" android:textStyle="bold"/>
+<TextView android:id="@+id/insightView" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:padding="16dp" android:textColor="@color/cupuwa_ink"/>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="22dp" android:text="@string/planning" android:textColor="@color/cupuwa_ink" android:textSize="19sp" android:textStyle="bold"/>
+<TextView android:id="@+id/planningView" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:background="@drawable/bg_card" android:padding="16dp" android:textColor="@color/cupuwa_muted"/>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:background="@drawable/bg_card" android:orientation="vertical" android:padding="16dp">
+<TextView android:id="@+id/composerTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/new_entry" android:textColor="@color/cupuwa_ink" android:textSize="17sp" android:textStyle="bold"/>
+<com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="10dp" android:hint="@string/amount"><com.google.android.material.textfield.TextInputEditText android:id="@+id/amountInput" android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="@string/amount_hint" android:inputType="numberDecimal"/></com.google.android.material.textfield.TextInputLayout>
+<com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:hint="@string/description"><com.google.android.material.textfield.TextInputEditText android:id="@+id/descriptionInput" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textCapSentences"/></com.google.android.material.textfield.TextInputLayout>
+<LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:orientation="horizontal"><com.google.android.material.button.MaterialButton android:id="@+id/incomeButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginEnd="6dp" android:text="@string/add_income"/><com.google.android.material.button.MaterialButton android:id="@+id/expenseButton" style="@style/Widget.Material3.Button.TonalButton" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:layout_marginStart="6dp" android:text="@string/add_expense"/></LinearLayout>
+<com.google.android.material.button.MaterialButton android:id="@+id/cancelEditButton" style="@style/Widget.Material3.Button.TextButton" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/cancel" android:visibility="gone"/>
+</LinearLayout>
+<TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="24dp" android:layout_marginBottom="8dp" android:text="@string/history" android:textColor="@color/cupuwa_ink" android:textSize="19sp" android:textStyle="bold"/>
+<TextView android:id="@+id/emptyView" android:layout_width="match_parent" android:layout_height="wrap_content" android:padding="16dp" android:text="@string/empty" android:textColor="@color/cupuwa_muted" android:visibility="gone"/>
+<androidx.recyclerview.widget.RecyclerView android:id="@+id/historyList" android:layout_width="match_parent" android:layout_height="wrap_content" android:nestedScrollingEnabled="false"/>
+<TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="22dp" android:gravity="center" android:text="@string/privacy_note" android:textColor="@color/cupuwa_muted" android:textSize="12sp"/>
+</LinearLayout></ScrollView>
