@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 
 class EvidenceStatus(StrEnum):
@@ -40,7 +40,7 @@ T = TypeVar("T")
 
 
 @dataclass(frozen=True)
-class EvidenceValue(Generic[T]):
+class EvidenceValue[T]:
     status: EvidenceStatus
     value: T | None = None
     evidence_ref: str | None = None
