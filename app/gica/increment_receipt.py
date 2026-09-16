@@ -153,7 +153,11 @@ class IncrementReceipt:
             self.head_after.value or ""
         ):
             raise ValueError("invalid_head_after")
-        if not self.intention_id.strip() or not self.repository.strip() or not self.branch.strip():
+        if (
+            not self.intention_id.strip()
+            or not self.repository.strip()
+            or not self.branch.strip()
+        ):
             raise ValueError("required_identity_missing")
         self.test_result.validate()
         self.build_result.validate()
@@ -177,7 +181,12 @@ class IncrementReceipt:
 
     def canonical_json(self) -> str:
         self.validate()
-        return json.dumps(self._full_payload(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return json.dumps(
+            self._full_payload(),
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     def _full_payload(self) -> dict[str, Any]:
         def evidence_value(value: EvidenceValue[Any]) -> dict[str, Any]:
