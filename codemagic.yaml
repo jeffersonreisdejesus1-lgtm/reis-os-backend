@@ -1,0 +1,27 @@
+workflows:
+  gica-qualification:
+    name: Qualificação GICA
+    instance_type: linux_x2
+
+    environment:
+      python:
+        version: 3.12
+
+    scripts:
+      - name: Instalar dependências Python
+        script: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e ".[dev]"
+
+      - name: Executar testes do recibo GICA
+        script: |
+          mkdir -p artifacts
+          pytest -q tests/test_gica_increment_receipt.py \
+            --junitxml=artifacts/gica-increment-receipt.xml
+
+      - name: Executar suíte GICA
+        script: |
+          pytest -q tests/test_gica_*.py
+
+    artifacts:
+      - artifacts/**/*.xml
