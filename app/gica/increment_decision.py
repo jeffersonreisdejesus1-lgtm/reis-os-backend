@@ -33,9 +33,20 @@ def decide(
     )
     if missing_tests:
         return Decision(Decision.HOLD, "required_test_command_missing")
-    if requirements.build_required and receipt.build_result.status is not ExecutionStatus.PASS:
-        return Decision(Decision.REPAIR if receipt.build_result.status is ExecutionStatus.FAIL else Decision.HOLD, "build_requirement_unmet")
-    if requirements.runtime_required and receipt.runtime_result.status is not ExecutionStatus.PASS:
+    if (
+        requirements.build_required
+        and receipt.build_result.status is not ExecutionStatus.PASS
+    ):
+        return Decision(
+            Decision.REPAIR
+            if receipt.build_result.status is ExecutionStatus.FAIL
+            else Decision.HOLD,
+            "build_requirement_unmet",
+        )
+    if (
+        requirements.runtime_required
+        and receipt.runtime_result.status is not ExecutionStatus.PASS
+    ):
         return Decision(
             Decision.REPAIR
             if receipt.runtime_result.status is ExecutionStatus.FAIL
