@@ -7,6 +7,7 @@ workflows:
         script: |
           python3 -m pip install --upgrade pip
           python3 -m pip install -e ".[dev]"
+          python3 -m pip install greenlet
 
       - name: Executar testes do recibo GICA
         script: |
