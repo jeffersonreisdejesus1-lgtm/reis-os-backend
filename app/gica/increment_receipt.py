@@ -180,6 +180,27 @@ class IncrementReceipt:
         return json.dumps(self._full_payload(), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
     def _full_payload(self) -> dict[str, Any]:
+        def evidence_value(value: EvidenceValue[Any]) -> dict[str, Any]:
+            payload: dict[str, Any] = {
+                "status": value.status.value,
+                "evidence_ref": value.evidence_ref,
+            }
+            if isinstance(value.value, tuple):
+                payload["value"] = [
+                    {
+                        "path": item.path,
+                        "change_type": item.change_type,
+                        "before_blob_sha": item.before_blob_sha,
+                        "after_blob_sha": item.after_blob_sha,
+                    }
+                    if isinstance(item, FileChange)
+                    else item
+                    for item in value.value
+                ]
+            else:
+                payload["value"] = value.value
+            return payload
+
         return {
             "schema_version": self.schema_version,
             "receipt_id": self.receipt_id,
@@ -187,9 +208,9 @@ class IncrementReceipt:
             "program": self.program,
             "repository": self.repository,
             "branch": self.branch,
-            "head_before": self.head_before.__dict__,
-            "head_after": self.head_after.__dict__,
-            "files_changed": self.files_changed.__dict__,
+            "head_before": evidence_value(self.head_before),
+            "head_after": evidence_value(self.head_after),
+            "files_changed": evidence_value(self.files_changed),
             "test_commands": self.test_commands,
             "test_result": self.test_result.__dict__,
             "build_result": self.build_result.__dict__,
