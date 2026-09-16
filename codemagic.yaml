@@ -1,7 +1,6 @@
 workflows:
   gica-qualification:
     name: Qualificação GICA
-    instance_type: linux_x2
 
     scripts:
       - name: Instalar dependências Python
