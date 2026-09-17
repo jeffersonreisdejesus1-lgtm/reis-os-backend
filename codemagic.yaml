@@ -9,6 +9,14 @@ workflows:
           python3 -m pip install -e ".[dev]"
           python3 -m pip install greenlet
 
+      - name: Executar Ruff
+        script: |
+          ruff check app/gica tests/test_gica_*.py
+
+      - name: Executar Mypy
+        script: |
+          mypy app/gica
+
       - name: Executar testes do recibo GICA
         script: |
           mkdir -p artifacts
