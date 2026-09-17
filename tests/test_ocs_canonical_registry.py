@@ -5,13 +5,16 @@ from app.profile_bindings.canonical_registry import (
     get_canonical_profile,
     validate_canonical_registry,
 )
+from app.profile_bindings.mobile_fullstack_profiles import MOBILE_FULLSTACK_PROFILES, validate_mobile_fullstack_profiles
 from app.profile_bindings.profiles import KERNEL_INTERFACE_REF, PROFILES
 
 
-def test_registry_canonicalizes_all_thirty_known_ocs() -> None:
+def test_registry_canonicalizes_all_seventy_two_ocs() -> None:
+    validate_mobile_fullstack_profiles()
     validate_canonical_registry()
-    assert len(CANONICAL_OCS_REGISTRY) == 30
+    assert len(CANONICAL_OCS_REGISTRY) == 72
     assert set(CANONICAL_OCS_REGISTRY) == EXPECTED_OCS_IDS
+    assert len(MOBILE_FULLSTACK_PROFILES) == 42
 
 
 def test_foundation_ten_remain_intact_as_historical_generation() -> None:
@@ -19,7 +22,7 @@ def test_foundation_ten_remain_intact_as_historical_generation() -> None:
         assert CANONICAL_OCS_REGISTRY[ocs_id] == profile
 
 
-def test_temis_is_canonical_eleventh_android_play_ocs() -> None:
+def test_temis_is_canonical_android_play_stewardship_ocs() -> None:
     assert get_canonical_profile("TÊMIS") is TEMIS
     assert "android_google_play" in TEMIS.specialty
     assert "privacy" in TEMIS.specialty
@@ -27,11 +30,20 @@ def test_temis_is_canonical_eleventh_android_play_ocs() -> None:
     assert "credential_access_by_profile" in TEMIS.denied_action_classes
 
 
-def test_every_canonical_ocs_has_isolated_identity_state_and_memory() -> None:
+def test_apple_has_independent_app_store_stewardship_ocs() -> None:
+    apple = get_canonical_profile("APPLÉIA")
+    assert "apple_app_store" in apple.specialty
+    assert "testflight" in apple.specialty
+    assert "unmediated_publication" in apple.denied_action_classes
+    assert "credential_access_by_profile" in apple.denied_action_classes
+
+
+def test_every_canonical_ocs_has_isolated_identity_state_memory_and_specialty() -> None:
     profiles = tuple(CANONICAL_OCS_REGISTRY.values())
-    assert len({p.identity for p in profiles}) == 30
-    assert len({p.state_namespace for p in profiles}) == 30
-    assert len({p.memory_namespace for p in profiles}) == 30
+    assert len({p.identity for p in profiles}) == 72
+    assert len({p.state_namespace for p in profiles}) == 72
+    assert len({p.memory_namespace for p in profiles}) == 72
+    assert len({p.specialty for p in profiles}) == 72
 
 
 def test_every_canonical_ocs_inherits_same_universal_kernel_contract() -> None:
