@@ -66,17 +66,16 @@ class EconomicGovernor:
 
     def reconcile(self, reservation_id: str, actual_cost: Decimal, *, strong: bool = False) -> bool:
         with self._lock:
-            reservation = self._reservations.pop(reservation_id, None)
+            reservation = self._reservations.get(reservation_id)
             if reservation is None:
                 return False
-            self._reserved -= reservation.expected_cost
-            if actual_cost < 0:
+            if actual_cost < 0 or strong != reservation.strong:
                 return False
+            self._reservations.pop(reservation_id)
+            self._reserved -= reservation.expected_cost
             self.spent_daily += actual_cost
             self.spent_monthly += actual_cost
             self.spent_run += actual_cost
-            if strong != reservation.strong:
-                return False
             if reservation.strong:
                 self.strong_calls_today += 1
             reservation.committed = True
