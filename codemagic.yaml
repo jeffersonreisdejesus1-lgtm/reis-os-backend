@@ -1,0 +1,31 @@
+workflows:
+  gica-qualification:
+    name: Qualificação GICA
+
+    scripts:
+      - name: Instalar dependências Python
+        script: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -e ".[dev]"
+          python3 -m pip install greenlet
+
+      - name: Executar Ruff
+        script: |
+          ruff check app/gica tests/test_gica_*.py
+
+      - name: Executar Mypy
+        script: |
+          mypy app/gica
+
+      - name: Executar testes do recibo GICA
+        script: |
+          mkdir -p artifacts
+          pytest -q tests/test_gica_increment_receipt.py \
+            --junitxml=artifacts/gica-increment-receipt.xml
+
+      - name: Executar suíte GICA
+        script: |
+          pytest -q tests/test_gica_*.py
+
+    artifacts:
+      - artifacts/**/*.xml

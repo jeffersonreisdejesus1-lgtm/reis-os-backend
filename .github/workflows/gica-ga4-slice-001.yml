@@ -1,0 +1,64 @@
+name: GICA GA4 Slice 001
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'app/gica/**'
+      - 'tests/test_gica_ga4_slice_001_contracts.py'
+      - 'tests/test_gica_ga6_durable_ledger.py'
+      - '.github/workflows/gica-ga4-slice-001.yml'
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    env:
+      GICA_AUTHORITY_HMAC_KEY: ${{ secrets.GICA_AUTHORITY_HMAC_KEY }}
+      GICA_GATE_EVIDENCE_HMAC_KEY: ${{ secrets.GICA_GATE_EVIDENCE_HMAC_KEY }}
+      GICA_FOUNDER_HMAC_KEY: ${{ secrets.GICA_FOUNDER_HMAC_KEY }}
+      GICA_TRUST_BOOTSTRAP_PROVENANCE: ${{ secrets.GICA_TRUST_BOOTSTRAP_PROVENANCE }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        id: install
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pip install -e '.[dev]' 2>&1 | tee install.log
+      - name: GICA GA4 contract tests
+        id: ga4
+        continue-on-error: true
+        run: pytest -q --junitxml=ga4-junit.xml tests/test_gica_ga4_slice_001_contracts.py
+      - name: GICA GA6 durable ledger tests
+        id: ga6
+        continue-on-error: true
+        run: pytest -q --junitxml=ga6-junit.xml tests/test_gica_ga6_durable_ledger.py
+      - name: Ruff
+        id: ruff
+        continue-on-error: true
+        run: ruff check app/gica tests/test_gica_ga4_slice_001_contracts.py tests/test_gica_ga6_durable_ledger.py
+      - name: Mypy
+        id: mypy
+        continue-on-error: true
+        run: mypy app/gica
+      - name: Upload qualification reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gica-qualification-reports
+          path: |
+            ga4-junit.xml
+            ga6-junit.xml
+            install.log
+          if-no-files-found: warn
+      - name: Enforce qualification result
+        if: always()
+        run: |
+          test "${{ steps.install.outcome }}" = "success"
+          test "${{ steps.ga4.outcome }}" = "success"
+          test "${{ steps.ga6.outcome }}" = "success"
+          test "${{ steps.ruff.outcome }}" = "success"
+          test "${{ steps.mypy.outcome }}" = "success"
