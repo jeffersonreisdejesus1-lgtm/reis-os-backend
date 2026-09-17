@@ -1,12 +1,20 @@
-name: R2 10 OCS Profile Bindings
+name: R2 OCS Profile Bindings
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - r2/10ocs-profile-bindings-v0
+      - cupuwa/mvp-build
+    paths:
+      - 'app/profile_bindings/**'
+      - 'tests/test_ocs_canonical_registry.py'
+      - 'tests/test_r2_profile_bindings.py'
+      - '.github/workflows/r2-profile-bindings.yml'
   pull_request:
     paths:
       - 'app/profile_bindings/**'
+      - 'tests/test_ocs_canonical_registry.py'
       - 'tests/test_r2_profile_bindings.py'
       - '.github/workflows/r2-profile-bindings.yml'
 
@@ -20,11 +28,13 @@ jobs:
           python-version: '3.12'
       - name: Install
         run: pip install -e '.[dev]'
+      - name: Canonical 72 OCS registry qualification
+        run: pytest -q tests/test_ocs_canonical_registry.py
       - name: R2 profile binding tests
         run: pytest -q tests/test_r2_profile_bindings.py
       - name: Frozen R1 regression harness
         run: pytest -q tests/test_universal_kernel_r1a.py
-      - name: Ruff R2
-        run: ruff check app/profile_bindings tests/test_r2_profile_bindings.py
-      - name: Mypy R2
+      - name: Ruff profile bindings
+        run: ruff check app/profile_bindings tests/test_ocs_canonical_registry.py tests/test_r2_profile_bindings.py
+      - name: Mypy profile bindings
         run: mypy app/profile_bindings
