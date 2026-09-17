@@ -20,6 +20,7 @@ class BudgetPolicy:
 class Reservation:
     reservation_id: str
     expected_cost: Decimal
+    strong: bool = False
     committed: bool = False
 
 
@@ -41,7 +42,14 @@ class EconomicGovernor:
                 return None
             if self.calls_this_cycle >= self.policy.cycle_call_limit:
                 return None
-            if strong and self.strong_calls_today >= self.policy.strong_model_limit:
+            outstanding_strong = sum(
+                1 for reservation in self._reservations.values() if reservation.strong
+            )
+            if (
+                strong
+                and self.strong_calls_today + outstanding_strong
+                >= self.policy.strong_model_limit
+            ):
                 return None
             projected = self._reserved + expected_cost
             if self.spent_daily + projected > self.policy.daily:
@@ -50,7 +58,7 @@ class EconomicGovernor:
                 return None
             if self.spent_run + projected > self.policy.run:
                 return None
-            reservation = Reservation(str(uuid4()), expected_cost)
+            reservation = Reservation(str(uuid4()), expected_cost, strong=strong)
             self._reservations[reservation.reservation_id] = reservation
             self._reserved += expected_cost
             self.calls_this_cycle += 1
@@ -67,7 +75,9 @@ class EconomicGovernor:
             self.spent_daily += actual_cost
             self.spent_monthly += actual_cost
             self.spent_run += actual_cost
-            if strong:
+            if strong != reservation.strong:
+                return False
+            if reservation.strong:
                 self.strong_calls_today += 1
             reservation.committed = True
             return True
