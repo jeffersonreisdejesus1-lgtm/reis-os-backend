@@ -1,0 +1,75 @@
+name: GICA Direct SHA Qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Commit exato a qualificar"
+        required: true
+        type: string
+        default: "7664afabf5cb3aeb616b0031e162694dee789c91"
+
+permissions:
+  contents: read
+
+jobs:
+  gica-direct-sha:
+    runs-on: ubuntu-latest
+    env:
+      GICA_AUTHORITY_HMAC_KEY: ${{ secrets.GICA_AUTHORITY_HMAC_KEY }}
+      GICA_GATE_EVIDENCE_HMAC_KEY: ${{ secrets.GICA_GATE_EVIDENCE_HMAC_KEY }}
+      GICA_FOUNDER_HMAC_KEY: ${{ secrets.GICA_FOUNDER_HMAC_KEY }}
+
+    steps:
+      - name: Checkout SHA exato
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.target_sha }}
+          fetch-depth: 0
+
+      - name: Confirmar SHA
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.target_sha }}"
+          git rev-parse HEAD
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dependências
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+          pip install greenlet
+
+      - name: Ruff
+        run: ruff check app/gica tests/test_gica_*.py
+
+      - name: Mypy
+        run: mypy app/gica
+
+      - name: Testes GICA
+        run: |
+          mkdir -p artifacts
+          pytest -q tests/test_gica_*.py \
+            --junitxml=artifacts/gica-direct-sha.xml
+
+      - name: Registrar metadados
+        if: always()
+        run: |
+          {
+            echo "target_sha=${{ inputs.target_sha }}"
+            echo "checked_out_sha=$(git rev-parse HEAD)"
+            echo "run_id=${{ github.run_id }}"
+            echo "run_attempt=${{ github.run_attempt }}"
+          } > artifacts/execution.txt
+
+      - name: Publicar evidências
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gica-direct-sha-${{ inputs.target_sha }}
+          path: artifacts/
+          if-no-files-found: warn
