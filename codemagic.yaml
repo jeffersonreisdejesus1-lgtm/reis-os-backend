@@ -1,25 +1,60 @@
 workflows:
   cupuwa-p0-material:
-    name: CUPUWA MVP material execution
+    name: CUPUWA SLICE-001 material execution
     max_build_duration: 60
     triggering:
       events:
         - push
       branch_patterns:
-        - pattern: sofia/cupuwa-p0-001
+        - pattern: cupuwa/mvp-build
           include: true
           source: true
       cancel_previous_builds: true
     environment:
       java: 17
     scripts:
-      - name: Validate CUPUWA MVP
+      - name: Validate multi-OCS contract substrate
+        script: |
+          set -euo pipefail
+          mkdir -p codemagic-artifacts/contracts
+          python3 --version | tee codemagic-artifacts/contracts/python-version.log
+          python3 -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          python -m pip install 'pytest>=8.4,<9.0' 'ruff>=0.12,<1.0' 'mypy>=1.17,<2.0'
+          pytest --noconftest -q \
+            tests/test_cupuwa_multi_ocs_contract_substrate.py \
+            tests/test_ocs_canonical_registry.py \
+            2>&1 | tee codemagic-artifacts/contracts/pytest.log
+          ruff check \
+            app/cupuwa_multi_ocs \
+            tests/test_cupuwa_multi_ocs_contract_substrate.py \
+            tests/test_ocs_canonical_registry.py \
+            2>&1 | tee codemagic-artifacts/contracts/ruff.log
+          mypy app/cupuwa_multi_ocs \
+            2>&1 | tee codemagic-artifacts/contracts/mypy.log
+          {
+            echo 'MISSION=NOESIS-TO-SOFIA-CUPUWA-MULTI-OCS-CONTRACT-SUBSTRATE-001'
+            echo 'TARGET_SLICE=SLICE-001-CONTRACT-SUBSTRATE'
+            echo "HEAD=$(git rev-parse HEAD)"
+            echo "BRANCH=$(git branch --show-current)"
+            echo 'AUTHORITY_TRANSFER=false'
+            echo 'MEMORY_IMPORT=false'
+            echo 'DIRECT_EFFECT_ROUTE=false'
+            echo 'CAPABILITY_ADAPTER_INTRODUCED=false'
+            echo 'TOOL_PERMISSION_BINDING_INTRODUCED=false'
+            echo 'PRODUCT_UI_CHANGE=false'
+          } | tee codemagic-artifacts/contracts/evidence-manifest.txt
+          git log --oneline -8 | tee codemagic-artifacts/contracts/recent-commits.txt
+
+      - name: Validate CUPUWA MVP regression
         script: |
           set -euo pipefail
           test ! -d frontend/command-android || echo 'COMMAND_MODULE_PRESENT_BUT_OUT_OF_SCOPE'
           mkdir -p codemagic-artifacts
           gradle --version 2>&1 | tee codemagic-artifacts/gradle-version.log
           gradle --no-daemon -p frontend/cupuwa :app:clean :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:bundleRelease 2>&1 | tee codemagic-artifacts/gradle-build.log
+
       - name: Collect CUPUWA APK, AAB and evidence
         script: |
           set -euxo pipefail
@@ -65,7 +100,7 @@ workflows:
           printf 'LINT_REPORT_COUNT=%s\n' "$LINT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
           test "$LINT_COUNT" -ge 1
           {
-            echo 'MISSION=CUPUWA-MVP-PLAYSTORE-BASELINE-001'
+            echo 'MISSION=CUPUWA-MVP-REGRESSION-AFTER-MULTI-OCS-SLICE-001'
             echo "HEAD=$(git rev-parse HEAD)"
             echo 'PACKAGE=com.jsonsoftware.cupuwa'
             echo 'VERSION_NAME=0.3.0-mvp'
