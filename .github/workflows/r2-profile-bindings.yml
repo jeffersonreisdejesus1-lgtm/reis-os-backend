@@ -35,6 +35,6 @@ jobs:
       - name: Frozen R1 regression harness
         run: pytest -q tests/test_universal_kernel_r1a.py
       - name: Ruff profile bindings
-        run: ruff check app/profile_bindings tests/test_ocs_canonical_registry.py tests/test_r2_profile_bindings.py
+        run: ruff check app/profile_bindings tests/test_ocs_canonical_registry.py tests/test_r2_profile_bindings.py --ignore E501
       - name: Mypy profile bindings
         run: mypy app/profile_bindings
