@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from app.gica.increment_decision import (
     DecisionRequirements,
     can_promote,
@@ -16,7 +17,7 @@ from app.gica.increment_evidence import (
     ExecutionEvidence,
     ExecutionStatus,
 )
-from app.gica.increment_ledger import IncrementReceiptConflict, InMemoryIncrementLedger
+from app.gica.increment_ledger import InMemoryIncrementLedger, IncrementReceiptConflict
 from app.gica.increment_receipt import (
     SCHEMA_VERSION,
     Decision,
@@ -99,7 +100,10 @@ def receipt(
 def test_valid_pass_receipt_and_deterministic_id() -> None:
     item = receipt()
     assert item.receipt_id == receipt().receipt_id
-    assert decide(item) == Decision(Decision.PASS, "all_applicable_requirements_satisfied")
+    assert decide(item) == Decision(
+        Decision.PASS,
+        "all_applicable_requirements_satisfied",
+    )
 
 
 def test_test_failure_requires_repair() -> None:
@@ -128,7 +132,10 @@ def test_required_test_and_build_rules() -> None:
     )
     assert decide(item, requirements).value == Decision.HOLD
     passed = receipt(build_status=ExecutionStatus.PASS)
-    assert decide(passed, DecisionRequirements(build_required=True)).value == Decision.PASS
+    assert (
+        decide(passed, DecisionRequirements(build_required=True)).value
+        == Decision.PASS
+    )
 
 
 def test_ledger_replay_and_conflict() -> None:
@@ -150,4 +157,3 @@ def test_immutable_decided_receipt() -> None:
 
 def test_no_promotion() -> None:
     assert can_promote(receipt()) is False
-
