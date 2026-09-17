@@ -9,7 +9,7 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 PROGRAM_ID = "REIS-OS-ARTIFICIAL-BRAIN-VALIDATION-001"
@@ -161,7 +161,7 @@ async def health() -> dict[str, Any]:
 @router.post("/effects/execute")
 async def execute_effect(
     envelope: ExecutionEnvelope,
-    x_reis_execution_token: str | None = None,
+    x_reis_execution_token: str | None = Header(default=None),
 ) -> dict[str, Any]:
     _authorize_caller(x_reis_execution_token)
     return await _dispatch("authority", envelope)
