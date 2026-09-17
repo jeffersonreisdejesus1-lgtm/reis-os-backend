@@ -7,7 +7,7 @@ on:
         description: "Commit exato a qualificar"
         required: true
         type: string
-        default: "7664afabf5cb3aeb616b0031e162694dee789c91"
+        default: "12976c49b1051c8da99db7b4de070dbb02f59f16"
 
 permissions:
   contents: read
