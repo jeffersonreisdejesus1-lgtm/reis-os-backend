@@ -10,7 +10,7 @@ DENY_VERIFY = ("primary_construction_under_verification", "self_assurance", "aut
 DENY_ADVISE = ("unmediated_material_effect", "self_assurance", "authority_expansion")
 
 
-def _p(ocs_id: str, specialty: str, allowed: tuple[str, ...], support: tuple[str, ...], denied: tuple[str, ...] = DENY_ADVISE) -> OCSProfile:
+def _p(\n    ocs_id: str,\n    specialty: str,\n    allowed: tuple[str, ...],\n    support: tuple[str, ...],\n    denied: tuple[str, ...] = DENY_ADVISE,\n) -> OCSProfile:
     return _profile(ocs_id, specialty, allowed, denied, support)
 
 
