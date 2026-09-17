@@ -5,7 +5,7 @@ from app.profile_bindings.canonical_registry import (
     get_canonical_profile,
     validate_canonical_registry,
 )
-from app.profile_bindings.mobile_fullstack_profiles import MOBILE_FULLSTACK_PROFILES, validate_mobile_fullstack_profiles
+from app.profile_bindings.mobile_fullstack_profiles import (\n    MOBILE_FULLSTACK_PROFILES,\n    validate_mobile_fullstack_profiles,\n)
 from app.profile_bindings.profiles import KERNEL_INTERFACE_REF, PROFILES
 
 
