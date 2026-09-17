@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from app.profile_bindings.cupuwa_visual_profiles import CUPUWA_VISUAL_PROFILES
 from app.profile_bindings.mobile_fullstack_profiles import MOBILE_FULLSTACK_PROFILES
-from app.profile_bindings.profiles import KERNEL_INTERFACE_REF, OCSProfile, PROFILES, _profile
+from app.profile_bindings.profiles import (
+    KERNEL_INTERFACE_REF,
+    PROFILES,
+    OCSProfile,
+    _profile,
+)
 
 REGISTRY_ID = "REIS-OS-OCS-CANONICAL-REGISTRY-001"
 REGISTRY_VERSION = "v0.2.0"
