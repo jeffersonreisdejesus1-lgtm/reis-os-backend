@@ -17,7 +17,7 @@ from app.gica.increment_evidence import (
     ExecutionEvidence,
     ExecutionStatus,
 )
-from app.gica.increment_ledger import InMemoryIncrementLedger, IncrementReceiptConflict
+from app.gica.increment_ledger import IncrementReceiptConflict, InMemoryIncrementLedger
 from app.gica.increment_receipt import (
     SCHEMA_VERSION,
     Decision,
