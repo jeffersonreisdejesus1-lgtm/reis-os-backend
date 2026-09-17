@@ -24,7 +24,6 @@ MOBILE_FULLSTACK_PROFILES: dict[str, OCSProfile] = {
     "ODÓS": _p("ODÓS", "user_journeys_flows_use_cases_edge_cases", ("journey_specification", "edge_case_analysis"), ("journeys", "flows", "use_cases")),
     "DOMÉA": _p("DOMÉA", "domain_model_business_rules_invariants", ("domain_model_specification", "business_rule_analysis"), ("domain", "business_rules", "invariants")),
     "NOMÍSMA": _p("NOMÍSMA", "financial_domain_money_ledger_precision_reconciliation", ("financial_domain_specification", "ledger_rule_analysis"), ("money", "ledger", "precision", "reconciliation")),
-    "EMPIRÍA": _p("EMPIRÍA", "product_research_user_evidence_hypothesis_validation", ("product_research", "hypothesis_evidence"), ("research", "user_evidence", "hypotheses")),
 
     # Shared mobile engineering
     "ARCHÉ": _p("ARCHÉ", "mobile_application_architecture_modularity_boundaries", ("mobile_architecture_design", "module_boundary_specification"), ("mobile_architecture", "modularity", "boundaries")),
