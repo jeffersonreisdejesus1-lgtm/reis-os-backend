@@ -36,7 +36,9 @@ class EconomicGovernor:
     _reservations: dict[str, Reservation] = field(default_factory=dict)
     _lock: Lock = field(default_factory=Lock, repr=False)
 
-    def reserve(\n        self, expected_cost: Decimal, *, strong: bool = False\n    ) -> Reservation | None:
+    def reserve(
+        self, expected_cost: Decimal, *, strong: bool = False
+    ) -> Reservation | None:
         with self._lock:
             if expected_cost < 0 or expected_cost > self.policy.signal:
                 return None
@@ -64,7 +66,9 @@ class EconomicGovernor:
             self.calls_this_cycle += 1
             return reservation
 
-    def reconcile(\n        self, reservation_id: str, actual_cost: Decimal, *, strong: bool = False\n    ) -> bool:
+    def reconcile(
+        self, reservation_id: str, actual_cost: Decimal, *, strong: bool = False
+    ) -> bool:
         with self._lock:
             reservation = self._reservations.get(reservation_id)
             if reservation is None:
