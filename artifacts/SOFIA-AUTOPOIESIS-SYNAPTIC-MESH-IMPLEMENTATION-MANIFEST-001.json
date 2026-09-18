@@ -1,0 +1,14 @@
+{
+  "manifest_id": "SOFIA-AUTOPOIESIS-SYNAPTIC-MESH-IMPLEMENTATION-MANIFEST-001",
+  "head_commit": "9848c35ad6a2b36606042389857329d9ae91ff8b",
+  "files": [
+    "ci/recursive-runtime/autopoiesis_mesh.py",
+    "ci/recursive-runtime/recursive_runtime/runtime/integrated_runtime.py",
+    "ci/recursive-runtime/tests/test_autopoiesis_synaptic_mesh.py",
+    "artifacts/REIS-OS-AUTOPOIESIS-SYNAPTIC-MESH-INTEGRATION-V1-001.md",
+    "artifacts/SOFIA-AUTOPOIESIS-SYNAPTIC-MESH-IMPLEMENTATION-RETURN-001.md",
+    "artifacts/SOFIA-AUTOPOIESIS-SYNAPTIC-MESH-IMPLEMENTATION-RECEIPT-001.json"
+  ],
+  "assurance_state": "PENDING_DEDALA",
+  "external_ci": "NOT_YET_EXECUTED_FOR_THIS_SLICE"
+}

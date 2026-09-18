@@ -30,11 +30,11 @@ def _event(ocs_id: str, sequence: int = 1) -> CommandEvent:
     )
 
 
-def test_b7_exposes_exactly_ten_versioned_dossiers(tmp_path: Path) -> None:
+def test_b7_exposes_exactly_eleven_versioned_dossiers(tmp_path: Path) -> None:
     dossiers = CommandDossierService(tmp_path / "events.sqlite3").list()
 
-    assert len(dossiers) == 10
-    assert len({item["ocs_id"] for item in dossiers}) == 10
+    assert len(dossiers) == 11
+    assert len({item["ocs_id"] for item in dossiers}) == 11
     assert all(item["version"].startswith("profile:") for item in dossiers)
 
 

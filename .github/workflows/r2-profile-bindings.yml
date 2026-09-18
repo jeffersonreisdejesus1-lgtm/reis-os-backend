@@ -1,11 +1,13 @@
-name: R2 OCS Profile Bindings
+name: R2 72 OCS Profile Bindings
 
 on:
   workflow_dispatch:
   push:
     branches:
       - r2/10ocs-profile-bindings-v0
+      - ncp/universal-11ocs-v1
       - cupuwa/mvp-build
+      - cupuwa/reconcile-main-20260917
     paths:
       - 'app/profile_bindings/**'
       - 'tests/test_ocs_canonical_registry.py'

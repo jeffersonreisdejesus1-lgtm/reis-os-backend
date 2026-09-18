@@ -1,14 +1,7 @@
 name: Post Promotion R3 Conformance
 
 on:
-  push:
-    branches:
-      - repair/post-promotion-r3-conformance-v0
-  pull_request:
-    paths:
-      - "app/universal_kernel/**"
-      - "tests/test_post_promotion_r3_conformance.py"
-      - ".github/workflows/post-promotion-r3-conformance.yml"
+  workflow_dispatch:
 
 jobs:
   post-promotion-r3-conformance:

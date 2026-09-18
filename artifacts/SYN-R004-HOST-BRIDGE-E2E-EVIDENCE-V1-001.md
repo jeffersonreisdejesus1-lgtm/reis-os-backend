@@ -1,0 +1,75 @@
+# SYN-R004 Host Bridge E2E Evidence V1
+
+CYCLE_ID
+= REIS-OS-SYN-R004-CANONICAL-INTEGRATION-AND-CANARY-V1-001
+
+FOUNDER_EXTRAORDINARY_GATE
+= AUTHORIZED_BY_EXECUTAR
+
+APPROVED_EXECUTION_FORM
+= APPROVED_HOST_EXECUTOR_BRIDGE
+
+MAIN_BASE
+= c5fe929ecb4531d7e01229117c8f4ec0cb196795
+
+BRIDGE_IMPLEMENTATION_COMMIT
+= 21b475ea0d09bb4a7903b6093f2498520e5152e5
+
+COMMAND_ID
+= hostcmd:345a369d116e1de8712bcc70
+
+REQUEST_ID
+= syn-r004-host-canary-001
+
+PROVIDER
+= GITHUB
+
+TARGET
+= github:jeffersonreisdejesus1-lgtm/reis-os-backend
+
+CAPABILITY
+= GITHUB_CREATE_OR_UPDATE_FILE
+
+LEASE_ID
+= LEASE:SYN-R004-HOST-CANARY-001
+
+MAX_EFFECTS
+= 1
+
+ZERO_UNAUTHORIZED_SPEND
+= TRUE
+
+REAL_PROVIDER_EFFECT_COMMIT
+= c4df3b1449dd240ce824ac0351d051981d956903
+
+RECONCILIATION_RECEIPT_COMMIT
+= 8c7717149519eef553d07524201cff125a652f69
+
+BRIDGE_FINGERPRINT
+= 345a369d116e1de8712bcc70ad0dcf25786d20049f81b5c5fdbc02f419febd28
+
+LOCAL_FOCUSED_RECONCILIATION_PROOF
+= 6/6 PASSED
+
+PROVED PATH
+= scope-bound gateway/bridge command model
+→ approved host executor
+→ real GitHub mutation
+→ external commit receipt
+→ deterministic fingerprint reconciliation
+→ durable intent/commit semantics proof
+
+NOT CLAIMED
+= autonomous always-on daemon
+= credential exposure to OCS code
+= distributed exactly-once
+= autonomous GitHub merge
+= paid infrastructure
+
+PR_95
+= OPEN
+= DRAFT
+= NOT_MERGED
+
+STATUS
+= HOST_EXECUTOR_E2E_CANARY_PROVEN_WITH_RESERVATIONS

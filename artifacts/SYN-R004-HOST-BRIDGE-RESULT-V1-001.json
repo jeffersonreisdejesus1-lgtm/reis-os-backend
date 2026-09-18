@@ -1,0 +1,11 @@
+{
+  "command_id": "hostcmd:345a369d116e1de8712bcc70",
+  "request_id": "syn-r004-host-canary-001",
+  "provider": "GITHUB",
+  "result_ref": "github:commit:c4df3b1449dd240ce824ac0351d051981d956903",
+  "status": "COMMITTED",
+  "external_receipt_ref": "GitHub.create_file:c4df3b1449dd240ce824ac0351d051981d956903",
+  "bridge_fingerprint": "345a369d116e1de8712bcc70ad0dcf25786d20049f81b5c5fdbc02f419febd28",
+  "reconciliation": "MATCHED",
+  "runtime_commit_semantics": "AUTHORITATIVE_HOST_BRIDGE_RECEIPT"
+}

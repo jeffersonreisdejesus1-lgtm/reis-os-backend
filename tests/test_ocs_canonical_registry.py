@@ -21,7 +21,9 @@ def test_registry_canonicalizes_all_seventy_two_ocs() -> None:
 
 
 def test_foundation_ten_remain_intact_as_historical_generation() -> None:
-    for ocs_id, profile in PROFILES.items():
+    foundation = {ocs_id: profile for ocs_id, profile in PROFILES.items() if ocs_id != "TÊMIS"}
+    assert len(foundation) == 10
+    for ocs_id, profile in foundation.items():
         assert CANONICAL_OCS_REGISTRY[ocs_id] == profile
 
 

@@ -153,6 +153,6 @@ def test_canonical_registry_still_prohibits_direct_effect_routes() -> None:
     )
 
     validate_canonical_registry()
-    assert len(CANONICAL_OCS_REGISTRY) == 30
+    assert len(CANONICAL_OCS_REGISTRY) == 72
     assert all(profile.capability_adapters == () for profile in CANONICAL_OCS_REGISTRY.values())
     assert all(profile.tool_permissions == () for profile in CANONICAL_OCS_REGISTRY.values())
