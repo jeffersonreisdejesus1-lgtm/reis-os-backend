@@ -57,7 +57,9 @@ def reconciliation(state: ReconciliationState) -> ReconciliationResult:
         mission_id="CUPUWA-MULTI-OCS-SLICE-001",
         bound_head=HEAD,
         state=state,
-        accepted_receipts=("receipt-1",) if state is ReconciliationState.CONSISTENT else (),
+        accepted_receipts=(
+            ("receipt-1",) if state is ReconciliationState.CONSISTENT else ()
+        ),
     )
 
 
@@ -111,7 +113,10 @@ def test_memory_import_is_rejected() -> None:
 
 
 def test_contract_layer_material_effect_claim_is_rejected() -> None:
-    with pytest.raises(ContractViolation, match="handoff_material_effect_claim_prohibited"):
+    with pytest.raises(
+        ContractViolation,
+        match="handoff_material_effect_claim_prohibited",
+    ):
         handoff(material_effect_claim=True)
 
 
@@ -134,7 +139,9 @@ def test_invalid_reconciliation_state_is_rejected() -> None:
         ReconciliationState.HOLD,
     ],
 )
-def test_non_consistent_reconciliation_cannot_execute(state: ReconciliationState) -> None:
+def test_non_consistent_reconciliation_cannot_execute(
+    state: ReconciliationState,
+) -> None:
     assert implementation(state).execution_allowed is False
 
 
