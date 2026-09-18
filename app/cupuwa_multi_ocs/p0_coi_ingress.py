@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
-from hashlib import sha256
 import json
+from hashlib import sha256
 
 from app.profile_bindings.canonical_registry import (
     CANONICAL_OCS_REGISTRY,
@@ -23,7 +22,14 @@ REQUIRED_CAPABILITIES = (
 )
 
 def _digest(value: object) -> str:
-    return sha256(json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=list).encode()).hexdigest()
+    payload = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=list,
+    )
+    return sha256(payload.encode()).hexdigest()
 
 def discover_and_compose() -> dict[str, object]:
     validate_canonical_registry()
