@@ -6,6 +6,24 @@ from dataclasses import dataclass
 KERNEL_INTERFACE_REF = "R1-UNIVERSAL-KERNEL@06393743bfc49ba2aa837a0a6e58c6b89bbe1704"
 PROFILE_VERSION = "r2-v0.1.0"
 
+OWNED_SYSTEM_CAPABILITY_ADAPTERS = frozenset(
+    {
+        "github.authenticated_connector",
+        "codemagic.authenticated_connector",
+        "reis_os.owned_runtime",
+    }
+)
+OWNED_SYSTEM_TOOL_PERMISSIONS = frozenset(
+    {
+        "owned_system.read",
+        "owned_system.build_trigger",
+        "owned_system.bounded_write",
+        "owned_system.bounded_configuration",
+    }
+)
+OWNED_SYSTEM_DIRECT_ACCESS_OCS = frozenset({"SOFIA"})
+OWNED_SYSTEM_ACCESS_CLASS = "owned_system_access_with_bound_authority"
+
 
 @dataclass(frozen=True)
 class OCSProfile:
@@ -46,6 +64,8 @@ def _profile(
     allowed: tuple[str, ...],
     denied: tuple[str, ...],
     support: tuple[str, ...],
+    capability_adapters: tuple[str, ...] = (),
+    tool_permissions: tuple[str, ...] = (),
 ) -> OCSProfile:
     slug = _slugify_ocs_id(ocs_id)
     return OCSProfile(
@@ -61,8 +81,8 @@ def _profile(
         denied_action_classes=denied,
         evidence_profile=f"evidence://{slug}/risk-dependent",
         pi_activation_policy=f"pi://{slug}/local-only",
-        capability_adapters=(),
-        tool_permissions=(),
+        capability_adapters=capability_adapters,
+        tool_permissions=tool_permissions,
         state_namespace=f"state://{slug}/{PROFILE_VERSION}",
         memory_namespace=f"memory://{slug}/{PROFILE_VERSION}",
         risk_model=f"risk://{slug}/csp-bound",
@@ -114,9 +134,23 @@ PROFILES: dict[str, OCSProfile] = {
     "SOFIA": _profile(
         "SOFIA",
         "software_implementation_code_incremental_integration",
-        ("software_implementation_via_valid_envelope_lease_effector",),
+        (
+            "software_implementation_via_valid_envelope_lease_effector",
+            OWNED_SYSTEM_ACCESS_CLASS,
+        ),
         ("architecture_rewrite_without_authority", "self_assurance", "lateral_effect_route"),
         ("code", "integration", "implementation"),
+        capability_adapters=(
+            "github.authenticated_connector",
+            "codemagic.authenticated_connector",
+            "reis_os.owned_runtime",
+        ),
+        tool_permissions=(
+            "owned_system.read",
+            "owned_system.build_trigger",
+            "owned_system.bounded_write",
+            "owned_system.bounded_configuration",
+        ),
     ),
     "MÊTIS": _profile(
         "MÊTIS",
@@ -178,5 +212,18 @@ def validate_profiles(profiles: dict[str, OCSProfile] = PROFILES) -> None:
             raise ValueError("handoff_authority_transfer_prohibited")
         if "memory_import=false" not in profile.handoff_policy:
             raise ValueError("cross_ocs_memory_import_prohibited")
-        if profile.capability_adapters or profile.tool_permissions:
+
+        has_direct_route = bool(profile.capability_adapters or profile.tool_permissions)
+        if not has_direct_route:
+            continue
+
+        if profile.ocs_id not in OWNED_SYSTEM_DIRECT_ACCESS_OCS:
             raise ValueError("direct_effect_route_prohibited")
+        if OWNED_SYSTEM_ACCESS_CLASS not in profile.allowed_action_classes:
+            raise ValueError("owned_system_access_class_required")
+        if not profile.capability_adapters or not profile.tool_permissions:
+            raise ValueError("owned_system_route_requires_adapter_and_permissions")
+        if not set(profile.capability_adapters).issubset(OWNED_SYSTEM_CAPABILITY_ADAPTERS):
+            raise ValueError("unapproved_owned_system_adapter")
+        if not set(profile.tool_permissions).issubset(OWNED_SYSTEM_TOOL_PERMISSIONS):
+            raise ValueError("unapproved_owned_system_tool_permission")
