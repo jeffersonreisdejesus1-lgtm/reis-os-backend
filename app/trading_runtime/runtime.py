@@ -23,12 +23,16 @@ class TradingRuntime:
         target_price: float | None,
         estimated_holding_minutes: int = 120,
         confidence_score: float | None = None,
+        forced_hold_reason: HoldReason | None = None,
     ) -> Signal:
         now = datetime.now(timezone.utc)
         age = (now - snapshot.market_data_timestamp).total_seconds()
         run_id = str(uuid4())
         signal_id = str(uuid4())
         expires_at = now + timedelta(minutes=max(30, estimated_holding_minutes // 2))
+
+        if forced_hold_reason is not None:
+            return self._hold(snapshot, run_id, signal_id, expires_at, forced_hold_reason)
 
         if age < 0 or age > self.max_data_age_seconds:
             return self._hold(snapshot, run_id, signal_id, expires_at, HoldReason.DATA)
