@@ -1,0 +1,31 @@
+name: CUPUWA P0 COI Ingress Qualification
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cupuwa-p0-coi-ingress
+  cancel-in-progress: false
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      REIS_OS_ZERO_UNAUTHORIZED_SPEND: "true"
+      REIS_OS_MISSION_ID: "CUPUWA-P0-CORE-FINANCE-MATERIAL-001"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install local package and test dependencies
+        run: python -m pip install --disable-pip-version-check -e '.[dev]'
+      - name: Qualify canonical registry and P0 COI ingress
+        run: python -m pytest -q tests/test_ocs_canonical_registry.py tests/test_cupuwa_p0_coi_ingress.py
+      - name: Emit governed discovery/composition receipts
+        run: python -m app.cupuwa_multi_ocs.p0_coi_ingress | tee cupuwa-p0-coi-ingress-receipts.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cupuwa-p0-coi-ingress-receipts
+          path: cupuwa-p0-coi-ingress-receipts.json
+          if-no-files-found: error
