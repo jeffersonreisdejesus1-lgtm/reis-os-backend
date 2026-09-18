@@ -1,0 +1,29 @@
+name: Runtime P1 Remediation Qualification
+
+on:
+  push:
+    branches:
+      - runtime/p1-remediation-20260917
+  workflow_dispatch:
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -e '.[dev]'
+      - name: Execution and economics P1 tests
+        run: pytest -q tests/test_runtime_p1_remediation.py tests/test_execution_bindings.py tests/test_trading_runtime_v1.py
+      - name: Trial2 integrity regression
+        run: pytest -q tests/test_trial2_integrity_repairs.py tests/test_trial2_persistent_store.py
+      - name: Recursive runtime P1 tests
+        working-directory: ci/recursive-runtime
+        run: pytest -q tests/test_hardening_r001_r002.py
+      - name: Ruff
+        run: ruff check app/execution_bindings.py app/trading_runtime/economics.py app/single_surface_trial/trial2_integrity.py tests/test_runtime_p1_remediation.py --ignore E501
+      - name: Mypy
+        run: mypy app/execution_bindings.py app/trading_runtime/economics.py app/single_surface_trial/trial2_integrity.py

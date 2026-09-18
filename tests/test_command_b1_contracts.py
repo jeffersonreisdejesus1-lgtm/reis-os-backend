@@ -75,7 +75,7 @@ async def command_headers(client: AsyncClient) -> dict[str, str]:
 
 
 @pytest.mark.asyncio
-async def test_command_lists_ten_declared_ocs_profiles(
+async def test_command_lists_eleven_declared_ocs_profiles(
     client: AsyncClient,
 ) -> None:
     response = await client.get(
@@ -85,8 +85,8 @@ async def test_command_lists_ten_declared_ocs_profiles(
     assert response.status_code == 200, response.text
     body = response.json()
 
-    assert body["count"] == 10
-    assert len(body["items"]) == 10
+    assert body["count"] == 11
+    assert len(body["items"]) == 11
     assert body["source"]["snapshot_class"] == "static_profile_declaration"
     assert body["source"]["evidence_state"] == "declared"
     assert body["source"]["content_source_ref"].endswith(
@@ -104,8 +104,8 @@ async def test_command_lists_ten_declared_ocs_profiles(
         item["namespaces"]["semantics"] == "distinct_declarations"
         for item in body["items"]
     )
-    assert len({item["namespaces"]["state"] for item in body["items"]}) == 10
-    assert len({item["namespaces"]["memory"] for item in body["items"]}) == 10
+    assert len({item["namespaces"]["state"] for item in body["items"]}) == 11
+    assert len({item["namespaces"]["memory"] for item in body["items"]}) == 11
 
 
 @pytest.mark.asyncio
@@ -132,11 +132,18 @@ async def test_command_uses_ascii_slugs_and_preserves_canonical_ids(
         "agora",
         "auri",
         "synergeia",
+        "temis",
     }
     assert all(slug.isascii() and slug.isalpha() for slug in slugs)
-    assert {"NÓESIS", "DÉDALA", "SÝNESIS", "ÍRIS", "MÊTIS", "ÁGORA"} <= (
-        canonical_ids
-    )
+    assert {
+        "NÓESIS",
+        "DÉDALA",
+        "SÝNESIS",
+        "ÍRIS",
+        "MÊTIS",
+        "ÁGORA",
+        "TÊMIS",
+    } <= canonical_ids
 
 
 @pytest.mark.asyncio
@@ -249,5 +256,5 @@ async def test_command_profile_validation_fails_closed_before_serving(
     profiles.pop("AURI")
     monkeypatch.setattr(command_application, "PROFILES", profiles)
 
-    with pytest.raises(ValueError, match="ten_distinct_ocs_profiles_required"):
+    with pytest.raises(ValueError, match="eleven_distinct_ocs_profiles_required"):
         command_application.list_ocs_profiles()
