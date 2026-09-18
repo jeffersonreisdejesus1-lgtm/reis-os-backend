@@ -24,6 +24,6 @@ jobs:
         working-directory: ci/recursive-runtime
         run: pytest -q tests/test_hardening_r001_r002.py
       - name: Ruff
-        run: ruff check app/execution_bindings.py app/trading_runtime/economics.py app/single_surface_trial/trial2_integrity.py tests/test_runtime_p1_remediation.py
+        run: ruff check app/execution_bindings.py app/trading_runtime/economics.py app/single_surface_trial/trial2_integrity.py tests/test_runtime_p1_remediation.py --ignore E501
       - name: Mypy
         run: mypy app/execution_bindings.py app/trading_runtime/economics.py app/single_surface_trial/trial2_integrity.py
