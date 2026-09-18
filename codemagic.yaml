@@ -33,6 +33,11 @@ workflows:
             2>&1 | tee codemagic-artifacts/contracts/ruff.log
           mypy app/cupuwa_multi_ocs \
             2>&1 | tee codemagic-artifacts/contracts/mypy.log
+          pytest --noconftest -q \
+            tests/test_cupuwa_p0_coi_ingress.py \
+            2>&1 | tee codemagic-artifacts/contracts/p0-coi-ingress-pytest.log
+          python -m app.cupuwa_multi_ocs.p0_coi_ingress \
+            2>&1 | tee codemagic-artifacts/contracts/p0-coi-ingress-receipts.json
           {
             echo 'MISSION=NOESIS-TO-SOFIA-CUPUWA-MULTI-OCS-CONTRACT-SUBSTRATE-001'
             echo 'TARGET_SLICE=SLICE-001-CONTRACT-SUBSTRATE'
