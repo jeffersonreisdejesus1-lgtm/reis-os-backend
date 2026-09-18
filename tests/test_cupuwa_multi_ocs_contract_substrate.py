@@ -61,7 +61,10 @@ def reconciliation(state: ReconciliationState) -> ReconciliationResult:
     )
 
 
-def implementation(state: ReconciliationState, findings: tuple[str, ...] = ()) -> ImplementationContract:
+def implementation(
+    state: ReconciliationState,
+    findings: tuple[str, ...] = (),
+) -> ImplementationContract:
     return ImplementationContract(
         mission_id="CUPUWA-MULTI-OCS-SLICE-001",
         bound_head=HEAD,
@@ -136,7 +139,13 @@ def test_non_consistent_reconciliation_cannot_execute(state: ReconciliationState
 
 
 def test_unresolved_findings_prevent_execution() -> None:
-    assert implementation(ReconciliationState.CONSISTENT, ("open-finding",)).execution_allowed is False
+    assert (
+        implementation(
+            ReconciliationState.CONSISTENT,
+            ("open-finding",),
+        ).execution_allowed
+        is False
+    )
 
 
 def test_consistent_reconciliation_is_contract_ready_not_material_effect() -> None:
@@ -154,5 +163,11 @@ def test_canonical_registry_still_prohibits_direct_effect_routes() -> None:
 
     validate_canonical_registry()
     assert len(CANONICAL_OCS_REGISTRY) == 72
-    assert all(profile.capability_adapters == () for profile in CANONICAL_OCS_REGISTRY.values())
-    assert all(profile.tool_permissions == () for profile in CANONICAL_OCS_REGISTRY.values())
+    assert all(
+        profile.capability_adapters == ()
+        for profile in CANONICAL_OCS_REGISTRY.values()
+    )
+    assert all(
+        profile.tool_permissions == ()
+        for profile in CANONICAL_OCS_REGISTRY.values()
+    )
