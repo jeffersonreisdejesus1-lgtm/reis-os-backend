@@ -1,0 +1,526 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from dataclasses import asdict, replace
+from typing import Any
+
+from app.noesis_r7.contracts import (
+    CommandStatus,
+    CommunicationEnvelope,
+    FailurePoint,
+    GovernorContract,
+    GovernorLease,
+    GovernanceCommand,
+    GovernanceReceipt,
+    GovernanceTask,
+    LeaseStatus,
+    R7InvariantError,
+    RecoveryCheckpoint,
+)
+from app.noesis_r7.integration import R1R6IntegrationContract, R7ArchitecturalReadiness
+from app.noesis_r7.roster import assert_derived_governor
+
+FORBIDDEN_COMMANDS = frozenset(
+    {
+        "SELF_ASSURANCE",
+        "SELF_PROMOTION",
+        "CREATE_AUTHORITY",
+        "BYPASS_FOUNDER_GATE",
+        "CANONICAL_WRITE",
+        "PRODUCTION",
+        "MERGE",
+        "FOUNDER_PROMOTION",
+    }
+)
+
+
+class R7GovernanceRuntime:
+    """Candidate R7 mechanics embedded in and constrained by R1-R6.
+
+    The generic machinery is intentionally inert with respect to Governor activation
+    until Nóesis supplies a valid taxonomy -> normalized requirements -> derivation
+    chain. This preserves reusable mechanics without allowing premature population.
+    """
+
+    def __init__(
+        self,
+        *,
+        mission_id: str,
+        integration: R1R6IntegrationContract,
+        initial_state: dict[str, Any] | None = None,
+        architectural_readiness: R7ArchitecturalReadiness | None = None,
+    ) -> None:
+        if not mission_id:
+            raise ValueError("mission_id_required")
+        integration.assert_compatible()
+        self.mission_id = mission_id
+        self.integration = integration
+        self._architectural_readiness = architectural_readiness or R7ArchitecturalReadiness()
+        self._state = dict(initial_state or {})
+        self._state_version = 0
+        self._governors: dict[str, GovernorContract] = {}
+        self._leases: dict[str, GovernorLease] = {}
+        self._generation_by_governor: dict[str, int] = {}
+        self._tasks: list[GovernanceTask] = []
+        self._task_seq = 0
+        self._receipts: list[GovernanceReceipt] = []
+        self._idempotency: dict[str, tuple[str, GovernanceReceipt]] = {}
+        self._invalidated_idempotency: set[str] = set()
+        self._communications: list[CommunicationEnvelope] = []
+        self._checkpoints: dict[str, RecoveryCheckpoint] = {}
+        self._failure_point = FailurePoint.NONE
+
+    @staticmethod
+    def _hash(payload: dict[str, Any]) -> str:
+        raw = json.dumps(
+            payload,
+            sort_keys=True,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=str,
+        ).encode()
+        return hashlib.sha256(raw).hexdigest()
+
+    @property
+    def state_version(self) -> int:
+        return self._state_version
+
+    @property
+    def state(self) -> dict[str, Any]:
+        return dict(self._state)
+
+    @property
+    def receipts(self) -> tuple[GovernanceReceipt, ...]:
+        return tuple(self._receipts)
+
+    @property
+    def communications(self) -> tuple[CommunicationEnvelope, ...]:
+        return tuple(self._communications)
+
+    @property
+    def governor_activation_allowed(self) -> bool:
+        return self._architectural_readiness.governor_activation_allowed
+
+    def inject_failure(self, point: FailurePoint) -> None:
+        self._failure_point = point
+
+    def register_governor(self, contract: GovernorContract) -> None:
+        self._architectural_readiness.assert_governor_activation_allowed()
+        assert_derived_governor(
+            contract.governor_id,
+            derivation_ref=self._architectural_readiness.derivation_ref or "",
+        )
+        existing = self._governors.get(contract.governor_id)
+        if existing is not None:
+            if existing != contract:
+                raise R7InvariantError("GOVERNOR_CONTRACT_CONFLICT")
+            return
+        claimed = set(contract.owned_state_keys)
+        for other in self._governors.values():
+            overlap = claimed.intersection(other.owned_state_keys)
+            if overlap:
+                raise R7InvariantError(
+                    f"STATE_OWNERSHIP_CONFLICT:{','.join(sorted(overlap))}"
+                )
+        self._governors[contract.governor_id] = contract
+        self._generation_by_governor.setdefault(contract.governor_id, 1)
+
+    def bind_lease(self, lease: GovernorLease) -> None:
+        self._architectural_readiness.assert_governor_activation_allowed()
+        contract = self._require_governor(lease.governor_id)
+        if lease.mission_id != self.mission_id:
+            raise R7InvariantError("LEASE_MISSION_MISMATCH")
+        if lease.authority_ref != contract.authority_ceiling_ref:
+            raise R7InvariantError("LEASE_AUTHORITY_CEILING_MISMATCH")
+        if lease.generation != self._generation_by_governor[lease.governor_id]:
+            raise R7InvariantError("LEASE_GENERATION_MISMATCH")
+        existing = self._leases.get(lease.lease_id)
+        if existing is not None and existing != lease:
+            raise R7InvariantError("LEASE_ID_CONFLICT")
+        self._leases[lease.lease_id] = lease
+
+    def issue_lease(self, lease: GovernorLease) -> None:
+        self.bind_lease(lease)
+
+    def fence_generation(self, governor_id: str) -> int:
+        self._require_governor(governor_id)
+        current = self._generation_by_governor[governor_id]
+        for lease_id, lease in tuple(self._leases.items()):
+            if lease.governor_id == governor_id and lease.generation == current:
+                self._leases[lease_id] = replace(lease, status=LeaseStatus.FENCED)
+        self._generation_by_governor[governor_id] = current + 1
+        return current + 1
+
+    def current_generation(self, governor_id: str) -> int:
+        self._require_governor(governor_id)
+        return self._generation_by_governor[governor_id]
+
+    def schedule(self, task: GovernanceTask) -> None:
+        self._architectural_readiness.assert_governor_activation_allowed()
+        contract = self._require_governor(task.governor_id)
+        if task.mission_id != self.mission_id:
+            raise R7InvariantError("TASK_MISSION_MISMATCH")
+        if task.command_type not in contract.allowed_commands:
+            raise R7InvariantError("TASK_COMMAND_NOT_ALLOWED")
+        if task.command_type in FORBIDDEN_COMMANDS:
+            raise R7InvariantError("SCHEDULER_CANNOT_GRANT_AUTHORITY")
+        if not task.command_id:
+            raise R7InvariantError("TASK_COMMAND_ID_REQUIRED")
+        if any(item.command_id == task.command_id for item in self._tasks):
+            raise R7InvariantError("TASK_COMMAND_ALREADY_SCHEDULED")
+        if task.created_seq != self._task_seq + 1:
+            raise R7InvariantError("TASK_SEQUENCE_INVALID")
+        self._task_seq += 1
+        self._tasks.append(task)
+
+    def next_task(self) -> GovernanceTask | None:
+        if not self._tasks:
+            return None
+        self._tasks.sort(key=lambda task: (-task.priority, task.created_seq, task.task_id))
+        return self._tasks[0]
+
+    def _consume_scheduled_command(self, command: GovernanceCommand) -> str | None:
+        task = self.next_task()
+        if task is None:
+            return "COMMAND_NOT_SCHEDULED"
+        if task.command_id != command.command_id:
+            return "COMMAND_NOT_NEXT_SCHEDULED"
+        if task.governor_id != command.governor_id:
+            return "SCHEDULE_GOVERNOR_MISMATCH"
+        if task.command_type != command.command_type:
+            return "SCHEDULE_COMMAND_TYPE_MISMATCH"
+        self._tasks.pop(0)
+        return None
+
+    def communicate(self, envelope: CommunicationEnvelope) -> None:
+        self._architectural_readiness.assert_governor_activation_allowed()
+        self._require_governor(envelope.source_governor_id)
+        self._require_governor(envelope.target_governor_id)
+        if envelope.mission_id != self.mission_id:
+            raise R7InvariantError("COMMUNICATION_MISSION_MISMATCH")
+        self._communications.append(envelope)
+
+    def execute(self, command: GovernanceCommand, *, now: float) -> GovernanceReceipt:
+        self._architectural_readiness.assert_governor_activation_allowed()
+        contract = self._require_governor(command.governor_id)
+        fingerprint = self._hash(asdict(command))
+        if command.idempotency_key in self._invalidated_idempotency:
+            raise R7InvariantError("IDEMPOTENCY_KEY_INVALIDATED_BY_ROLLBACK")
+        replay = self._idempotency.get(command.idempotency_key)
+        if replay is not None:
+            previous_fingerprint, previous_receipt = replay
+            if previous_fingerprint != fingerprint:
+                raise R7InvariantError("IDEMPOTENCY_KEY_DIVERGENT_COMMAND")
+            return self._record_replay_receipt(command, previous_receipt)
+
+        before = self._state_version
+        schedule_reason = self._consume_scheduled_command(command)
+        if schedule_reason is not None:
+            return self._record_receipt(
+                command=command,
+                status=CommandStatus.DENIED,
+                reason=schedule_reason,
+                state_version_before=before,
+                state_version_after=before,
+                mutation_count=0,
+                material_effect_performed=False,
+                fingerprint=fingerprint,
+            )
+        reason = self._validate_command(command, contract, now=now)
+        if reason is not None:
+            return self._record_receipt(
+                command=command,
+                status=CommandStatus.DENIED,
+                reason=reason,
+                state_version_before=before,
+                state_version_after=before,
+                mutation_count=0,
+                material_effect_performed=False,
+                fingerprint=fingerprint,
+            )
+        if self._failure_point is FailurePoint.AFTER_VALIDATION:
+            self._failure_point = FailurePoint.NONE
+            raise RuntimeError("injected_failure_after_validation")
+
+        staged = dict(self._state)
+        staged.update(command.write_set)
+        next_version = before + (1 if command.write_set else 0)
+        if self._failure_point is FailurePoint.BEFORE_COMMIT:
+            self._failure_point = FailurePoint.NONE
+            raise RuntimeError("injected_failure_before_commit")
+
+        self._state = staged
+        self._state_version = next_version
+        lease = self._leases[command.lease_id]
+        self._leases[command.lease_id] = replace(lease, uses=lease.uses + 1)
+        receipt = self._record_receipt(
+            command=command,
+            status=CommandStatus.ACCEPTED,
+            reason="GOVERNED_STATE_COMMIT",
+            state_version_before=before,
+            state_version_after=next_version,
+            mutation_count=len(command.write_set),
+            material_effect_performed=False,
+            fingerprint=fingerprint,
+        )
+        if self._failure_point is FailurePoint.AFTER_COMMIT:
+            self._failure_point = FailurePoint.NONE
+            raise RuntimeError(f"injected_failure_after_commit:{receipt.receipt_id}")
+        return receipt
+
+    def checkpoint(self, checkpoint_id: str, *, now: float) -> RecoveryCheckpoint:
+        if not checkpoint_id:
+            raise ValueError("checkpoint_id_required")
+        if checkpoint_id in self._checkpoints:
+            return self._checkpoints[checkpoint_id]
+        checkpoint = RecoveryCheckpoint(
+            checkpoint_id=checkpoint_id,
+            mission_id=self.mission_id,
+            generation_snapshot=dict(self._generation_by_governor),
+            state_version=self._state_version,
+            state=dict(self._state),
+            predecessor_receipt_hash=(
+                self._receipts[-1].receipt_hash if self._receipts else "GENESIS"
+            ),
+            receipt_count=len(self._receipts),
+            created_at=now,
+        )
+        self._checkpoints[checkpoint_id] = checkpoint
+        return checkpoint
+
+    def recover_governor(self, governor_id: str, *, checkpoint_id: str) -> int:
+        self._architectural_readiness.assert_governor_activation_allowed()
+        contract = self._require_governor(governor_id)
+        checkpoint = self._require_checkpoint(checkpoint_id)
+        previous_generation = self.current_generation(governor_id)
+        checkpoint_generation = checkpoint.generation_snapshot.get(governor_id)
+        if checkpoint_generation is None:
+            raise R7InvariantError("RECOVERY_CHECKPOINT_GOVERNOR_MISSING")
+        if checkpoint_generation > previous_generation:
+            raise R7InvariantError("RECOVERY_CHECKPOINT_FROM_FUTURE_GENERATION")
+        next_generation = self.fence_generation(governor_id)
+        before = self._state_version
+        staged = dict(self._state)
+        changed = 0
+        for key in contract.owned_state_keys:
+            if key in checkpoint.state:
+                if staged.get(key) != checkpoint.state[key]:
+                    changed += 1
+                staged[key] = checkpoint.state[key]
+            elif key in staged:
+                staged.pop(key)
+                changed += 1
+        self._state = staged
+        self._state_version = before + 1
+        self._invalidate_commits_after(checkpoint, governor_id=governor_id)
+        self._record_system_receipt(
+            command_id=f"recover:{governor_id}:{checkpoint_id}",
+            governor_id=governor_id,
+            idempotency_key=f"system:recover:{governor_id}:{next_generation}",
+            reason=f"GOVERNOR_RECOVERY_FROM:{checkpoint_id}",
+            generation=next_generation,
+            state_version_before=before,
+            state_version_after=self._state_version,
+            mutation_count=changed,
+            readback={key: self._state.get(key) for key in contract.owned_state_keys},
+        )
+        return next_generation
+
+    def rollback_to_checkpoint(self, checkpoint_id: str) -> None:
+        self._architectural_readiness.assert_governor_activation_allowed()
+        checkpoint = self._require_checkpoint(checkpoint_id)
+        before = self._state_version
+        previous_state = dict(self._state)
+        self._state = dict(checkpoint.state)
+        self._state_version = before + 1
+        self._invalidate_commits_after(checkpoint)
+        keys = set(previous_state) | set(self._state)
+        changed = sum(1 for key in keys if previous_state.get(key) != self._state.get(key))
+        self._record_system_receipt(
+            command_id=f"rollback:{checkpoint_id}",
+            governor_id="NOESIS_R7_SYSTEM",
+            idempotency_key=f"system:rollback:{checkpoint_id}:{self._state_version}",
+            reason=f"ROLLBACK_TO_CHECKPOINT:{checkpoint_id}",
+            generation=max(self._generation_by_governor.values(), default=1),
+            state_version_before=before,
+            state_version_after=self._state_version,
+            mutation_count=changed,
+            readback=dict(self._state),
+        )
+
+    def verify_receipt_chain(self) -> bool:
+        previous = "GENESIS"
+        for receipt in self._receipts:
+            if receipt.previous_hash != previous:
+                return False
+            payload = asdict(receipt)
+            recorded_hash = payload.pop("receipt_hash")
+            if self._hash(payload) != recorded_hash:
+                return False
+            previous = receipt.receipt_hash
+        return True
+
+    def _validate_command(
+        self,
+        command: GovernanceCommand,
+        contract: GovernorContract,
+        *,
+        now: float,
+    ) -> str | None:
+        if command.mission_id != self.mission_id:
+            return "MISSION_MISMATCH"
+        if command.command_type in FORBIDDEN_COMMANDS:
+            return "FORBIDDEN_AUTHORITY_COMMAND"
+        if command.command_type not in contract.allowed_commands:
+            return "COMMAND_NOT_ALLOWED"
+        if command.material_effect_requested:
+            return "R7_INTERNAL_GOVERNANCE_CANNOT_EXECUTE_MATERIAL_EFFECT"
+        if command.expected_state_version != self._state_version:
+            return "STALE_STATE_VERSION"
+        if command.generation != self._generation_by_governor[command.governor_id]:
+            return "STALE_GENERATION"
+        lease = self._leases.get(command.lease_id)
+        if lease is None:
+            return "LEASE_NOT_FOUND"
+        if lease.governor_id != command.governor_id:
+            return "LEASE_GOVERNOR_MISMATCH"
+        if lease.mission_id != command.mission_id:
+            return "LEASE_MISSION_MISMATCH"
+        if lease.authority_ref != command.authority_ref:
+            return "AUTHORITY_REF_MISMATCH"
+        if lease.status is not LeaseStatus.ACTIVE:
+            return "LEASE_NOT_ACTIVE"
+        if now < lease.not_before or now >= lease.expires_at:
+            return "LEASE_EXPIRED_OR_NOT_YET_VALID"
+        if lease.generation != command.generation:
+            return "LEASE_GENERATION_MISMATCH"
+        if lease.uses >= lease.max_uses:
+            return "LEASE_USE_EXHAUSTED"
+        if command.scope and not set(command.scope).issubset(set(lease.scope)):
+            return "LEASE_SCOPE_MISMATCH"
+        if not set(command.write_set).issubset(set(contract.owned_state_keys)):
+            return "STATE_OWNERSHIP_VIOLATION"
+        return None
+
+    def _invalidate_commits_after(
+        self,
+        checkpoint: RecoveryCheckpoint,
+        *,
+        governor_id: str | None = None,
+    ) -> None:
+        positions = {
+            receipt.receipt_id: index
+            for index, receipt in enumerate(self._receipts, start=1)
+        }
+        for key, (_, original) in self._idempotency.items():
+            if positions.get(original.receipt_id, 0) <= checkpoint.receipt_count:
+                continue
+            if original.status is not CommandStatus.ACCEPTED:
+                continue
+            if governor_id is not None and original.governor_id != governor_id:
+                continue
+            self._invalidated_idempotency.add(key)
+
+    def _record_replay_receipt(
+        self,
+        command: GovernanceCommand,
+        original: GovernanceReceipt,
+    ) -> GovernanceReceipt:
+        previous = self._receipts[-1].receipt_hash if self._receipts else "GENESIS"
+        payload: dict[str, Any] = {
+            "receipt_id": f"r7:{len(self._receipts) + 1}:{command.command_id}:replay",
+            "command_id": command.command_id,
+            "governor_id": command.governor_id,
+            "idempotency_key": command.idempotency_key,
+            "status": CommandStatus.REPLAYED,
+            "reason": f"EXACT_REPLAY_OF:{original.receipt_id}",
+            "generation": command.generation,
+            "state_version_before": self._state_version,
+            "state_version_after": self._state_version,
+            "mutation_count": 0,
+            "material_effect_performed": False,
+            "previous_hash": previous,
+            "readback": dict(original.readback),
+        }
+        receipt = GovernanceReceipt(receipt_hash=self._hash(payload), **payload)
+        self._receipts.append(receipt)
+        return receipt
+
+    def _record_receipt(
+        self,
+        *,
+        command: GovernanceCommand,
+        status: CommandStatus,
+        reason: str,
+        state_version_before: int,
+        state_version_after: int,
+        mutation_count: int,
+        material_effect_performed: bool,
+        fingerprint: str,
+    ) -> GovernanceReceipt:
+        previous = self._receipts[-1].receipt_hash if self._receipts else "GENESIS"
+        payload: dict[str, Any] = {
+            "receipt_id": f"r7:{len(self._receipts) + 1}:{command.command_id}",
+            "command_id": command.command_id,
+            "governor_id": command.governor_id,
+            "idempotency_key": command.idempotency_key,
+            "status": status,
+            "reason": reason,
+            "generation": command.generation,
+            "state_version_before": state_version_before,
+            "state_version_after": state_version_after,
+            "mutation_count": mutation_count,
+            "material_effect_performed": material_effect_performed,
+            "previous_hash": previous,
+            "readback": {key: self._state.get(key) for key in command.write_set},
+        }
+        receipt = GovernanceReceipt(receipt_hash=self._hash(payload), **payload)
+        self._receipts.append(receipt)
+        self._idempotency[command.idempotency_key] = (fingerprint, receipt)
+        return receipt
+
+    def _record_system_receipt(
+        self,
+        *,
+        command_id: str,
+        governor_id: str,
+        idempotency_key: str,
+        reason: str,
+        generation: int,
+        state_version_before: int,
+        state_version_after: int,
+        mutation_count: int,
+        readback: dict[str, Any],
+    ) -> GovernanceReceipt:
+        previous = self._receipts[-1].receipt_hash if self._receipts else "GENESIS"
+        payload: dict[str, Any] = {
+            "receipt_id": f"r7:{len(self._receipts) + 1}:{command_id}",
+            "command_id": command_id,
+            "governor_id": governor_id,
+            "idempotency_key": idempotency_key,
+            "status": CommandStatus.ACCEPTED,
+            "reason": reason,
+            "generation": generation,
+            "state_version_before": state_version_before,
+            "state_version_after": state_version_after,
+            "mutation_count": mutation_count,
+            "material_effect_performed": False,
+            "previous_hash": previous,
+            "readback": readback,
+        }
+        receipt = GovernanceReceipt(receipt_hash=self._hash(payload), **payload)
+        self._receipts.append(receipt)
+        return receipt
+
+    def _require_governor(self, governor_id: str) -> GovernorContract:
+        contract = self._governors.get(governor_id)
+        if contract is None:
+            raise R7InvariantError("GOVERNOR_NOT_REGISTERED")
+        return contract
+
+    def _require_checkpoint(self, checkpoint_id: str) -> RecoveryCheckpoint:
+        checkpoint = self._checkpoints.get(checkpoint_id)
+        if checkpoint is None:
+            raise R7InvariantError("RECOVERY_CHECKPOINT_NOT_FOUND")
+        return checkpoint
