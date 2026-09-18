@@ -66,7 +66,8 @@ class BudgetLedger:
     def reserve_spawn(self, ref):
         with self._lock:
             _, limit=self._limits[ref]
-            if self._reserved[ref] >= limit: raise Conflict("BUDGET_EXHAUSTED")
+            if self._actual[ref] + self._reserved[ref] >= limit:
+                raise Conflict("BUDGET_EXHAUSTED")
             self._reserved[ref]+=1
     def release_spawn(self, ref):
         with self._lock: self._reserved[ref]=max(0,self._reserved[ref]-1)

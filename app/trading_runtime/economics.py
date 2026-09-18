@@ -20,6 +20,7 @@ class BudgetPolicy:
 class Reservation:
     reservation_id: str
     expected_cost: Decimal
+    strong: bool = False
     committed: bool = False
 
 
@@ -35,13 +36,22 @@ class EconomicGovernor:
     _reservations: dict[str, Reservation] = field(default_factory=dict)
     _lock: Lock = field(default_factory=Lock, repr=False)
 
-    def reserve(self, expected_cost: Decimal, *, strong: bool = False) -> Reservation | None:
+    def reserve(
+        self, expected_cost: Decimal, *, strong: bool = False
+    ) -> Reservation | None:
         with self._lock:
             if expected_cost < 0 or expected_cost > self.policy.signal:
                 return None
             if self.calls_this_cycle >= self.policy.cycle_call_limit:
                 return None
-            if strong and self.strong_calls_today >= self.policy.strong_model_limit:
+            outstanding_strong = sum(
+                1 for reservation in self._reservations.values() if reservation.strong
+            )
+            if (
+                strong
+                and self.strong_calls_today + outstanding_strong
+                >= self.policy.strong_model_limit
+            ):
                 return None
             projected = self._reserved + expected_cost
             if self.spent_daily + projected > self.policy.daily:
@@ -50,24 +60,27 @@ class EconomicGovernor:
                 return None
             if self.spent_run + projected > self.policy.run:
                 return None
-            reservation = Reservation(str(uuid4()), expected_cost)
+            reservation = Reservation(str(uuid4()), expected_cost, strong=strong)
             self._reservations[reservation.reservation_id] = reservation
             self._reserved += expected_cost
             self.calls_this_cycle += 1
             return reservation
 
-    def reconcile(self, reservation_id: str, actual_cost: Decimal, *, strong: bool = False) -> bool:
+    def reconcile(
+        self, reservation_id: str, actual_cost: Decimal, *, strong: bool = False
+    ) -> bool:
         with self._lock:
-            reservation = self._reservations.pop(reservation_id, None)
+            reservation = self._reservations.get(reservation_id)
             if reservation is None:
                 return False
-            self._reserved -= reservation.expected_cost
-            if actual_cost < 0:
+            if actual_cost < 0 or strong != reservation.strong:
                 return False
+            self._reservations.pop(reservation_id)
+            self._reserved -= reservation.expected_cost
             self.spent_daily += actual_cost
             self.spent_monthly += actual_cost
             self.spent_run += actual_cost
-            if strong:
+            if reservation.strong:
                 self.strong_calls_today += 1
             reservation.committed = True
             return True

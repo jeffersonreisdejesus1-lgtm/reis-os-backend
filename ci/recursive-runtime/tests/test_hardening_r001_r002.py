@@ -42,3 +42,15 @@ def test_syn_r002_crash_after_commit_before_ack_does_not_double_commit(tmp_path)
 
 def test_recovered_cancelling_successor_cannot_delegate(tmp_path):
     s,r,c,l,t,j,sp,ca,re,rt=build(tmp_path); ca.cancel("root","CANCEL"); re.checkpoint("root","CP1"); succ=re.recover("root","root:g2"); assert succ.lifecycle is Lifecycle.CANCELLING; assert rt.run_once("root:g2",[]) is Outcome.HOLD
+
+
+def test_spawn_budget_counts_committed_and_reserved_total(tmp_path):
+    s,r,c,l,t,j,sp,ca,re,rt=build(tmp_path)
+    l._limits["B1"] = ("provider-canonical", 2)
+    assert sp.spawn(req("child-1", "req-1")).status == "COMMITTED"
+    assert l.snapshot("B1") == (0, 1)
+    assert sp.spawn(req("child-2", "req-2")).status == "COMMITTED"
+    assert l.snapshot("B1") == (0, 2)
+    out = sp.spawn(req("child-3", "req-3"))
+    assert out.status == "ABORTED"
+    assert l.snapshot("B1") == (0, 2)

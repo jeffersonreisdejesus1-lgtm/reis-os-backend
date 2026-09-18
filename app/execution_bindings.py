@@ -3,12 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import secrets
 from dataclasses import dataclass
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, Field
 
 PROGRAM_ID = "REIS-OS-ARTIFICIAL-BRAIN-VALIDATION-001"
@@ -51,6 +52,14 @@ def _provider_config(kind: str) -> ProviderConfig:
 
 def _founder_approval_ref() -> str:
     return os.getenv("REIS_ARTIFICIAL_BRAIN_FOUNDER_APPROVAL_REF", "")
+
+
+def _authorize_caller(caller_token: str | None) -> None:
+    expected = os.getenv("REIS_EXECUTION_BINDINGS_CALLER_TOKEN", "")
+    if not expected:
+        raise HTTPException(status_code=503, detail="CALLER_AUTH_BINDING_REQUIRED")
+    if not caller_token or not secrets.compare_digest(caller_token, expected):
+        raise HTTPException(status_code=401, detail="CALLER_AUTHENTICATION_REQUIRED")
 
 
 def validate_envelope(envelope: ExecutionEnvelope) -> None:
@@ -150,10 +159,18 @@ async def health() -> dict[str, Any]:
 
 
 @router.post("/effects/execute")
-async def execute_effect(envelope: ExecutionEnvelope) -> dict[str, Any]:
+async def execute_effect(
+    envelope: ExecutionEnvelope,
+    x_reis_execution_token: str | None = Header(default=None),
+) -> dict[str, Any]:
+    _authorize_caller(x_reis_execution_token)
     return await _dispatch("authority", envelope)
 
 
 @router.post("/implementation/execute")
-async def execute_implementation(envelope: ExecutionEnvelope) -> dict[str, Any]:
+async def execute_implementation(
+    envelope: ExecutionEnvelope,
+    x_reis_execution_token: str | None = None,
+) -> dict[str, Any]:
+    _authorize_caller(x_reis_execution_token)
     return await _dispatch("implementation", envelope)

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from sqlalchemy import and_, insert, select, update
 
@@ -67,6 +68,31 @@ class IntegrityCheckedTrial2Store(Trial2PersistentStore):
             ):
                 raise Trial2Hold("autonomy_budget_exhausted")
 
+            next_version = int(mission["version"]) + 1
+            claimed = conn.execute(
+                update(missions)
+                .where(
+                    and_(
+                        missions.c.mission_id == mission_id,
+                        missions.c.version == int(mission["version"]),
+                        missions.c.active_instance_id == row["source_instance_id"],
+                    )
+                )
+                .values(
+                    active_ocs_id=row["target_ocs_id"],
+                    active_instance_id=row["target_instance_id"],
+                    current_handoff_ref=handoff_id,
+                    autonomous_step_counter=int(mission["autonomous_step_counter"]) + 1,
+                    autonomous_handoff_counter=int(
+                        mission["autonomous_handoff_counter"]
+                    )
+                    + 1,
+                    version=next_version,
+                )
+            )
+            if claimed.rowcount != 1:
+                raise Trial2Hold("concurrent_handoff_conflict")
+
             conn.execute(
                 update(bindings)
                 .where(bindings.c.binding_id == source["binding_id"])
@@ -90,21 +116,6 @@ class IntegrityCheckedTrial2Store(Trial2PersistentStore):
                 update(handoffs)
                 .where(handoffs.c.handoff_id == handoff_id)
                 .values(accepted=True, acceptance_receipt_ref=receipt)
-            )
-            conn.execute(
-                update(missions)
-                .where(missions.c.mission_id == mission_id)
-                .values(
-                    active_ocs_id=row["target_ocs_id"],
-                    active_instance_id=row["target_instance_id"],
-                    current_handoff_ref=handoff_id,
-                    autonomous_step_counter=int(mission["autonomous_step_counter"]) + 1,
-                    autonomous_handoff_counter=int(
-                        mission["autonomous_handoff_counter"]
-                    )
-                    + 1,
-                    version=int(mission["version"]) + 1,
-                )
             )
             self._observe(
                 conn,
