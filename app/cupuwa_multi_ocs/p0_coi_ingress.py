@@ -4,7 +4,10 @@ from dataclasses import asdict
 from hashlib import sha256
 import json
 
-from app.profile_bindings.canonical_registry import CANONICAL_OCS_REGISTRY, validate_canonical_registry
+from app.profile_bindings.canonical_registry import (
+    CANONICAL_OCS_REGISTRY,
+    validate_canonical_registry,
+)
 
 MISSION_ID = "CUPUWA-P0-CORE-FINANCE-MATERIAL-001"
 MISSION_CONTRACT = "docs/cupuwa/CUPUWA-P0-CORE-FINANCE-MATERIAL-MISSION-001.md"
@@ -52,9 +55,18 @@ def discover_and_compose() -> dict[str, object]:
         "effects_permitted": False,
         "status": status,
     }
-    payload["discovery_receipt"] = _digest({"mission_id": MISSION_ID, "assignments": assignments, "missing": missing})
+    payload["discovery_receipt"] = _digest(
+        {"mission_id": MISSION_ID, "assignments": assignments, "missing": missing}
+    )
     payload["composition_receipt"] = _digest(payload)
     return payload
 
 if __name__ == "__main__":
-    print(json.dumps(discover_and_compose(), ensure_ascii=False, sort_keys=True, indent=2))
+    print(
+        json.dumps(
+            discover_and_compose(),
+            ensure_ascii=False,
+            sort_keys=True,
+            indent=2,
+        )
+    )
