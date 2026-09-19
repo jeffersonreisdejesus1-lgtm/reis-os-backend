@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from app.ocs_instances.auxiliary_runtime import (
@@ -11,11 +13,11 @@ def authority() -> AuxiliaryAuthority:
     return AuxiliaryAuthority("auth:1", ("bounded-capability",), "SOFIA")
 
 
-def test_spawn_replay_and_restart_are_idempotent(tmp_path):
+def test_spawn_replay_and_restart_are_idempotent(tmp_path: Path) -> None:
     path = tmp_path / "aux.sqlite3"
     calls = []
 
-    def execute(parent, capability, task):
+    def execute(parent: str, capability: str, task: str) -> tuple[str, str, str]:
         calls.append(task)
         return ("instance:1", "SUCCEEDED", "result:1")
 
@@ -34,7 +36,7 @@ def test_spawn_replay_and_restart_are_idempotent(tmp_path):
     assert AuxiliaryInstanceRuntime(path).reconcile("op:1") == first
 
 
-def test_invalid_authority_and_conflict_fail_closed(tmp_path):
+def test_invalid_authority_and_conflict_fail_closed(tmp_path: Path) -> None:
     runtime = AuxiliaryInstanceRuntime(tmp_path / "aux.sqlite3")
     with pytest.raises(PermissionError):
         runtime.spawn_instance(
@@ -56,7 +58,7 @@ def test_invalid_authority_and_conflict_fail_closed(tmp_path):
         )
 
 
-def test_missing_executor_never_simulates_spawn(tmp_path):
+def test_missing_executor_never_simulates_spawn(tmp_path: Path) -> None:
     with pytest.raises(
         InstanceBindingError, match="material_instance_executor_required"
     ):
