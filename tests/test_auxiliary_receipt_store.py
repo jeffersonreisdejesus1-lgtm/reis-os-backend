@@ -1,16 +1,22 @@
-from pathlib import Path
+from __future__ import annotations
+
 import sqlite3
+from pathlib import Path
 
 import pytest
 
-from app.ocs_instances.receipt import AuxiliaryReceiptState, create_auxiliary_receipt
+from app.ocs_instances.receipt import (
+    AuxiliaryReceipt,
+    AuxiliaryReceiptState,
+    create_auxiliary_receipt,
+)
 from app.ocs_instances.receipt_store import (
     AuxiliaryReceiptStore,
     AuxiliaryReceiptStoreError,
 )
 
 
-def receipt() -> object:
+def receipt() -> AuxiliaryReceipt:
     return create_auxiliary_receipt(
         operation_id="operation:1",
         mission_id="mission:1",
