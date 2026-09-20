@@ -6,7 +6,6 @@ from typing import Any
 
 from .registry import SkillDescriptor
 
-
 SkillProcedure = Callable[[dict[str, Any]], dict[str, Any]]
 
 
