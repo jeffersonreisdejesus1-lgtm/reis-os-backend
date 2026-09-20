@@ -1,3 +1,4 @@
+from pathlib import Path
 import sqlite3
 
 import pytest
@@ -9,7 +10,7 @@ from app.ocs_instances.receipt_store import (
 )
 
 
-def receipt():
+def receipt() -> object:
     return create_auxiliary_receipt(
         operation_id="operation:1",
         mission_id="mission:1",
@@ -26,7 +27,7 @@ def receipt():
     )
 
 
-def test_p04_persists_and_reads_after_restart(tmp_path):
+def test_p04_persists_and_reads_after_restart(tmp_path: Path) -> None:
     path = tmp_path / "receipts.sqlite3"
     first = AuxiliaryReceiptStore(path)
     first.begin("operation:1", "payload:1")
@@ -36,7 +37,7 @@ def test_p04_persists_and_reads_after_restart(tmp_path):
     assert restarted.read_receipt("operation:1") == receipt()
 
 
-def test_replay_returns_existing_record_without_new_execution(tmp_path):
+def test_replay_returns_existing_record_without_new_execution(tmp_path: Path) -> None:
     store = AuxiliaryReceiptStore(tmp_path / "receipts.sqlite3")
     store.begin("operation:1", "payload:1")
     stored = store.complete("operation:1", receipt(), result_reference="result:1")
@@ -44,14 +45,14 @@ def test_replay_returns_existing_record_without_new_execution(tmp_path):
     assert replay == stored
 
 
-def test_conflicting_payload_is_rejected(tmp_path):
+def test_conflicting_payload_is_rejected(tmp_path: Path) -> None:
     store = AuxiliaryReceiptStore(tmp_path / "receipts.sqlite3")
     store.begin("operation:1", "payload:1")
     with pytest.raises(AuxiliaryReceiptStoreError, match="payload_conflict"):
         store.begin("operation:1", "payload:2")
 
 
-def test_corrupt_receipt_fails_closed(tmp_path):
+def test_corrupt_receipt_fails_closed(tmp_path: Path) -> None:
     path = tmp_path / "receipts.sqlite3"
     store = AuxiliaryReceiptStore(path)
     store.begin("operation:1", "payload:1")
