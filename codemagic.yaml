@@ -1,0 +1,81 @@
+workflows:
+  cupuwa-p0-material:
+    name: CUPUWA MVP material execution
+    max_build_duration: 60
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: sofia/cupuwa-p0-001
+          include: true
+          source: true
+      cancel_previous_builds: true
+    environment:
+      java: 17
+    scripts:
+      - name: Validate CUPUWA MVP
+        script: |
+          set -euo pipefail
+          test ! -d frontend/command-android || echo 'COMMAND_MODULE_PRESENT_BUT_OUT_OF_SCOPE'
+          mkdir -p codemagic-artifacts
+          gradle --version 2>&1 | tee codemagic-artifacts/gradle-version.log
+          gradle --no-daemon -p frontend/cupuwa :app:clean :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:bundleRelease 2>&1 | tee codemagic-artifacts/gradle-build.log
+      - name: Collect CUPUWA APK, AAB and evidence
+        script: |
+          set -euxo pipefail
+          mkdir -p codemagic-artifacts/junit codemagic-artifacts/lint
+          APK="$(find frontend/cupuwa -type f -path '*/build/outputs/apk/debug/*.apk' | sort)"
+          test "$(printf '%s\n' "$APK" | sed '/^$/d' | wc -l)" -eq 1
+          cp "$APK" codemagic-artifacts/cupuwa-mvp-debug.apk
+          AAB="$(find frontend/cupuwa -type f -path '*/build/outputs/bundle/release/*.aab' | sort | head -n 1)"
+          test -n "$AAB"
+          cp "$AAB" codemagic-artifacts/cupuwa-mvp-release-unsigned.aab
+          AAPT="$(find "${ANDROID_HOME:-${ANDROID_SDK_ROOT}}" -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$AAPT"
+          "$AAPT" dump badging "$APK" | tee codemagic-artifacts/aapt-badging.txt
+          grep -F "package: name='com.jsonsoftware.cupuwa'" codemagic-artifacts/aapt-badging.txt
+          grep -F "application-label:'CUPUWA'" codemagic-artifacts/aapt-badging.txt
+          grep -F "launchable-activity: name='com.jsonsoftware.cupuwa.MainActivity'" codemagic-artifacts/aapt-badging.txt
+          ! grep -F "android.permission.INTERNET" frontend/cupuwa/app/src/main/AndroidManifest.xml
+          ! grep -F "android.permission.INTERNET" codemagic-artifacts/aapt-badging.txt
+          sha256sum "$APK" | tee codemagic-artifacts/cupuwa-mvp-debug.apk.sha256
+          sha256sum "$AAB" | tee codemagic-artifacts/cupuwa-mvp-release-unsigned.aab.sha256
+          find frontend/cupuwa -type f -path '*/build/test-results/*/*.xml' | sort | tee codemagic-artifacts/junit-xml-list.txt
+          JUNIT_COUNT=0
+          : > codemagic-artifacts/junit-verdict.txt
+          while IFS= read -r report; do
+            rel="${report#frontend/cupuwa/}"
+            mkdir -p "codemagic-artifacts/junit/$(dirname "$rel")"
+            cp "$report" "codemagic-artifacts/junit/$rel"
+            JUNIT_COUNT=$((JUNIT_COUNT + 1))
+            grep -Eq 'failures="0"' "$report"
+            grep -Eq 'errors="0"' "$report"
+            ! grep -Eq 'failures="[1-9]|errors="[1-9]' "$report"
+            printf '%s failures=0 errors=0\n' "$rel" | tee -a codemagic-artifacts/junit-verdict.txt
+          done < <(find frontend/cupuwa -type f -path '*/build/test-results/*/*.xml' | sort)
+          grep -F 'LedgerMathTest' codemagic-artifacts/junit-xml-list.txt
+          printf 'JUNIT_XML_COUNT=%s\n' "$JUNIT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
+          test "$JUNIT_COUNT" -ge 1
+          find frontend/cupuwa -type f \( -path '*/build/reports/lint-results-*.html' -o -path '*/build/reports/lint-results-*.xml' \) | sort | tee codemagic-artifacts/lint-report-list.txt
+          LINT_COUNT=0
+          while IFS= read -r report; do
+            cp "$report" "codemagic-artifacts/lint/$(basename "$report")"
+            LINT_COUNT=$((LINT_COUNT + 1))
+          done < <(find frontend/cupuwa -type f \( -path '*/build/reports/lint-results-*.html' -o -path '*/build/reports/lint-results-*.xml' \) | sort)
+          printf 'LINT_REPORT_COUNT=%s\n' "$LINT_COUNT" | tee -a codemagic-artifacts/evidence-manifest.txt
+          test "$LINT_COUNT" -ge 1
+          {
+            echo 'MISSION=CUPUWA-MVP-PLAYSTORE-BASELINE-001'
+            echo "HEAD=$(git rev-parse HEAD)"
+            echo 'PACKAGE=com.jsonsoftware.cupuwa'
+            echo 'VERSION_NAME=0.3.0-mvp'
+            echo 'LABEL=CUPUWA'
+            echo 'COMMAND_SEPARATE=true'
+            echo 'INTERNET=false'
+            echo 'APK=DEBUG_CANDIDATE'
+            echo 'AAB=UNSIGNED_RELEASE_CANDIDATE'
+            echo 'PRODUCTION_SIGNING=NOT_PERFORMED'
+            echo 'DEVICE=NOT_EXECUTED_IN_CI'
+          } | tee -a codemagic-artifacts/evidence-manifest.txt
+    artifacts:
+      - codemagic-artifacts/**
