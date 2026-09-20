@@ -28,12 +28,22 @@ def test_resolves_one_validated_skill_with_authority_reference() -> None:
 
 def test_missing_authority_fails_closed() -> None:
     with pytest.raises(PermissionError, match="authority_reference"):
-        resolve_skill(registry(), capability="run_tests", ocs_id="SOFIA", authority_ref=None)
+        resolve_skill(
+            registry(),
+            capability="run_tests",
+            ocs_id="SOFIA",
+            authority_ref=None,
+        )
 
 
 def test_unknown_capability_fails_closed() -> None:
     with pytest.raises(LookupError, match="not_unique"):
-        resolve_skill(registry(), capability="deploy", ocs_id="SOFIA", authority_ref="authority:mission-1")
+        resolve_skill(
+            registry(),
+            capability="deploy",
+            ocs_id="SOFIA",
+            authority_ref="authority:mission-1",
+        )
 
 
 def test_skill_cannot_grant_authority() -> None:
