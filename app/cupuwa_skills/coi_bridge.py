@@ -6,10 +6,10 @@ from typing import Any
 from app.cupuwa_multi_ocs.contracts import ContractViolation, MissionContract
 from app.cupuwa_multi_ocs.p0_coi_ingress import discover_and_compose
 
+from .executor import SkillReceipt
 from .integration import execute_mission_skill
 from .loader import SkillLoader
 from .registry import SkillRegistry
-from .executor import SkillReceipt
 
 
 @dataclass(frozen=True, slots=True)
