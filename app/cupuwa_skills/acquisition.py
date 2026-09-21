@@ -55,7 +55,9 @@ class SkillCandidateRegistry:
         fingerprint = sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        candidate_id = f"candidate:{skill_id}:{version}:{fingerprint[:16]}"
+        candidate_id = (
+            f"candidate:{skill_id}:{version}:{capability}:{proposed_by}"
+        )
         candidate = SkillCandidate(
             candidate_id=candidate_id,
             skill_id=skill_id,
