@@ -24,28 +24,32 @@
         android:textStyle="bold"
         android:layout_marginBottom="20dp" />
 
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/amount" android:textColor="@color/cupuwa_muted" android:textSize="12sp" />
     <com.google.android.material.textfield.TextInputLayout
         style="@style/Widget.Cupuwa.Field"
-        android:hint="@string/amount">
+        >
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/amountInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="56dp"
             android:inputType="text"
-            android:importantForAutofill="no" />
+            android:importantForAutofill="no"
+            android:hint="@string/amount" />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="12dp" android:text="@string/description" android:textColor="@color/cupuwa_muted" android:textSize="12sp" />
     <com.google.android.material.textfield.TextInputLayout
         style="@style/Widget.Cupuwa.Field"
         android:layout_marginTop="12dp"
-        android:hint="@string/description">
+        >
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/descriptionInput"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:minHeight="56dp"
-            android:inputType="textCapSentences" />
+            android:inputType="textCapSentences"
+            android:hint="@string/description" />
     </com.google.android.material.textfield.TextInputLayout>
 
     <com.google.android.material.button.MaterialButton
