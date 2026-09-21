@@ -10,6 +10,7 @@ from app.cupuwa_multi_ocs.contracts import ContractViolation, MissionContract
 from .coi_bridge import execute_coi_skill
 from .executor import SkillReceipt
 from .loader import SkillLoader
+from .receipt_store import SkillReceiptStore
 from .registry import SkillRegistry
 
 
@@ -27,23 +28,47 @@ def enforce_required_skills(
     mission: MissionContract,
     *,
     payloads: dict[str, dict[str, Any]],
+    receipt_store: SkillReceiptStore | None = None,
+    operation_id: str | None = None,
 ) -> SkillEnforcementReceipt:
     """Require every mission capability to cross the COI skill boundary."""
     if not mission.authority_ref:
         raise ContractViolation("mission_authority_required")
+    if (receipt_store is None) != (operation_id is None):
+        raise ContractViolation("receipt_store_operation_id_required_together")
     required = tuple(mission.required_capabilities)
     if set(payloads) != set(required):
         raise ContractViolation("required_capabilities_payload_mismatch")
 
     receipts: list[SkillReceipt] = []
     for capability in required:
+        payload = payloads[capability]
+        capability_operation_id = (
+            f"{operation_id}:{capability}" if operation_id is not None else None
+        )
+        if receipt_store is not None and capability_operation_id is not None:
+            recovered = receipt_store.recover_for_payload(
+                operation_id=capability_operation_id,
+                mission_id=mission.mission_id,
+                payload=payload,
+            )
+            if recovered is not None:
+                receipts.append(recovered.receipt)
+                continue
         result = execute_coi_skill(
             registry,
             loader,
             mission,
             capability=capability,
-            payload=payloads[capability],
+            payload=payload,
         )
+        if receipt_store is not None and capability_operation_id is not None:
+            receipt_store.persist(
+                operation_id=capability_operation_id,
+                mission_id=mission.mission_id,
+                receipt=result.receipt,
+                payload=payload,
+            )
         receipts.append(result.receipt)
 
     decision = {
