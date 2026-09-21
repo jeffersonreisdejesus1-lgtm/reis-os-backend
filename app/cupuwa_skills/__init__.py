@@ -10,11 +10,13 @@ from .enforcement import SkillEnforcementReceipt, enforce_required_skills
 from .executor import SkillReceipt, execute_skill
 from .integration import SkillMissionResult, execute_mission_skill
 from .loader import LoadedSkill, SkillLoader
+from .receipt_store import DurableSkillReceipt, SkillReceiptStore
 from .registry import SkillDescriptor, SkillRegistry
 from .resolver import SkillResolution, resolve_skill
 
 __all__ = [
     "COISkillExecution",
+    "DurableSkillReceipt",
     "LoadedSkill",
     "SkillAcquisitionReceipt",
     "SkillCandidate",
@@ -24,6 +26,7 @@ __all__ = [
     "SkillLoader",
     "SkillMissionResult",
     "SkillReceipt",
+    "SkillReceiptStore",
     "SkillRegistry",
     "SkillResolution",
     "enforce_required_skills",
