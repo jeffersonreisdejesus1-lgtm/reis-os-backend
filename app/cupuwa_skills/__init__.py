@@ -1,5 +1,10 @@
 """Governed capability-to-skill resolution for CUPUWA."""
 
+from .acquisition import (
+    SkillAcquisitionReceipt,
+    SkillCandidate,
+    SkillCandidateRegistry,
+)
 from .coi_bridge import COISkillExecution, execute_coi_skill
 from .enforcement import SkillEnforcementReceipt, enforce_required_skills
 from .executor import SkillReceipt, execute_skill
@@ -11,6 +16,9 @@ from .resolver import SkillResolution, resolve_skill
 __all__ = [
     "COISkillExecution",
     "LoadedSkill",
+    "SkillAcquisitionReceipt",
+    "SkillCandidate",
+    "SkillCandidateRegistry",
     "SkillDescriptor",
     "SkillEnforcementReceipt",
     "SkillLoader",
