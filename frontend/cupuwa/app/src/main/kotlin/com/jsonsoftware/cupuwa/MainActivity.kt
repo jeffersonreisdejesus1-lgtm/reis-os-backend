@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         setContentView(R.layout.activity_home)
+        findViewById<TextView>(R.id.buildMarker).text = "build fb955942 · formulário corrigido"
         LedgerMath.configureMoneyInput(findViewById(R.id.amountInput))
         store = LocalLedgerStore(this)
         adapter = MovementAdapter({ startEdit(it) }, { confirmDelete(it) })
