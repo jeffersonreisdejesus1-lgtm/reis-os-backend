@@ -8,7 +8,7 @@ from app.cupuwa_skills.loader import SkillLoader
 from app.cupuwa_skills.registry import SkillDescriptor, SkillRegistry
 
 
-def mission(authority_ref: str | None = "authority:mission-1") -> MissionContract:
+def mission(authority_ref: str = "authority:mission-1") -> MissionContract:
     return MissionContract(
         mission_id="mission-1",
         product="CUPUWA",
@@ -75,13 +75,8 @@ def test_missing_skill_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_authority_is_required_before_enforcement() -> None:
-    with pytest.raises(ContractViolation, match="authority"):
-        enforce_required_skills(
-            registry(),
-            SkillLoader({"test-skill": lambda payload: payload}),
-            mission(None),
-            payloads={"run_tests": {}},
-        )
+    with pytest.raises(ValueError, match="authority_ref"):
+        mission("")
 
 
 def test_payloads_must_cover_exact_required_capabilities(
