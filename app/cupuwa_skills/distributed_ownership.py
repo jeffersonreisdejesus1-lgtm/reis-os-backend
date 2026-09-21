@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .distributed_storage import (
     DistributedOperationRecord,
@@ -17,7 +17,7 @@ class Lease:
     expires_at: datetime
 
     def is_expired(self, *, now: datetime | None = None) -> bool:
-        current = now or datetime.now(timezone.utc)
+        current = now or datetime.now(UTC)
         return current >= self.expires_at
 
 

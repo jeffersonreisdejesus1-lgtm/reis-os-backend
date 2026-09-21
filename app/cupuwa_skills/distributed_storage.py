@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Protocol
+from typing import NoReturn, Protocol
 
 
 class DistributedOperationState(StrEnum):
@@ -58,7 +58,7 @@ class DistributedStorageAdapter(Protocol):
 class UnboundDistributedStorage:
     """Explicit fail-closed adapter until a backend is independently approved."""
 
-    def _unavailable(self) -> None:
+    def _unavailable(self) -> NoReturn:
         raise DistributedStorageUnavailable(
             "distributed storage backend is not bound"
         )
