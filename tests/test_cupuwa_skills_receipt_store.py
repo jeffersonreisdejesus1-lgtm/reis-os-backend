@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+from pathlib import Path
 
 import pytest
 
@@ -18,7 +19,7 @@ def receipt() -> SkillReceipt:
     )
 
 
-def test_persists_and_recovers_after_reopen(tmp_path) -> None:
+def test_persists_and_recovers_after_reopen(tmp_path: Path) -> None:
     path = tmp_path / "receipts.sqlite"
     first = SkillReceiptStore(sqlite3.connect(path))
     persisted = first.persist(
