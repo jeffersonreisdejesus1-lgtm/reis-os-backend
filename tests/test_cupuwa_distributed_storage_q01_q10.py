@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -24,7 +25,7 @@ AUTHORITY_REF = "authority://noesis/cupuwa-d06"
 
 def _key(
     operation_id: str,
-    payload: dict,
+    payload: dict[str, Any],
     mission: str = "M-D06",
 ) -> DistributedOperationKey:
     return DistributedOperationKey(
@@ -108,7 +109,13 @@ def _repo() -> Path:
     return Path.cwd()
 
 
-def _run(tmp_path: Path, cmd: str, payload: dict, op: str, owner: str) -> dict:
+def _run(
+    tmp_path: Path,
+    cmd: str,
+    payload: dict[str, Any],
+    op: str,
+    owner: str,
+) -> dict[str, Any]:
     proc = subprocess.run(
         [
             sys.executable,
@@ -127,7 +134,8 @@ def _run(tmp_path: Path, cmd: str, payload: dict, op: str, owner: str) -> dict:
         env=os.environ.copy(),
     )
     assert proc.returncode == 0, proc.stderr
-    return json.loads(proc.stdout.strip().splitlines()[-1])
+    loaded = json.loads(proc.stdout.strip().splitlines()[-1])
+    return cast(dict[str, Any], loaded)
 
 
 def test_q01_write_process_a_read_process_b(tmp_path: Path) -> None:
@@ -247,7 +255,11 @@ def test_q10_authority_ref_preserved(tmp_path: Path) -> None:
     assert receipt["authority_ref"] == AUTHORITY_REF
     recovered = store.recover("op-q10", owner_id="host-b")
     assert recovered.decision == "RECONCILE"
-    assert store.get_receipt("r-op-q10")["authority_ref"] == AUTHORITY_REF
+    after_first = store.get_receipt("r-op-q10")
+    assert after_first is not None
+    assert after_first["authority_ref"] == AUTHORITY_REF
     again = store.recover("op-q10", owner_id="host-c")
     assert again.digest == recovered.digest
-    assert store.get_receipt("r-op-q10")["authority_ref"] == AUTHORITY_REF
+    after_replay = store.get_receipt("r-op-q10")
+    assert after_replay is not None
+    assert after_replay["authority_ref"] == AUTHORITY_REF
