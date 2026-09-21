@@ -31,6 +31,8 @@ class SectionActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.navPlan).setOnClickListener { startActivity(intent.putExtra(EXTRA_SECTION, PLAN)) }
         findViewById<MaterialButton>(R.id.navInsights).setOnClickListener { startActivity(intent.putExtra(EXTRA_SECTION, INSIGHTS)) }
         findViewById<MaterialButton>(R.id.navSettings).setOnClickListener { startActivity(intent.putExtra(EXTRA_SECTION, SETTINGS)) }
+        val activeId = when { planning -> R.id.navPlan; insights -> R.id.navInsights; else -> R.id.navSettings }
+        findViewById<MaterialButton>(activeId).setTextColor(getColor(R.color.cupuwa_accent))
         findViewById<MaterialButton>(R.id.backButton).setOnClickListener { finish() }
         val store = ProductStore(this)
         if (planning) {
@@ -47,4 +49,3 @@ class SectionActivity : AppCompatActivity() {
     }
     companion object { const val EXTRA_SECTION = "section"; const val PLAN = "plan"; const val SETTINGS = "settings"; const val INSIGHTS = "insights" }
 }
-

@@ -25,6 +25,7 @@ class MovementActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.navPlan).setOnClickListener { startActivity(android.content.Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.PLAN)) }
         findViewById<MaterialButton>(R.id.navInsights).setOnClickListener { startActivity(android.content.Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.INSIGHTS)) }
         findViewById<MaterialButton>(R.id.navSettings).setOnClickListener { startActivity(android.content.Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.SETTINGS)) }
+        findViewById<MaterialButton>(R.id.navMovements).setTextColor(getColor(R.color.cupuwa_accent))
         store = LocalLedgerStore(this)
         kind = MoneyEntry.Kind.valueOf(
             intent.getStringExtra(EXTRA_KIND) ?: MoneyEntry.Kind.INCOME.name,

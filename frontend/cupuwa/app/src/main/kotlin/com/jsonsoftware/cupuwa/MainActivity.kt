@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.navPlan).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.PLAN)) }
         findViewById<MaterialButton>(R.id.navInsights).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.INSIGHTS)) }
         findViewById<MaterialButton>(R.id.navSettings).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.SETTINGS)) }
+        findViewById<MaterialButton>(R.id.navHome).setTextColor(getColor(R.color.cupuwa_accent))
         categories = product.categories()
         updateCategoryOptions(MoneyEntry.Kind.EXPENSE)
         refresh()
