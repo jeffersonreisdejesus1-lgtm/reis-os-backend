@@ -157,9 +157,18 @@ def test_q09_deterministic_recovery_receipt(tmp_path: Path) -> None:
     _run(tmp_path, "claim", payload, "op-q09", "host-a")
     _run(tmp_path, "succeed", payload, "op-q09", "host-a")
     first = _run(tmp_path, "recover", payload, "op-q09", "host-b")
+    recovery_path = tmp_path / "receipts" / "recovery-op-q09.json"
+    effect_path = tmp_path / "receipts" / "r-op-q09.json"
+    assert recovery_path.exists()
+    persisted = json.loads(recovery_path.read_text(encoding="utf-8"))
+    effect_before = effect_path.read_text(encoding="utf-8")
     second = _run(tmp_path, "recover", payload, "op-q09", "host-b")
-    assert first["digest"] == second["digest"]
-    assert first["decision"] == "RECONCILE"
+    third = _run(tmp_path, "recover", payload, "op-q09", "host-c")
+    assert first["digest"] == second["digest"] == third["digest"] == persisted["digest"]
+    assert first["decision"] == second["decision"] == "RECONCILE"
+    assert first["state"] == second["state"] == persisted["observed_state"] == "SUCCEEDED"
+    assert effect_path.read_text(encoding="utf-8") == effect_before
+    assert list(tmp_path.glob("receipts/recovery-op-q09*")) == [recovery_path]
 
 
 def test_q10_authority_ref_preserved(tmp_path: Path) -> None:
@@ -177,4 +186,7 @@ def test_q10_authority_ref_preserved(tmp_path: Path) -> None:
     assert receipt["authority_ref"] == AUTHORITY_REF
     recovered = store.recover("op-q10", owner_id="host-b")
     assert recovered.decision == "RECONCILE"
+    assert store.get_receipt("r-op-q10")["authority_ref"] == AUTHORITY_REF
+    again = store.recover("op-q10", owner_id="host-c")
+    assert again.digest == recovered.digest
     assert store.get_receipt("r-op-q10")["authority_ref"] == AUTHORITY_REF

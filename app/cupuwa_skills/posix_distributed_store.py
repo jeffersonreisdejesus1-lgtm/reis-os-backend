@@ -178,22 +178,61 @@ class PosixFileDistributedStorage:
         except json.JSONDecodeError as exc:
             raise LeaseConflict("corrupt_receipt") from exc
 
+    def _recovery_receipt_path(self, operation_id: str) -> Path:
+        return self.root / "receipts" / f"recovery-{operation_id}.json"
+
+    def _load_canonical_recovery(self, operation_id: str) -> RecoveryReceipt | None:
+        path = self._recovery_receipt_path(operation_id)
+        if not path.exists():
+            return None
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        return RecoveryReceipt(
+            operation_id=raw["operation_id"],
+            decision=raw["decision"],
+            observed_state=raw["observed_state"],
+            effect_observed=raw["effect_observed"],
+            evidence_reference=raw["evidence_reference"],
+            schema_version=raw.get("schema_version", "1.0"),
+        )
+
+    def _persist_canonical_recovery(self, receipt: RecoveryReceipt) -> None:
+        path = self._recovery_receipt_path(receipt.operation_id)
+        if path.exists():
+            return
+        payload = {
+            "decision": receipt.decision,
+            "digest": receipt.digest,
+            "effect_observed": receipt.effect_observed,
+            "evidence_reference": receipt.evidence_reference,
+            "observed_state": receipt.observed_state,
+            "operation_id": receipt.operation_id,
+            "schema_version": receipt.schema_version,
+        }
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+        tmp.replace(path)
+
     def recover(self, operation_id: str, *, owner_id: str) -> RecoveryReceipt:
+        canonical = self._load_canonical_recovery(operation_id)
+        if canonical is not None:
+            return canonical
         record = self.read_by_operation(operation_id)
         if record is None:
-            return reconcile_receipt(
+            receipt = reconcile_receipt(
                 operation_id=operation_id,
                 decision=RecoveryDecision.HOLD.value,
                 observed_state=DistributedOperationState.ABSENT.value,
                 effect_observed=None,
                 evidence_reference=None,
             )
+            self._persist_canonical_recovery(receipt)
+            return receipt
         receipt_readable = False
         effect_observed: bool | None = None
         if record.receipt_id:
             try:
-                receipt = self.get_receipt(record.receipt_id)
-                receipt_readable = receipt is not None
+                receipt_blob = self.get_receipt(record.receipt_id)
+                receipt_readable = receipt_blob is not None
                 if receipt_readable:
                     effect_observed = True
             except LeaseConflict:
@@ -231,13 +270,15 @@ class PosixFileDistributedStorage:
                 result_reference=record.result_reference,
             )
             self.write(reconciled)
-        return reconcile_receipt(
+        receipt = reconcile_receipt(
             operation_id=operation_id,
             decision=decision.value,
             observed_state=record.state.value,
             effect_observed=effect_observed,
             evidence_reference=evidence,
         )
+        self._persist_canonical_recovery(receipt)
+        return receipt
 
     def _read_lease(self, operation_id: str) -> Lease | None:
         path = self._lease_path(operation_id)
