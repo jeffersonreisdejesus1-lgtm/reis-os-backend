@@ -38,6 +38,22 @@ class SkillReceiptStore:
         )
         self._connection.commit()
 
+    def recover_for_payload(
+        self,
+        *,
+        operation_id: str,
+        mission_id: str,
+        payload: dict[str, Any],
+    ) -> DurableSkillReceipt | None:
+        existing = self._read(operation_id)
+        if existing is None:
+            return None
+        if existing.mission_id != mission_id:
+            raise ValueError("skill_receipt_conflict")
+        if existing.payload_fingerprint != self._digest(payload):
+            raise ValueError("skill_receipt_conflict")
+        return self.recover(operation_id)
+
     def persist(
         self,
         *,
