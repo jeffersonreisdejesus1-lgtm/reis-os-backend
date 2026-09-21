@@ -1,1 +1,1173 @@
-{"bound_head":"c83c78c167c184322553281ba30b41224c8ef977","executed_head":"c83c78c167c184322553281ba30b41224c8ef977","recovery_path":"B","probe_legend":"11 chars p01-p11 P=PASS N=NOT_PROVEN","historical":{"72ba8cb0be9647a2703fa59d97ff5f41a5037a49f627af1e71edf1aa1d4dcb49":"UNPUBLISHED_EVIDENCE","e3d45c4713022b61517f61fa27a672a9b4c3f9b73d218041726903f2bf7426c1":"HISTORICAL"},"denominator":72,"summary":{"PARTIAL":72,"PROVEN":0,"COI_LOCAL_EXECUTION_EXERCISED":25,"NO_COI_EXECUTION_PROOF":47},"rows":[{"id":"A11Y","identity":"identity://a11y","profile":"mobile_accessibility_semantics_screen_reader_input_audit","phys":"csp://a11y/current","cap":"accessibility","auth":"authority://a11y/current","coi":true,"exec":"COI_LOCAL_EXECUTION_EXERCISED","class":"PARTIAL","probes":"PPPPPPPPPPP","receipt":"c8a321c890b506709463933900652f9caf9fe400e341fdf5c25b1fd63635afba"}]}
+{
+  "schema_version": "W05-OCS-MATRIX-1",
+  "procedure": "CUPUWA-OCS-INDIVIDUAL-QUALIFICATION-001",
+  "bound_head": "514beac8c6800779308ba27d540e7c14e43d0204",
+  "ocs_count": 72,
+  "partial_count": 72,
+  "proven_count": 0,
+  "entries": [
+    {
+      "ocs_id": "NÓESIS",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "DÉDALA",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SÝNESIS",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "ÍRIS",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "LYRA",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SOFIA",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "MÊTIS",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "ÁGORA",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "AURI",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SYNERGEIA",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "TÊMIS",
+      "source": "foundation",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "DOCUMENTED_FOR_11_PROFILE_SET",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/profiles.py",
+        "app/cognitive_physiology/local_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "AURA",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "EIKÓN",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "TÝPOS",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "GRAMMÉ",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "LÉXIS",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "CHRÔMA",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SÊMA",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "KINÉSIS",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "FIGMA",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "DÉSMOS",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "GÉPHYRA",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "HÉSTIA",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "ROTA",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "PRÁXIS",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "MORPHÉ",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "ARGOS",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "DOKIMÉ",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "LEÍA",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "KRITÉRION",
+      "source": "visual",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/cupuwa_visual_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "AXÍA",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "HOROS",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "ODÓS",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "DOMÉA",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "NOMÍSMA",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "ARCHÉ",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "STÁTE",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "MNÉME",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "DIKTYO",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SYNCHRÓN",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SÝNDESI",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "KOTLIN",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "COMPOSÉ",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "DROÍD",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "GRADLE",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "FORMA",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SWIFT",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SWIFTUI",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "CUPERTINO",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "XCODE",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "APPLÉIA",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "APÍON",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "DATON",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "AUTHÉN",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SERVÍA",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "THREAT",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "KRYPTÓ",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "ASPÍS",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "PRIVÁTA",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "MONÁDA",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "SÝMPLEX",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "TELOS",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "A11Y",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "ANTÍPALOS",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "TÁCHOS",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "MNEMOS",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "ENERGEIA",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "PHAROS",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "PIPELINE",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "KLEIS",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "MIKRÓN",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    },
+    {
+      "ocs_id": "NEURÁ",
+      "source": "mobile_fullstack",
+      "declared": true,
+      "registered": true,
+      "physiology_status": "NOT_PROVEN_INDIVIDUALLY",
+      "host_available": "NOT_PROVEN",
+      "runtime_bound": "NOT_PROVEN",
+      "runtime_enforced": "NOT_PROVEN",
+      "execution_proven": false,
+      "classification": "PARTIAL",
+      "evidence_refs": [
+        "app/profile_bindings/mobile_fullstack_profiles.py",
+        "app/profile_bindings/canonical_registry.py"
+      ]
+    }
+  ]
+}
