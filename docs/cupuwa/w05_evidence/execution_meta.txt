@@ -1,0 +1,8 @@
+timestamp=2026-09-21T04:47:51Z
+executed_head=c83c78c167c184322553281ba30b41224c8ef977
+command=pytest -q --noconftest tests/test_cupuwa_d04_ocs_execution_probes.py
+pytest_exit:0
+command=ruff check tests/test_cupuwa_d04_ocs_execution_probes.py docs/cupuwa/W05-D04-OCS-EXECUTION-PROBES.md
+ruff_exit:0
+command=mypy tests/test_cupuwa_d04_ocs_execution_probes.py
+mypy_exit:0
