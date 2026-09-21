@@ -12,12 +12,13 @@ EXECUTED_HEAD: c83c78c167c184322553281ba30b41224c8ef977
 | ad2d3036a669225a730ecc9c932d6acb69bd3ae5 | HISTORICAL — MissionContract no teste D04 |
 | da1b582a61d75f221782c01f1e80c4d8eaac5bac | HISTORICAL — commit original dos probes D04 |
 | 61d896ace12000db080842f3986fe3162df7c12e | HISTORICAL — pacote D05/D06 anterior |
+| e3d45c4713022b61517f61fa27a672a9b4c3f9b73d218041726903f2bf7426c1 | HISTORICAL — hash órfão citado no D05 anterior; NÃO é o matrix atual |
 
 ## Evidência regenerada neste execution lineage
 
 | Artefato | Caminho | SHA256 |
 |---|---|---|
-| matrix.json | docs/cupuwa/w05_evidence/matrix.json | e3d45c4713022b61517f61fa27a672a9b4c3f9b73d218041726903f2bf7426c1 |
+| matrix.json | docs/cupuwa/w05_evidence/matrix.json | 72ba8cb0be9647a2703fa59d97ff5f41a5037a49f627af1e71edf1aa1d4dcb49 |
 | D04 | docs/cupuwa/W05-D04-OCS-EXECUTION-PROBES.md | 5a58ba5732c2d9d6216c3ed6ef62de3b6ffd81f333999a24d51283b1c660f6e5 |
 | pytest.log | docs/cupuwa/w05_evidence/pytest.log | 72f696e6c515884b061dcfa255ef16592a6e9a454ad5f8f33c2a316da2da8eab |
 | ruff.log | docs/cupuwa/w05_evidence/ruff.log | 82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18 |
