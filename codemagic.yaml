@@ -21,7 +21,7 @@ workflows:
           python3 -m venv .venv
           . .venv/bin/activate
           python -m pip install --upgrade pip
-          python -m pip install 'pytest>=8.4,<9.0' 'ruff>=0.12,<1.0' 'mypy>=1.17,<2.0'
+          python -m pip install -e '.[dev]'
           pytest --noconftest -q \
             tests/test_cupuwa_multi_ocs_contract_substrate.py \
             tests/test_ocs_canonical_registry.py \
