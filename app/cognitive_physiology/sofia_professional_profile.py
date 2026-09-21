@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 ROADMAP_SOURCE = "https://roadmap.sh/"
 ROADMAP_SOURCE_TYPE = "community_created_professional_roadmap"
 

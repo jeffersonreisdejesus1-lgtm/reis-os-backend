@@ -17,11 +17,17 @@ def test_sofia_profile_has_eight_competencies() -> None:
 
 
 def test_every_competency_maps_to_capability_and_skill() -> None:
-    assert all(item.capability and item.skill_id for item in SOFIA_PROFESSIONAL_COMPETENCIES)
+    assert all(
+        item.capability and item.skill_id
+        for item in SOFIA_PROFESSIONAL_COMPETENCIES
+    )
 
 
 def test_competencies_do_not_grant_authority() -> None:
-    assert all(item.authority_effect == "NONE" for item in SOFIA_PROFESSIONAL_COMPETENCIES)
+    assert all(
+        item.authority_effect == "NONE"
+        for item in SOFIA_PROFESSIONAL_COMPETENCIES
+    )
 
 
 def test_every_competency_requires_evidence() -> None:
