@@ -1,54 +1,20 @@
-# W05 D06 — Matriz final rebound
+# W05 D06
 
-Procedimento: CUPUWA-OCS-INDIVIDUAL-QUALIFICATION-001
-Branch: cupuwa/ocs-individual-qualification-001
-CURRENT_BOUND_HEAD: c83c78c167c184322553281ba30b41224c8ef977
 EXECUTED_HEAD: c83c78c167c184322553281ba30b41224c8ef977
 CURRENT_MATRIX_PATH: docs/cupuwa/w05_evidence/matrix.json
-CURRENT_MATRIX_SHA256: 72ba8cb0be9647a2703fa59d97ff5f41a5037a49f627af1e71edf1aa1d4dcb49
+CURRENT_MATRIX_SHA256: eb087e044f5b00ebd1399393c8b5b5efc500b494891375c42ebe8da3748920a8
+RECOVERY_PATH: B
 
-HISTORICAL (cadeia preservada):
-- ad2d3036a669225a730ecc9c932d6acb69bd3ae5 HISTORICAL
-- da1b582a61d75f221782c01f1e80c4d8eaac5bac HISTORICAL
-- 61d896ace12000db080842f3986fe3162df7c12e HISTORICAL
-- e3d45c4713022b61517f61fa27a672a9b4c3f9b73d218041726903f2bf7426c1 HISTORICAL orphan matrix hash
-
-## Classificação obrigatória
+72ba8cb0... = UNPUBLISHED_EVIDENCE
+e3d45c47... = HISTORICAL
 
 72 OCS = PARTIAL
 25 = COI local exercised / PARTIAL
 47 = execution not proven / PARTIAL
 PROVEN = 0
 
-## NOT_PROVEN (explícito)
+NOT_PROVEN: individual institutional runtime; complete physiology; external worker; material CUPUWA effect; complete Orchestrator; productive OCS operation.
 
-- individual institutional runtime
-- complete individual physiology
-- external worker/agent
-- material CUPUWA effect
-- complete institutional Orchestrator
-- productive OCS operation
-
-As 47 sem assignment COI não herdam evidência das 25.
-
-## Claims aceitos
-
-- registro canônico declara 72 identidades
-- 72 percorridas em série neste lineage
-- 25 exercitadas no fluxo COI local (procedimento de teste, não corpo da OCS)
-- matriz e logs físicos existem e são re-hasháveis
-
-## Resultado do procedimento
-
-D01 = PASS_WITH_LIMITS
-D02 = PASS_WITH_LIMITS
-D03 = PASS_WITH_LIMITS
-D04 = PASS_WITH_LIMITS
-D05 = PASS_WITH_LIMITS
-D06 = READY_FOR_AGORA_REQUALIFICATION
-
+D06 = READY_FOR_AGORA_REQUALIFICATION only after matrix readback PASS.
 W05 = HOLD até ÁGORA
-PROMOTION = NONE
-MERGE = NONE
-AUTHORITY_EXPANSION = NONE
-SYNESIS = DO_NOT_TRIGGER
+MERGE=NONE PROMOTION=NONE SYNESIS=DO_NOT_TRIGGER
