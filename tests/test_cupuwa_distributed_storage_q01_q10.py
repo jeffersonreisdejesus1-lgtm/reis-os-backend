@@ -22,7 +22,11 @@ from app.cupuwa_skills.posix_distributed_store import (
 AUTHORITY_REF = "authority://noesis/cupuwa-d06"
 
 
-def _key(operation_id: str, payload: dict, mission: str = "M-D06") -> DistributedOperationKey:
+def _key(
+    operation_id: str,
+    payload: dict,
+    mission: str = "M-D06",
+) -> DistributedOperationKey:
     return DistributedOperationKey(
         mission_id=mission,
         operation_id=operation_id,
@@ -31,32 +35,69 @@ def _key(operation_id: str, payload: dict, mission: str = "M-D06") -> Distribute
     )
 
 
-PROBE = r'''
-import json, sys
-from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-from app.cupuwa_skills.distributed_storage import DistributedOperationKey, DistributedOperationState, DistributedOperationRecord
-from app.cupuwa_skills.posix_distributed_store import PosixFileDistributedStorage, payload_fingerprint
-store = PosixFileDistributedStorage(Path(sys.argv[2]))
-cmd = sys.argv[3]
-payload = json.loads(sys.argv[4])
-op = sys.argv[5]
-owner = sys.argv[6]
-key = DistributedOperationKey("M-D06", op, payload_fingerprint(payload), "1.0")
-if cmd == "claim":
-    rec = store.claim(key, owner)
-    print(json.dumps({"pid": __import__("os").getpid(), "state": rec.state.value, "owner": rec.owner_id}))
-elif cmd == "read":
-    rec = store.read(key)
-    print(json.dumps({"pid": __import__("os").getpid(), "state": None if rec is None else rec.state.value, "owner": None if rec is None else rec.owner_id}))
-elif cmd == "succeed":
-    digest = store.put_receipt(f"r-{op}", {"authority_ref": "authority://noesis/cupuwa-d06", "ok": True})
-    rec = store.write(DistributedOperationRecord(key, DistributedOperationState.SUCCEEDED, owner, f"r-{op}", digest))
-    print(json.dumps({"pid": __import__("os").getpid(), "state": rec.state.value, "receipt": rec.receipt_id}))
-elif cmd == "recover":
-    receipt = store.recover(op, owner_id=owner)
-    print(json.dumps({"pid": __import__("os").getpid(), "decision": receipt.decision, "digest": receipt.digest, "state": receipt.observed_state}))
-'''
+PROBE = "\n".join(
+    [
+        "import json, sys",
+        "from pathlib import Path",
+        "sys.path.insert(0, sys.argv[1])",
+        "from app.cupuwa_skills.distributed_storage import (",
+        "    DistributedOperationKey,",
+        "    DistributedOperationState,",
+        "    DistributedOperationRecord,",
+        ")",
+        "from app.cupuwa_skills.posix_distributed_store import (",
+        "    PosixFileDistributedStorage,",
+        "    payload_fingerprint,",
+        ")",
+        "store = PosixFileDistributedStorage(Path(sys.argv[2]))",
+        "cmd = sys.argv[3]",
+        "payload = json.loads(sys.argv[4])",
+        "op = sys.argv[5]",
+        "owner = sys.argv[6]",
+        "key = DistributedOperationKey(",
+        '    "M-D06", op, payload_fingerprint(payload), "1.0"',
+        ")",
+        'if cmd == "claim":',
+        "    rec = store.claim(key, owner)",
+        "    print(json.dumps({",
+        '        "pid": __import__("os").getpid(),',
+        '        "state": rec.state.value,',
+        '        "owner": rec.owner_id,',
+        "    }))",
+        'elif cmd == "read":',
+        "    rec = store.read(key)",
+        "    print(json.dumps({",
+        '        "pid": __import__("os").getpid(),',
+        '        "state": None if rec is None else rec.state.value,',
+        '        "owner": None if rec is None else rec.owner_id,',
+        "    }))",
+        'elif cmd == "succeed":',
+        "    digest = store.put_receipt(",
+        '        f"r-{op}",',
+        '        {"authority_ref": "authority://noesis/cupuwa-d06", "ok": True},',
+        "    )",
+        "    rec = store.write(DistributedOperationRecord(",
+        "        key,",
+        "        DistributedOperationState.SUCCEEDED,",
+        "        owner,",
+        '        f"r-{op}",',
+        "        digest,",
+        "    ))",
+        "    print(json.dumps({",
+        '        "pid": __import__("os").getpid(),',
+        '        "state": rec.state.value,',
+        '        "receipt": rec.receipt_id,',
+        "    }))",
+        'elif cmd == "recover":',
+        "    receipt = store.recover(op, owner_id=owner)",
+        "    print(json.dumps({",
+        '        "pid": __import__("os").getpid(),',
+        '        "decision": receipt.decision,',
+        '        "digest": receipt.digest,',
+        '        "state": receipt.observed_state,',
+        "    }))",
+    ]
+)
 
 
 def _repo() -> Path:
@@ -69,7 +110,17 @@ def _repo() -> Path:
 
 def _run(tmp_path: Path, cmd: str, payload: dict, op: str, owner: str) -> dict:
     proc = subprocess.run(
-        [sys.executable, "-c", PROBE, str(_repo()), str(tmp_path), cmd, json.dumps(payload), op, owner],
+        [
+            sys.executable,
+            "-c",
+            PROBE,
+            str(_repo()),
+            str(tmp_path),
+            cmd,
+            json.dumps(payload),
+            op,
+            owner,
+        ],
         capture_output=True,
         text=True,
         cwd=str(_repo()),
@@ -146,7 +197,13 @@ def test_q08_corrupt_receipt_fail_closed(tmp_path: Path) -> None:
     store.claim(key, "host-a")
     (tmp_path / "receipts" / "r-bad.json").write_text("{", encoding="utf-8")
     store.write(
-        DistributedOperationRecord(key, DistributedOperationState.UNKNOWN, "host-a", "r-bad", None)
+        DistributedOperationRecord(
+            key,
+            DistributedOperationState.UNKNOWN,
+            "host-a",
+            "r-bad",
+            None,
+        )
     )
     receipt = store.recover("op-q08", owner_id="host-b")
     assert receipt.decision == "HOLD"
@@ -164,9 +221,13 @@ def test_q09_deterministic_recovery_receipt(tmp_path: Path) -> None:
     effect_before = effect_path.read_text(encoding="utf-8")
     second = _run(tmp_path, "recover", payload, "op-q09", "host-b")
     third = _run(tmp_path, "recover", payload, "op-q09", "host-c")
-    assert first["digest"] == second["digest"] == third["digest"] == persisted["digest"]
+    assert first["digest"] == second["digest"]
+    assert second["digest"] == third["digest"]
+    assert third["digest"] == persisted["digest"]
     assert first["decision"] == second["decision"] == "RECONCILE"
-    assert first["state"] == second["state"] == persisted["observed_state"] == "SUCCEEDED"
+    assert first["state"] == second["state"]
+    assert persisted["observed_state"] == "SUCCEEDED"
+    assert first["state"] == "SUCCEEDED"
     assert effect_path.read_text(encoding="utf-8") == effect_before
     assert list(tmp_path.glob("receipts/recovery-op-q09*")) == [recovery_path]
 

@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import asdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from pathlib import Path
+from typing import IO, Any, cast
 
 from .distributed_ownership import Lease, LeaseConflict, StaleOwner, validate_replay
 from .distributed_recovery import RecoveryDecision, RecoveryObservation, decide_recovery
@@ -21,7 +22,12 @@ LEASE_SECONDS = 30
 
 
 def payload_fingerprint(payload: object) -> str:
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+    encoded = json.dumps(
+        payload,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode()
     return sha256(encoded).hexdigest()
 
 
@@ -47,7 +53,7 @@ class PosixFileDistributedStorage:
     def _lease_path(self, operation_id: str) -> Path:
         return self.root / "leases" / f"{operation_id}.json"
 
-    def _lock_fd(self, operation_id: str):
+    def _lock_fd(self, operation_id: str) -> IO[str]:
         lock_path = self.root / "ops" / f"{operation_id}.lock"
         handle = open(lock_path, "a+", encoding="utf-8")
         if os.name == "posix":
@@ -56,16 +62,21 @@ class PosixFileDistributedStorage:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
         return handle
 
-    def _load_raw(self, operation_id: str) -> dict | None:
+    def _load_raw(self, operation_id: str) -> dict[str, Any] | None:
         path = self._op_path(operation_id)
         if not path.exists():
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            loaded = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise LeaseConflict("corrupt_operation_record") from exc
+        return cast(dict[str, Any], loaded)
 
-    def _dump(self, record: DistributedOperationRecord, extra: dict | None = None) -> None:
+    def _dump(
+        self,
+        record: DistributedOperationRecord,
+        extra: dict[str, Any] | None = None,
+    ) -> None:
         payload = {
             "key": asdict(record.key),
             "state": record.state.value,
@@ -79,7 +90,7 @@ class PosixFileDistributedStorage:
         tmp.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
         tmp.replace(self._op_path(record.key.operation_id))
 
-    def _to_record(self, raw: dict) -> DistributedOperationRecord:
+    def _to_record(self, raw: dict[str, Any]) -> DistributedOperationRecord:
         key = DistributedOperationKey(**raw["key"])
         return DistributedOperationRecord(
             key=key,
@@ -105,7 +116,11 @@ class PosixFileDistributedStorage:
         raw = self._load_raw(operation_id)
         return None if raw is None else self._to_record(raw)
 
-    def claim(self, key: DistributedOperationKey, owner_id: str) -> DistributedOperationRecord:
+    def claim(
+        self,
+        key: DistributedOperationKey,
+        owner_id: str,
+    ) -> DistributedOperationRecord:
         handle = self._lock_fd(key.operation_id)
         try:
             existing = self.read_by_operation(key.operation_id)
@@ -148,35 +163,47 @@ class PosixFileDistributedStorage:
                 raise LeaseConflict("cannot_write_absent_operation")
             if existing.owner_id and record.owner_id != existing.owner_id:
                 lease = self._read_lease(record.key.operation_id)
-                if lease and not lease.is_expired() and lease.owner_id != record.owner_id:
+                stale = (
+                    lease
+                    and not lease.is_expired()
+                    and lease.owner_id != record.owner_id
+                )
+                if stale:
                     raise StaleOwner("stale owner cannot overwrite")
-            if existing.state in {
+            terminal = {
                 DistributedOperationState.SUCCEEDED,
                 DistributedOperationState.RECONCILED,
-            } and record.state == DistributedOperationState.SUCCEEDED:
+            }
+            if existing.state in terminal and record.state == (
+                DistributedOperationState.SUCCEEDED
+            ):
                 return existing
-            if record.state == DistributedOperationState.SUCCEEDED and not record.receipt_id:
+            if (
+                record.state == DistributedOperationState.SUCCEEDED
+                and not record.receipt_id
+            ):
                 raise LeaseConflict("success_requires_receipt")
             self._dump(record)
             return record
         finally:
             handle.close()
 
-    def put_receipt(self, receipt_id: str, payload: dict) -> str:
+    def put_receipt(self, receipt_id: str, payload: dict[str, Any]) -> str:
         blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         digest = sha256(blob.encode()).hexdigest()
         path = self.root / "receipts" / f"{receipt_id}.json"
         path.write_text(blob, encoding="utf-8")
         return digest
 
-    def get_receipt(self, receipt_id: str) -> dict | None:
+    def get_receipt(self, receipt_id: str) -> dict[str, Any] | None:
         path = self.root / "receipts" / f"{receipt_id}.json"
         if not path.exists():
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            loaded = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise LeaseConflict("corrupt_receipt") from exc
+        return cast(dict[str, Any], loaded)
 
     def _recovery_receipt_path(self, operation_id: str) -> Path:
         return self.root / "receipts" / f"recovery-{operation_id}.json"
@@ -293,18 +320,21 @@ class PosixFileDistributedStorage:
         )
 
     def _write_lease(self, operation_id: str, owner_id: str, fencing: int) -> None:
-        expires = datetime.now(timezone.utc) + timedelta(seconds=LEASE_SECONDS)
+        expires = datetime.now(UTC) + timedelta(seconds=LEASE_SECONDS)
         payload = {
             "owner_id": owner_id,
             "fencing_token": fencing,
             "expires_at": expires.isoformat(),
         }
-        self._lease_path(operation_id).write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+        self._lease_path(operation_id).write_text(
+            json.dumps(payload, sort_keys=True),
+            encoding="utf-8",
+        )
 
     def expire_lease(self, operation_id: str) -> None:
         path = self._lease_path(operation_id)
         if not path.exists():
             return
         raw = json.loads(path.read_text(encoding="utf-8"))
-        raw["expires_at"] = (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat()
+        raw["expires_at"] = (datetime.now(UTC) - timedelta(seconds=1)).isoformat()
         path.write_text(json.dumps(raw, sort_keys=True), encoding="utf-8")
