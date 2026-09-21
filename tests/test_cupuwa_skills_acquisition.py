@@ -98,5 +98,6 @@ def test_conflicting_candidate_payload_fails_closed() -> None:
         "evidence": ("evidence",),
     }
     candidates.propose(**kwargs)
+    conflict: CandidateArgs = {**kwargs, "evidence": ("different",)}
     with pytest.raises(ValueError, match="candidate_payload_conflict"):
-        candidates.propose(**{**kwargs, "evidence": ("different",)})
+        candidates.propose(**conflict)
