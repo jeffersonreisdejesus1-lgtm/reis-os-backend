@@ -57,11 +57,15 @@ def reconciliation(state: ReconciliationState) -> ReconciliationResult:
         mission_id="CUPUWA-MULTI-OCS-SLICE-001",
         bound_head=HEAD,
         state=state,
-        accepted_receipts=("receipt-1",) if state is ReconciliationState.CONSISTENT else (),
+        accepted_receipts=(
+            ("receipt-1",) if state is ReconciliationState.CONSISTENT else ()
+        ),
     )
 
 
-def implementation(state: ReconciliationState, findings: tuple[str, ...] = ()) -> ImplementationContract:
+def implementation(
+    state: ReconciliationState, findings: tuple[str, ...] = ()
+) -> ImplementationContract:
     return ImplementationContract(
         mission_id="CUPUWA-MULTI-OCS-SLICE-001",
         bound_head=HEAD,
@@ -108,7 +112,9 @@ def test_memory_import_is_rejected() -> None:
 
 
 def test_contract_layer_material_effect_claim_is_rejected() -> None:
-    with pytest.raises(ContractViolation, match="handoff_material_effect_claim_prohibited"):
+    with pytest.raises(
+        ContractViolation, match="handoff_material_effect_claim_prohibited"
+    ):
         handoff(material_effect_claim=True)
 
 
@@ -131,12 +137,19 @@ def test_invalid_reconciliation_state_is_rejected() -> None:
         ReconciliationState.HOLD,
     ],
 )
-def test_non_consistent_reconciliation_cannot_execute(state: ReconciliationState) -> None:
+def test_non_consistent_reconciliation_cannot_execute(
+    state: ReconciliationState,
+) -> None:
     assert implementation(state).execution_allowed is False
 
 
 def test_unresolved_findings_prevent_execution() -> None:
-    assert implementation(ReconciliationState.CONSISTENT, ("open-finding",)).execution_allowed is False
+    assert (
+        implementation(
+            ReconciliationState.CONSISTENT, ("open-finding",)
+        ).execution_allowed
+        is False
+    )
 
 
 def test_consistent_reconciliation_is_contract_ready_not_material_effect() -> None:
@@ -154,5 +167,11 @@ def test_canonical_registry_still_prohibits_direct_effect_routes() -> None:
 
     validate_canonical_registry()
     assert len(CANONICAL_OCS_REGISTRY) == 72
-    assert all(profile.capability_adapters == () for profile in CANONICAL_OCS_REGISTRY.values())
-    assert all(profile.tool_permissions == () for profile in CANONICAL_OCS_REGISTRY.values())
+    assert all(
+        profile.capability_adapters == ()
+        for profile in CANONICAL_OCS_REGISTRY.values()
+    )
+    assert all(
+        profile.tool_permissions == ()
+        for profile in CANONICAL_OCS_REGISTRY.values()
+    )
