@@ -2,10 +2,54 @@ from __future__ import annotations
 
 import sqlite3
 
+import pytest
+
+from app.cupuwa_multi_ocs.contracts import MissionContract
+
 from app.cupuwa_skills.enforcement import enforce_required_skills
 from app.cupuwa_skills.loader import SkillLoader
 from app.cupuwa_skills.receipt_store import SkillReceiptStore
-from tests.test_cupuwa_skills_enforcement import compose_ready, mission, registry
+from app.cupuwa_skills.registry import SkillDescriptor, SkillRegistry
+
+
+def mission() -> MissionContract:
+    return MissionContract(
+        mission_id="mission-1",
+        product="CUPUWA",
+        increment_id="skills-runtime-binding",
+        bound_object="receipt-persistence",
+        bound_head="d18f01d47b0ae46d71d459391202b59ab73fda43",
+        requested_outcome="persist skill receipt",
+        constraints=("no_external_effect",),
+        authority_ref="authority:mission-1",
+        required_capabilities=("run_tests",),
+        evidence_policy="receipt_required",
+        completion_policy="qualified_only",
+    )
+
+
+def registry() -> SkillRegistry:
+    return SkillRegistry(
+        [
+            SkillDescriptor(
+                skill_id="test-skill",
+                version="1.0.0",
+                capabilities=frozenset({"run_tests"}),
+                compatible_ocs=frozenset({"SOFIA"}),
+            )
+        ]
+    )
+
+
+def compose_ready(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.cupuwa_skills.coi_bridge.discover_and_compose",
+        lambda: {
+            "status": "COMPOSED",
+            "assignments": [{"capability": "run_tests", "ocs_id": "SOFIA"}],
+            "composition_receipt": "composition-1",
+        },
+    )
 
 
 def test_enforcement_persists_and_replays_without_execution(monkeypatch) -> None:
