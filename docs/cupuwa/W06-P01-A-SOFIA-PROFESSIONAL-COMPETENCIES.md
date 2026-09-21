@@ -22,5 +22,5 @@ Arquivos:
 - app/cognitive_physiology/sofia_professional_profile.py
 - tests/test_sofia_professional_profile.py
 
-Status: IMPLEMENTED_CANDIDATE
-Qualificação: PENDING
+Status: CLOSED_WITH_BOUNDED_SCOPE
+Qualificação: PASS_WITH_LIMITS
