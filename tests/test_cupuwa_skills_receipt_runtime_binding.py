@@ -5,7 +5,7 @@ import sqlite3
 from app.cupuwa_skills.enforcement import enforce_required_skills
 from app.cupuwa_skills.loader import SkillLoader
 from app.cupuwa_skills.receipt_store import SkillReceiptStore
-from tests.test_cupuwa_skills_enforcement import mission, registry, compose_ready
+from tests.test_cupuwa_skills_enforcement import compose_ready, mission, registry
 
 
 def test_enforcement_persists_and_replays_without_execution(monkeypatch) -> None:
