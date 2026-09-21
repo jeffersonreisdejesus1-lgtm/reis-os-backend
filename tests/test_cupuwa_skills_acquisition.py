@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 import pytest
+from typing import TypedDict
 
 from app.cupuwa_skills.acquisition import SkillCandidateRegistry
 from app.cupuwa_skills.registry import SkillRegistry
+
+
+class CandidateArgs(TypedDict):
+    skill_id: str
+    version: str
+    capability: str
+    procedure: str
+    proposed_by: str
+    evidence: tuple[str, ...]
 
 
 def test_missing_skill_becomes_candidate_not_executable() -> None:
@@ -63,7 +73,7 @@ def test_validated_candidate_becomes_discoverable() -> None:
 
 def test_identical_candidate_is_idempotent() -> None:
     candidates = SkillCandidateRegistry()
-    kwargs = {
+    kwargs: CandidateArgs = {
         "skill_id": "same",
         "version": "1.0.0",
         "capability": "cap",
@@ -78,7 +88,7 @@ def test_identical_candidate_is_idempotent() -> None:
 
 def test_conflicting_candidate_payload_fails_closed() -> None:
     candidates = SkillCandidateRegistry()
-    kwargs = {
+    kwargs: CandidateArgs = {
         "skill_id": "same",
         "version": "1.0.0",
         "capability": "cap",
