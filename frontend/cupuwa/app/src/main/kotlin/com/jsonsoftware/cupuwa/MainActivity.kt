@@ -41,8 +41,14 @@ class MainActivity : AppCompatActivity() {
         store = LocalLedgerStore(this)
         adapter = MovementAdapter({ startEdit(it) }, { confirmDelete(it) })
         findViewById<RecyclerView>(R.id.historyList).apply { layoutManager = LinearLayoutManager(this@MainActivity); adapter = this@MainActivity.adapter }
-        findViewById<MaterialButton>(R.id.incomeButton).setOnClickListener { save(MoneyEntry.Kind.INCOME) }
-        findViewById<MaterialButton>(R.id.expenseButton).setOnClickListener { save(MoneyEntry.Kind.EXPENSE) }
+        findViewById<MaterialButton>(R.id.incomeButton).setOnClickListener {
+            updateCategoryOptions(MoneyEntry.Kind.INCOME)
+            save(MoneyEntry.Kind.INCOME)
+        }
+        findViewById<MaterialButton>(R.id.expenseButton).setOnClickListener {
+            updateCategoryOptions(MoneyEntry.Kind.EXPENSE)
+            save(MoneyEntry.Kind.EXPENSE)
+        }
         findViewById<MaterialButton>(R.id.cancelEditButton).setOnClickListener { clearEditor() }
         findViewById<MaterialButton>(R.id.navHome).setOnClickListener { }
         findViewById<MaterialButton>(R.id.navMovements).setOnClickListener { startActivity(Intent(this, MovementActivity::class.java)) }
@@ -50,11 +56,16 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.navInsights).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.INSIGHTS)) }
         findViewById<MaterialButton>(R.id.navSettings).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.SETTINGS)) }
         categories = product.categories()
-        findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).apply {
-            setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, categories.filter { it.kind == MoneyEntry.Kind.EXPENSE }.map { it.name }))
-            setText(categories.firstOrNull { it.kind == MoneyEntry.Kind.EXPENSE }?.name, false)
-        }
+        updateCategoryOptions(MoneyEntry.Kind.EXPENSE)
         refresh()
+    }
+
+    private fun updateCategoryOptions(kind: MoneyEntry.Kind) {
+        findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).apply {
+            val available = categories.filter { it.kind == kind }.map { it.name }
+            setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, available))
+            if (text?.toString() !in available) setText(available.firstOrNull().orEmpty(), false)
+        }
     }
 
     private fun save(kind: MoneyEntry.Kind) {
@@ -119,4 +130,3 @@ class MovementAdapter(private val onEdit: (MoneyEntry) -> Unit, private val onDe
     override fun onBindViewHolder(h: Holder, position: Int) { val e = items[position]; val income = e.kind == MoneyEntry.Kind.INCOME; h.description.text = e.description; h.meta.text = time.format(Date(e.createdAtMillis)) + if (income) " · entrada" else " · saída"; h.amount.text = (if (income) "+ " else "- ") + LedgerMath.formatBrl(e.cents); h.amount.setTextColor(h.itemView.context.getColor(if (income) R.color.cupuwa_income else R.color.cupuwa_expense)); h.edit.setOnClickListener { onEdit(e) }; h.delete.setOnClickListener { onDelete(e) } }
     class Holder(view: View) : RecyclerView.ViewHolder(view) { val description: TextView = view.findViewById(R.id.itemDescription); val meta: TextView = view.findViewById(R.id.itemMeta); val amount: TextView = view.findViewById(R.id.itemAmount); val edit: MaterialButton = view.findViewById(R.id.editButton); val delete: MaterialButton = view.findViewById(R.id.deleteButton) }
 }
-
