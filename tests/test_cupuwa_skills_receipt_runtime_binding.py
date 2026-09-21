@@ -5,7 +5,6 @@ import sqlite3
 import pytest
 
 from app.cupuwa_multi_ocs.contracts import MissionContract
-
 from app.cupuwa_skills.enforcement import enforce_required_skills
 from app.cupuwa_skills.loader import SkillLoader
 from app.cupuwa_skills.receipt_store import SkillReceiptStore
@@ -52,7 +51,9 @@ def compose_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_enforcement_persists_and_replays_without_execution(monkeypatch) -> None:
+def test_enforcement_persists_and_replays_without_execution(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     compose_ready(monkeypatch)
     store = SkillReceiptStore(sqlite3.connect(":memory:"))
     calls = 0
@@ -83,7 +84,9 @@ def test_enforcement_persists_and_replays_without_execution(monkeypatch) -> None
     assert calls == 1
 
 
-def test_enforcement_conflicting_replay_fails_closed(monkeypatch) -> None:
+def test_enforcement_conflicting_replay_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     compose_ready(monkeypatch)
     store = SkillReceiptStore(sqlite3.connect(":memory:"))
     loader = SkillLoader({"test-skill": lambda payload: {"ok": payload["value"]}})
