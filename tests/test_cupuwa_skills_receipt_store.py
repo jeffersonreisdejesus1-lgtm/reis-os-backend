@@ -80,7 +80,8 @@ def test_corrupted_receipt_is_rejected() -> None:
         payload={"value": True},
     )
     connection.execute(
-        "UPDATE skill_receipts SET result_digest = 'corrupt' WHERE operation_id = 'op-1'"
+        "UPDATE skill_receipts SET result_digest = 'corrupt' "
+        "WHERE operation_id = 'op-1'"
     )
     connection.commit()
     with pytest.raises(ValueError, match="corrupt"):
