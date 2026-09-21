@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import pytest
 from typing import TypedDict
+
+import pytest
 
 from app.cupuwa_skills.acquisition import SkillCandidateRegistry
 from app.cupuwa_skills.registry import SkillRegistry
