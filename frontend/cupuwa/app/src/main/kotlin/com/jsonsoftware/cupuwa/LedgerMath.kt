@@ -15,6 +15,7 @@ data class MoneyEntry(
     val accountId: Long? = null,
     val categoryId: Long? = null,
     val operationId: String = id.toString(),
+    val dateMillis: Long = createdAtMillis,
 ) {
     enum class Kind { INCOME, EXPENSE }
 }

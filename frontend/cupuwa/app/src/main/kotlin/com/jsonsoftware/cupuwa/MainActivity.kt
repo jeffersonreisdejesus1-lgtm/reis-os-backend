@@ -18,6 +18,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.UUID
+import java.util.Calendar
 
 class MainActivity : AppCompatActivity() {
     private lateinit var store: LocalLedgerStore
@@ -27,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     private var categories: List<Category> = emptyList()
     private var saveInProgress = false
     private var draftOperationId = UUID.randomUUID().toString()
+    private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
@@ -58,6 +60,8 @@ class MainActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.navSettings).setOnClickListener { startActivity(Intent(this, SectionActivity::class.java).putExtra(SectionActivity.EXTRA_SECTION, SectionActivity.SETTINGS)) }
         findViewById<MaterialButton>(R.id.navHome).setTextColor(getColor(R.color.cupuwa_accent))
         categories = product.categories()
+        setupAccounts()
+        findViewById<TextInputEditText>(R.id.dateInput).setText(dateFormat.format(Date()))
         updateCategoryOptions(MoneyEntry.Kind.EXPENSE)
         refresh()
     }
@@ -67,6 +71,14 @@ class MainActivity : AppCompatActivity() {
             val available = categories.filter { it.kind == kind }.map { it.name }
             setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, available))
             if (text?.toString() !in available) setText(available.firstOrNull().orEmpty(), false)
+        }
+    }
+
+    private fun setupAccounts() {
+        val accounts = product.accounts().filterNot { it.archived }
+        findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.accountInput).apply {
+            setAdapter(ArrayAdapter(context, android.R.layout.simple_dropdown_item_1line, accounts.map { it.name }))
+            setText(accounts.firstOrNull { it.id == product.activeAccountId() }?.name ?: accounts.firstOrNull()?.name.orEmpty(), false)
         }
     }
 
@@ -82,9 +94,12 @@ class MainActivity : AppCompatActivity() {
             val cents = LedgerMath.parseCents(amount.text?.toString().orEmpty()); val note = description.text?.toString().orEmpty().trim()
             val selectedName = findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).text?.toString().orEmpty()
             val categoryId = categories.firstOrNull { it.name == selectedName && it.kind == kind }?.id
-            val accountId = product.activeAccountId()
+            val accountName = findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.accountInput).text?.toString().orEmpty()
+            val accountId = product.accounts().firstOrNull { it.name == accountName }?.id ?: product.activeAccountId()
+            val dateText = findViewById<TextInputEditText>(R.id.dateInput).text?.toString().orEmpty()
+            val dateMillis = runCatching { dateFormat.parse(dateText)?.time ?: error("Data inválida") }.getOrElse { error("Use a data no formato dd/MM/aaaa") }
             val id = editingId
-            if (id == null) store.add(cents, kind, note, accountId = accountId, categoryId = categoryId, operationId = draftOperationId)
+            if (id == null) store.add(cents, kind, note, accountId = accountId, categoryId = categoryId, operationId = draftOperationId, dateMillis = dateMillis)
             else store.update(id, cents, kind, note, accountId = accountId, categoryId = categoryId)
             clearEditor()
             draftOperationId = UUID.randomUUID().toString()
@@ -99,10 +114,12 @@ class MainActivity : AppCompatActivity() {
         editingId = entry.id
         findViewById<TextInputEditText>(R.id.amountInput).setText(LedgerMath.formatBrl(entry.cents).removePrefix("- ").removePrefix("R$ ").trim())
         findViewById<TextInputEditText>(R.id.descriptionInput).setText(entry.description)
+        findViewById<TextInputEditText>(R.id.dateInput).setText(dateFormat.format(Date(entry.dateMillis)))
+        findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.accountInput).setText(product.accounts().firstOrNull { it.id == entry.accountId }?.name ?: "", false)
         findViewById<TextView>(R.id.composerTitle).text = getString(R.string.edit_entry); findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.VISIBLE
         findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).setText(categories.firstOrNull { it.id == entry.categoryId }?.name ?: "", false)
     }
-    private fun clearEditor() { editingId = null; findViewById<TextInputEditText>(R.id.amountInput).text?.clear(); findViewById<TextInputEditText>(R.id.descriptionInput).text?.clear(); findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).setText(categories.firstOrNull { it.kind == MoneyEntry.Kind.EXPENSE }?.name ?: "", false); findViewById<TextView>(R.id.composerTitle).text = getString(R.string.new_entry); findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.GONE }
+    private fun clearEditor() { editingId = null; findViewById<TextInputEditText>(R.id.amountInput).text?.clear(); findViewById<TextInputEditText>(R.id.descriptionInput).text?.clear(); findViewById<TextInputEditText>(R.id.dateInput).setText(dateFormat.format(Date())); findViewById<com.google.android.material.textfield.MaterialAutoCompleteTextView>(R.id.categoryInput).setText(categories.firstOrNull { it.kind == MoneyEntry.Kind.EXPENSE }?.name ?: "", false); findViewById<TextView>(R.id.composerTitle).text = getString(R.string.new_entry); findViewById<MaterialButton>(R.id.cancelEditButton).visibility = View.GONE }
 
     private fun refresh() {
         val entries = store.entries(); val profile = product.profile(); val accounts = product.accounts(); val categories = product.categories(); val budgets = product.budgets(); val goals = product.goals()
@@ -129,6 +146,6 @@ class MovementAdapter(private val onEdit: (MoneyEntry) -> Unit, private val onDe
     fun submit(value: List<MoneyEntry>) { items = value; notifyDataSetChanged() }
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = Holder(LayoutInflater.from(parent.context).inflate(R.layout.item_movement, parent, false))
     override fun getItemCount() = items.size
-    override fun onBindViewHolder(h: Holder, position: Int) { val e = items[position]; val income = e.kind == MoneyEntry.Kind.INCOME; h.description.text = e.description; h.meta.text = time.format(Date(e.createdAtMillis)) + if (income) " · entrada" else " · saída"; h.amount.text = (if (income) "+ " else "- ") + LedgerMath.formatBrl(e.cents); h.amount.setTextColor(h.itemView.context.getColor(if (income) R.color.cupuwa_income else R.color.cupuwa_expense)); h.edit.setOnClickListener { onEdit(e) }; h.delete.setOnClickListener { onDelete(e) } }
+    override fun onBindViewHolder(h: Holder, position: Int) { val e = items[position]; val income = e.kind == MoneyEntry.Kind.INCOME; h.description.text = e.description; h.meta.text = time.format(Date(e.dateMillis)) + if (income) " · entrada" else " · saída"; h.amount.text = (if (income) "+ " else "- ") + LedgerMath.formatBrl(e.cents); h.amount.setTextColor(h.itemView.context.getColor(if (income) R.color.cupuwa_income else R.color.cupuwa_expense)); h.edit.setOnClickListener { onEdit(e) }; h.delete.setOnClickListener { onDelete(e) } }
     class Holder(view: View) : RecyclerView.ViewHolder(view) { val description: TextView = view.findViewById(R.id.itemDescription); val meta: TextView = view.findViewById(R.id.itemMeta); val amount: TextView = view.findViewById(R.id.itemAmount); val edit: MaterialButton = view.findViewById(R.id.editButton); val delete: MaterialButton = view.findViewById(R.id.deleteButton) }
 }

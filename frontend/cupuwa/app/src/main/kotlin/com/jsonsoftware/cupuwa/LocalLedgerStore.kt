@@ -16,14 +16,15 @@ class LocalLedgerStore(context: Context) {
                     description = f[3], createdAtMillis = f.getOrNull(4)?.toLongOrNull() ?: f[0].toLong(),
                     accountId = f.getOrNull(5)?.toLongOrNull(), categoryId = f.getOrNull(6)?.toLongOrNull(),
                     operationId = f.getOrNull(7)?.ifBlank { null } ?: f[0],
+                    dateMillis = f.getOrNull(8)?.toLongOrNull() ?: (f.getOrNull(4)?.toLongOrNull() ?: f[0].toLong()),
                 )
             }.getOrNull()
         }.sortedByDescending { it.createdAtMillis }
 
-    fun add(cents: Long, kind: MoneyEntry.Kind, description: String, accountId: Long? = null, categoryId: Long? = null, operationId: String = UUID.randomUUID().toString()): MoneyEntry {
+    fun add(cents: Long, kind: MoneyEntry.Kind, description: String, accountId: Long? = null, categoryId: Long? = null, operationId: String = UUID.randomUUID().toString(), dateMillis: Long = System.currentTimeMillis()): MoneyEntry {
         entries().firstOrNull { it.operationId == operationId }?.let { return it }
         val now = System.currentTimeMillis()
-        val entry = MoneyEntry(now, cents, kind, defaultDescription(kind, description), now, accountId, categoryId, operationId = operationId)
+        val entry = MoneyEntry(now, cents, kind, defaultDescription(kind, description), now, accountId, categoryId, operationId = operationId, dateMillis = dateMillis)
         persist(listOf(entry) + entries()); return entry
     }
 
@@ -43,7 +44,7 @@ class LocalLedgerStore(context: Context) {
 
     private fun persist(items: List<MoneyEntry>) {
         val encoded = items.joinToString(RECORD_SEPARATOR) {
-            listOf(it.id, it.cents, it.kind.name, it.description, it.createdAtMillis, it.accountId ?: "", it.categoryId ?: "", it.operationId).joinToString(FIELD_SEPARATOR)
+            listOf(it.id, it.cents, it.kind.name, it.description, it.createdAtMillis, it.accountId ?: "", it.categoryId ?: "", it.operationId, it.dateMillis).joinToString(FIELD_SEPARATOR)
         }
         check(preferences.edit().putString(KEY_ENTRIES, encoded).commit()) { "Não foi possível salvar o lançamento" }
     }
