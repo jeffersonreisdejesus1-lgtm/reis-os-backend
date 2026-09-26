@@ -1,0 +1,22 @@
+name: OCS-Agent-01
+on:
+  workflow_dispatch:
+  push:
+    branches: ["experiment/ocs-agent-01"]
+    paths:
+      - "experiments/ocs-agent-01/**"
+      - ".github/workflows/ocs-agent-01.yml"
+permissions:
+  contents: read
+jobs:
+  execute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Execute tests
+        working-directory: experiments/ocs-agent-01
+        run: python -m unittest -v test_app.py
+      - name: Compile verification
+        working-directory: experiments/ocs-agent-01
+        run: python -m py_compile app.py test_app.py
