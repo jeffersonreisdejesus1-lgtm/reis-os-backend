@@ -1,0 +1,28 @@
+name: Visual Orchestrator Qualification
+on:
+  pull_request:
+    paths:
+      - "app/visual_orchestrator/**"
+      - "tests/test_visual_orchestrator.py"
+      - "artifacts/visual_orchestrator/**"
+      - ".github/workflows/visual-orchestrator-qualification.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  qualify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: python -m pip install -e ".[dev]"
+      - name: Unit and contract tests
+        run: python -m pytest -q tests/test_visual_orchestrator.py
+      - name: Ruff
+        run: python -m ruff check app/visual_orchestrator tests/test_visual_orchestrator.py
+      - name: Mypy
+        run: python -m mypy app/visual_orchestrator
