@@ -1,0 +1,26 @@
+catalog_scope_id: reis-os/control-plane/physiology-atlas/v0
+normalization_version: atlas-semantic-v1
+nodes:
+  - id: OCS:NOESIS
+    kind: OCS
+  - id: COMP:ORCHESTRATION
+    kind: COMPONENT
+edges:
+  - id: E1
+    type: COMPOSES
+    from: OCS:NOESIS
+    to: COMP:ORCHESTRATION
+thesis_packages:
+  - id: thesis-a
+    global_cap: HOLD
+  - id: thesis-b
+    global_cap: DEGRADE
+rules:
+  - id: deny-runtime-analogy
+    priority: 10
+    field: claim_kind
+    equals: RUNTIME_CAUSAL_EVENT
+    decision: DENY
+bindings:
+  - thesis_id: thesis-a
+    edge_id: E1

@@ -17,6 +17,7 @@ dependencies = [
   "python-jose[cryptography]>=3.5,<4.0",
   "passlib>=1.7,<2.0",
   "email-validator>=2.2,<3.0",
+  "PyYAML>=6.0,<7.0",
 ]
 
 [project.optional-dependencies]
@@ -52,10 +53,9 @@ plugins = ["pydantic.mypy"]
 exclude = ["migrations/versions"]
 
 [[tool.mypy.overrides]]
-module = ["jose.*", "passlib.*"]
+module = ["jose.*", "passlib.*", "yaml.*"]
 ignore_missing_imports = true
 
 [tool.setuptools.packages.find]
 include = ["app*"]
 exclude = ["tests*", "migrations*", "artifacts*"]
-
